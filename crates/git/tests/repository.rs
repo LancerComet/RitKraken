@@ -1,7 +1,7 @@
 use std::{fs, path::Path, process::Command};
 
 use ritkraken_git::{
-    FileTarget, PATCH_VIEW_LIMIT, PatchSelection, PatchSide, Repo, Scope, Upstream,
+    CommitPerson, FileTarget, PATCH_VIEW_LIMIT, PatchSelection, PatchSide, Repo, Scope, Upstream,
 };
 
 fn command(directory: Option<&Path>) -> Command {
@@ -121,6 +121,7 @@ fn partial_stage_preserves_other_edits_and_refuses_a_stale_patch() {
     assert_eq!(snapshot.status.unstaged.len(), 1);
     let detail = repo.detail(&snapshot.commits[0]).unwrap();
     assert_eq!(detail.changes[0].path, Path::new(name));
+    assert!(detail.co_authors.is_empty());
     let committed = repo
         .file_contents(&FileTarget {
             scope: Scope::Commit {
@@ -140,6 +141,64 @@ fn partial_stage_preserves_other_edits_and_refuses_a_stale_patch() {
     assert!(limited.history_limited);
     assert_eq!(limited.commits[0].id, snapshot.commits[0].id);
     assert_eq!(limited.commits.len(), 1);
+}
+
+#[test]
+fn commit_detail_lists_co_authors_and_the_committer() {
+    let (_directory, repo) = fixture();
+    let message = concat!(
+        "Update the renderer\n\n",
+        "Co-authored-by: Example in the body <sample@example.invalid>\n",
+        "This paragraph documents the trailer syntax.\n\n",
+        "Co-authored-by: 山田 太郎 <taro@example.invalid>\n",
+        "co-authored-by: Duplicate <TARO@EXAMPLE.INVALID>\n",
+        "Co-authored-by: Mina Author <author@example.invalid>\n",
+        "Co-authored-by: Missing address\n",
+        "Reviewed-by: Reviewer <reviewer@example.invalid>\n",
+        "Co-authored-by: Alex\n",
+        " Rossi <alex@example.invalid>\n",
+    );
+    git_output(
+        command(Some(repo.root()))
+            .env("GIT_COMMITTER_NAME", "Dana Committer")
+            .env("GIT_COMMITTER_EMAIL", "committer@example.invalid")
+            .env("GIT_COMMITTER_DATE", "2001-06-10T12:00:00+00:00")
+            .args([
+                "commit",
+                "--allow-empty",
+                "--author=Mina Author <author@example.invalid>",
+                "--date=2000-06-09T12:00:00+00:00",
+                "--message",
+                message,
+            ]),
+    );
+    let snapshot = repo.snapshot(Some(1)).unwrap();
+    let commit = &snapshot.commits[0];
+    let detail = repo.detail(commit).unwrap();
+    assert_eq!(commit.author, "Mina Author");
+    assert!(commit.date.starts_with("2000/"));
+    assert!(detail.committed_date.starts_with("2001/"));
+    assert_eq!(detail.message, message.trim_end());
+    assert_eq!(
+        detail.committer,
+        CommitPerson {
+            name: "Dana Committer".into(),
+            email: "committer@example.invalid".into(),
+        }
+    );
+    assert_eq!(
+        detail.co_authors,
+        [
+            CommitPerson {
+                name: "山田 太郎".into(),
+                email: "taro@example.invalid".into(),
+            },
+            CommitPerson {
+                name: "Alex Rossi".into(),
+                email: "alex@example.invalid".into(),
+            },
+        ]
+    );
 }
 
 fn apply_line(repo: &Repo, scope: Scope, side: PatchSide, number: usize) {

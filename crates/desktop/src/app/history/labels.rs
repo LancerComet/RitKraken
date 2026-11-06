@@ -1,13 +1,10 @@
-use std::collections::HashMap;
+mod view;
 
-use gpui_kit::{component::tooltip::Tooltip, prelude::*, *};
+use std::{collections::HashMap, sync::Arc};
+
 use ritkraken_git::{RefKind, Snapshot};
 
-use super::graph::{BAND_HEIGHT, CONNECTOR_OPACITY};
-use crate::app::{
-    refs::ref_icon,
-    widgets::{TEXT, icon},
-};
+pub(super) use view::ref_labels;
 
 #[derive(Debug)]
 pub(super) struct RefBadge {
@@ -38,7 +35,7 @@ impl RefBadge {
     }
 }
 
-pub(super) fn group_refs(snapshot: &Snapshot) -> HashMap<String, Vec<RefBadge>> {
+pub(super) fn group_refs(snapshot: &Snapshot) -> HashMap<String, Arc<[RefBadge]>> {
     let mut groups: HashMap<String, Vec<RefBadge>> = HashMap::new();
     let mut local_positions = HashMap::new();
     let head = snapshot.head.as_deref();
@@ -89,6 +86,9 @@ pub(super) fn group_refs(snapshot: &Snapshot) -> HashMap<String, Vec<RefBadge>> 
         }
     }
     groups
+        .into_iter()
+        .map(|(id, badges)| (id, badges.into()))
+        .collect()
 }
 
 fn remote_branch_name<'a>(name: &'a str, remotes: &[String]) -> Option<&'a str> {
@@ -101,75 +101,6 @@ fn remote_branch_name<'a>(name: &'a str, remotes: &[String]) -> Option<&'a str> 
         .max_by_key(|(length, _)| *length)
         .map(|(_, branch)| branch)
         .or_else(|| name.split_once('/').map(|(_, branch)| branch))
-}
-
-pub(super) fn ref_labels(labels: &[RefBadge], color: u32) -> Div {
-    div()
-        .min_w_0()
-        .flex()
-        .items_center()
-        .pl(px(7.))
-        .gap(px(3.))
-        .overflow_hidden()
-        .when_some(labels.split_first(), |element, (first, rest)| {
-            let tooltip = first.tooltip();
-            element
-                .child(
-                    badge(color, if first.checked_out { 0.48 } else { 0.25 })
-                        .id("commit-ref")
-                        .tooltip(move |window, cx| Tooltip::new(tooltip.clone()).build(window, cx))
-                        .when(first.checked_out, |e| {
-                            e.child(badge_icon("icons/check.svg"))
-                        })
-                        .child(
-                            div()
-                                .min_w_0()
-                                .truncate()
-                                .child(first.display_name().to_owned()),
-                        )
-                        .children(first.icons().map(|kind| badge_icon(ref_icon(kind)))),
-                )
-                .when(!rest.is_empty(), |element| {
-                    let tooltip = rest
-                        .iter()
-                        .map(RefBadge::tooltip)
-                        .collect::<Vec<_>>()
-                        .join("\n");
-                    element.child(
-                        badge(color, 0.25)
-                            .id("additional-refs")
-                            .flex_shrink_0()
-                            .tooltip(move |window, cx| {
-                                Tooltip::new(tooltip.clone()).build(window, cx)
-                            })
-                            .child(format!("+{}", rest.len())),
-                    )
-                })
-                .child(
-                    div()
-                        .flex_1()
-                        .h(px(1.))
-                        .bg(rgb(color).opacity(CONNECTOR_OPACITY)),
-                )
-        })
-}
-
-fn badge_icon(path: &'static str) -> Svg {
-    icon(path, TEXT).size(px(16.))
-}
-
-fn badge(color: u32, opacity: f32) -> Div {
-    div()
-        .min_w_0()
-        .h(BAND_HEIGHT)
-        .px(px(4.))
-        .flex()
-        .items_center()
-        .gap(px(3.))
-        .rounded(px(2.))
-        .text_size(px(12.))
-        .text_color(rgb(TEXT))
-        .bg(rgb(color).opacity(opacity))
 }
 
 #[cfg(test)]

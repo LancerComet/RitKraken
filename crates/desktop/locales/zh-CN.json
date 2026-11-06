@@ -23,6 +23,8 @@
     "commit": {
       "added": "新增 %{count} 个",
       "authored": "编写于 %{date}",
+      "co_authors": "共同作者",
+      "committed": "提交于 %{date}",
       "conflicted": "冲突 %{count} 个",
       "copy_sha": "复制 SHA",
       "deleted": "删除 %{count} 个",
@@ -31,7 +33,6 @@
       "modified": "修改 %{count} 个",
       "parent": "父提交 %{sha}",
       "renamed": "重命名 %{count} 个",
-      "sha": "提交 %{sha}",
       "view_all_files": "查看所有文件",
       "view_changes": "查看更改",
       "worktree_changes": "工作区有 %{count} 个变更文件"
@@ -39,7 +40,8 @@
     "common": {
       "browse": "浏览…",
       "cancel": "取消",
-      "open": "打开"
+      "open": "打开",
+      "retry": "重试"
     },
     "error": {
       "binary_file": "二进制文件无法以文本方式预览。",
@@ -68,7 +70,6 @@
       "ref_outside_history": "此引用不在已加载的历史记录中。",
       "refresh_after_operation": "%{previous}\n刷新失败。\n%{detail}",
       "repository_location": "请先输入仓库位置。",
-      "restore_repositories": "之前打开的仓库无法访问。",
       "run_git": "无法运行 Git。\n%{detail}",
       "stale_patch": "磁盘上的差异已变化。请查看刷新后的差异，再暂存。",
       "unstageable_selection": "无法单独暂存或取消暂存所选内容。",
@@ -161,6 +162,10 @@
       "projects": "项目目录",
       "recent": "最近打开",
       "recent_heading": "最近打开的仓库",
+      "sort": "排序",
+      "sort_ascending": "名称正序（A–Z）",
+      "sort_default": "默认顺序",
+      "sort_descending": "名称倒序（Z–A）",
       "title": "仓库",
       "url": "仓库 URL",
       "url_heading": "仓库 URL",

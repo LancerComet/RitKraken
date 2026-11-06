@@ -1,4 +1,5 @@
 mod commit;
+mod commit_people;
 mod files;
 mod summary;
 mod worktree;
@@ -77,6 +78,7 @@ pub(super) struct ChangesState {
     pub(super) summary: LocalizedInput,
     pub(super) description: LocalizedInput<TextareaMode>,
     tree: bool,
+    worktree_panes: Entity<gpui_kit::base::ResizableState>,
     message_panes: Entity<gpui_kit::base::ResizableState>,
     _summary: Subscription,
 }
@@ -86,7 +88,7 @@ impl ChangesState {
         let summary =
             LocalizedInput::new("app.changes.summary", cx, |cx| InputState::new(window, cx));
         let description = LocalizedInput::new("app.changes.description", cx, |cx| {
-            TextareaState::new(window, cx).rows(3)
+            TextareaState::new(window, cx).rows(1)
         });
         let subscription = cx.subscribe_in(
             &summary,
@@ -108,6 +110,7 @@ impl ChangesState {
             summary,
             description,
             tree: false,
+            worktree_panes: cx.new(|_| gpui_kit::base::ResizableState::default()),
             message_panes: cx.new(|_| gpui_kit::base::ResizableState::default()),
             _summary: subscription,
         }

@@ -23,6 +23,8 @@
     "commit": {
       "added": "%{count} added",
       "authored": "Authored %{date}",
+      "co_authors": "Co-authors",
+      "committed": "Committed %{date}",
       "conflicted": "%{count} conflicted",
       "copy_sha": "Copy SHA",
       "deleted": "%{count} deleted",
@@ -31,7 +33,6 @@
       "modified": "%{count} modified",
       "parent": "Parent %{sha}",
       "renamed": "%{count} renamed",
-      "sha": "Commit %{sha}",
       "view_all_files": "View all files",
       "view_changes": "View changes",
       "worktree_changes": "Changed files in working directory (%{count})"
@@ -39,7 +40,8 @@
     "common": {
       "browse": "Browse…",
       "cancel": "Cancel",
-      "open": "Open"
+      "open": "Open",
+      "retry": "Retry"
     },
     "error": {
       "binary_file": "Binary file contents cannot be previewed as text.",
@@ -68,7 +70,6 @@
       "ref_outside_history": "This ref is outside the loaded history.",
       "refresh_after_operation": "%{previous}\nRefresh failed.\n%{detail}",
       "repository_location": "Enter the repository location first.",
-      "restore_repositories": "Previously opened repositories are unavailable.",
       "run_git": "Could not run Git.\n%{detail}",
       "stale_patch": "The diff changed on disk. Review the refreshed diff before staging.",
       "unstageable_selection": "This selection cannot be staged or unstaged separately.",
@@ -161,6 +162,10 @@
       "projects": "Project Directories",
       "recent": "Recently Opened",
       "recent_heading": "RECENT REPOSITORIES",
+      "sort": "Sort",
+      "sort_ascending": "Name (A–Z)",
+      "sort_default": "Default order",
+      "sort_descending": "Name (Z–A)",
       "title": "Repositories",
       "url": "Repository URL",
       "url_heading": "REPOSITORY URL",

@@ -1,5 +1,5 @@
 use gpui_kit::{
-    component::{Sizable, input::Input, scroll::ScrollableElement},
+    component::{input::Input, scroll::ScrollableElement},
     prelude::*,
     *,
 };
@@ -7,12 +7,12 @@ use ritkraken_git::Repo;
 
 use crate::i18n::tr;
 
-use super::{ManagerMode, OpenRepo, RepoList};
+use super::{ICON_SIZE, ManagerMode, OpenRepo, RepoList};
 use crate::app::{
     Client,
     widgets::{
-        HEADER, HOVER, LINE, MUTED, PAPER, TEAL, Tone, WHITE, button, error_text, heading,
-        modal_backdrop, note,
+        HEADER, LINE, MUTED, PAPER, TEAL, Tone, WHITE, button, button_content, error_text, heading,
+        modal_backdrop,
     },
 };
 
@@ -90,6 +90,7 @@ impl Client {
         let dimensions = window.viewport_size();
         let width = (dimensions.width - px(44.)).min(px(900.));
         let height = (dimensions.height - px(62.)).min(px(650.));
+        let title_padding = px(3.);
         let open = mode == ManagerMode::Open;
         modal_backdrop().child(
             div()
@@ -107,9 +108,10 @@ impl Client {
                         .flex()
                         .items_center()
                         .justify_between()
-                        .h(px(39.))
+                        .h(px(39.) + title_padding * 2.)
                         .flex_shrink_0()
                         .px(px(13.))
+                        .py(title_padding)
                         .bg(rgb(HEADER))
                         .border_b_1()
                         .border_color(rgb(LINE))
@@ -119,13 +121,16 @@ impl Client {
                                 .font_weight(FontWeight::MEDIUM)
                                 .child(tr!("app.repositories.manager")),
                         )
-                        .child(button(
-                            "close-manager",
-                            "×",
-                            Tone::Plain,
-                            !self.session.opening,
-                            cx.listener(|this, _, window, cx| this.escape(window, cx)),
-                        )),
+                        .child(
+                            button(
+                                "close-manager",
+                                "×",
+                                Tone::Plain,
+                                !self.session.opening,
+                                cx.listener(|this, _, window, cx| this.escape(window, cx)),
+                            )
+                            .text_size(ICON_SIZE * 1.5),
+                        ),
                 )
                 .when_some(self.manager.error.as_ref(), |element, error| {
                     element.child(error_text(error))
@@ -173,7 +178,8 @@ impl Client {
                                 ),
                         )
                         .when(open, |body| {
-                            body.child(self.open_sources(cx)).child(self.open_list(cx))
+                            body.child(self.open_sources(cx))
+                                .child(self.open_list(window, cx))
                         })
                         .when(!open, |body| body.child(self.repository_form(mode, cx))),
                 ),
@@ -191,9 +197,9 @@ impl Client {
             .border_r_1()
             .border_color(rgb(LINE))
             .child(
-                button(
+                button_content(
                     "browse-repo",
-                    format!("▱  {}", tr!("app.repositories.open_repository")),
+                    source_label(tr!("app.repositories.open_repository"), Some("▱")),
                     Tone::Plain,
                     !self.session.opening,
                     cx.listener(|this, _, window, cx| this.browse(false, window, cx)),
@@ -203,12 +209,12 @@ impl Client {
             )
             .children(
                 [
-                    (RepoList::Recent, "◷", "app.repositories.recent"),
-                    (RepoList::Favorites, "☆", "app.repositories.favorites"),
+                    (RepoList::Recent, "app.repositories.recent"),
+                    (RepoList::Favorites, "app.repositories.favorites"),
                 ]
                 .into_iter()
-                .map(|(list, glyph, key)| {
-                    self.repo_list_button(key, format!("{glyph}  {}", tr!(key)), list, cx)
+                .map(|(list, key)| {
+                    self.repo_list_button(key, tr!(key), list, cx)
                         .h(px(34.))
                         .rounded(px(0.))
                 }),
@@ -232,7 +238,8 @@ impl Client {
                             !self.session.opening,
                             cx.listener(|this, _, window, cx| this.browse(true, window, cx)),
                         )
-                        .h(px(21.)),
+                        .h(px(21.))
+                        .text_size(ICON_SIZE),
                     ),
             )
             .child(
@@ -263,140 +270,19 @@ impl Client {
         list: RepoList,
         cx: &mut Context<Self>,
     ) -> Stateful<Div> {
-        button(
+        let glyph = match list {
+            RepoList::Recent => Some("◷"),
+            RepoList::Favorites => Some("☆"),
+            RepoList::Project(_) => None,
+        };
+        button_content(
             id,
-            label,
+            source_label(label, glyph),
             Tone::Plain.selected_when(self.manager.list == list),
             !self.session.opening,
             cx.listener(move |this, _, window, cx| this.change_repo_list(list.clone(), window, cx)),
         )
         .justify_start()
-    }
-
-    fn open_list(&self, cx: &mut Context<Self>) -> Div {
-        let (label, repositories) = match &self.manager.list {
-            RepoList::Recent => (tr!("app.repositories.recent"), &self.saved.recent),
-            RepoList::Favorites => (tr!("app.repositories.favorites"), &self.saved.favorites),
-            RepoList::Project(path) => (Repo::name_from_path(path), &self.manager.projects),
-        };
-        let filter = self.manager.search.read(cx).value().to_lowercase();
-        div()
-            .flex_1()
-            .min_w_0()
-            .flex()
-            .flex_col()
-            .child(
-                div()
-                    .flex()
-                    .items_center()
-                    .justify_between()
-                    .gap(px(7.))
-                    .px(px(9.))
-                    .h(px(40.))
-                    .border_b_1()
-                    .border_color(rgb(LINE))
-                    .child(div().truncate().text_size(px(16.)).child(label))
-                    .child(
-                        div()
-                            .w(px(190.))
-                            .child(Input::new(&self.manager.search).small()),
-                    ),
-            )
-            .child(
-                div().flex_1().min_h_0().child(
-                    div()
-                        .size_full()
-                        .flex()
-                        .flex_col()
-                        .px(px(8.))
-                        .when(repositories.is_empty(), |e| {
-                            e.child(note(tr!("app.repositories.empty_list")))
-                        })
-                        .children(
-                            repositories
-                                .iter()
-                                .enumerate()
-                                .map(|(index, path)| (index, path, Repo::name_from_path(path)))
-                                .filter(|(_, _, name)| name.to_lowercase().contains(&filter))
-                                .map(|(index, path, name)| {
-                                    let root = path.clone();
-                                    let favorite = self.saved.favorites.contains(path);
-                                    let star_path = path.clone();
-                                    div()
-                                        .id(("open-recent", index))
-                                        .h(px(47.))
-                                        .flex_shrink_0()
-                                        .flex()
-                                        .items_center()
-                                        .px(px(8.))
-                                        .gap(px(8.))
-                                        .cursor_pointer()
-                                        .hover(|s| s.bg(rgb(HOVER)))
-                                        .on_click(cx.listener(move |this, _, window, cx| {
-                                            this.open_repo(
-                                                OpenRepo::Open(root.clone()),
-                                                window,
-                                                cx,
-                                            );
-                                        }))
-                                        .child(
-                                            div()
-                                                .flex_1()
-                                                .min_w_0()
-                                                .flex()
-                                                .flex_col()
-                                                .gap(px(2.))
-                                                .child(
-                                                    div()
-                                                        .truncate()
-                                                        .font_weight(FontWeight::MEDIUM)
-                                                        .child(name),
-                                                )
-                                                .child(
-                                                    div()
-                                                        .truncate()
-                                                        .text_size(px(11.))
-                                                        .text_color(rgb(MUTED))
-                                                        .child(path.to_string_lossy().into_owned()),
-                                                ),
-                                        )
-                                        .child(button(
-                                            ("favorite", index),
-                                            if favorite { "★" } else { "☆" },
-                                            Tone::Plain,
-                                            true,
-                                            cx.listener(move |this, _, _, cx| {
-                                                cx.stop_propagation();
-                                                this.toggle_favorite(star_path.clone(), cx);
-                                            }),
-                                        ))
-                                }),
-                        )
-                        .overflow_y_scrollbar(),
-                ),
-            )
-            .child(
-                div()
-                    .flex()
-                    .items_center()
-                    .gap(px(5.))
-                    .p(px(9.))
-                    .border_t_1()
-                    .border_color(rgb(LINE))
-                    .child(
-                        div()
-                            .flex_1()
-                            .min_w_0()
-                            .child(Input::new(&self.manager.path).small()),
-                    )
-                    .child(button(
-                        "open-path",
-                        tr!("app.common.open"),
-                        Tone::Green,
-                        !self.session.opening,
-                        cx.listener(|this, _, window, cx| this.open_from_input(window, cx)),
-                    )),
-            )
     }
 
     fn repository_form(&self, mode: ManagerMode, cx: &mut Context<Self>) -> Div {
@@ -453,4 +339,23 @@ impl Client {
                 .h(px(31.)),
             )
     }
+}
+
+fn source_label(label: impl Into<SharedString>, glyph: Option<&'static str>) -> Div {
+    div()
+        .min_w_0()
+        .flex()
+        .items_center()
+        .gap(px(6.))
+        .when_some(glyph, |element, glyph| {
+            element.child(
+                div()
+                    .w(ICON_SIZE)
+                    .flex_shrink_0()
+                    .text_size(ICON_SIZE)
+                    .text_center()
+                    .child(glyph),
+            )
+        })
+        .child(div().truncate().child(label.into()))
 }

@@ -11,6 +11,8 @@ use crate::app::{
     widgets::{HOVER, MUTED, PAPER, SELECT, Tone, button, icon, note},
 };
 
+pub(super) const FILE_ROW_HEIGHT: Pixels = px(32.);
+
 impl Client {
     pub(super) fn file_mode(&self, tab: &RepoTab, cx: &mut Context<Self>) -> Div {
         let id = tab.id;
@@ -159,7 +161,7 @@ impl Client {
 fn file_row(depth: usize) -> Div {
     div()
         .w_full()
-        .h(px(32.))
+        .h(FILE_ROW_HEIGHT)
         .flex()
         .items_center()
         .pl(px(10. + depth as f32 * 13.))

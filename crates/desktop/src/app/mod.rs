@@ -22,7 +22,7 @@ use message::Message;
 use operations::RepoOperation;
 use preferences::PreferenceDraft;
 use repository_manager::{OpenRepo, RepositoryManager};
-use session::{RepoTab, Session};
+use session::{RepoTab, Session, Tab};
 use settings::SavedRepos;
 use toolbar::BranchDialog;
 use workspace::WorkspacePanes;
@@ -117,15 +117,15 @@ impl Client {
     }
 
     fn current(&self) -> Option<&RepoTab> {
-        self.tab(self.session.active?)
+        self.session.active_tab()?.ready()
     }
 
     fn tab(&self, id: u64) -> Option<&RepoTab> {
-        self.session.tabs.iter().find(|tab| tab.id == id)
+        self.session.entry(id)?.ready()
     }
 
     fn tab_mut(&mut self, id: u64) -> Option<&mut RepoTab> {
-        self.session.tabs.iter_mut().find(|tab| tab.id == id)
+        self.session.entry_mut(id)?.ready_mut()
     }
 
     fn spawn_background<T: Send + 'static>(

@@ -1,7 +1,15 @@
+mod detail;
+
+use std::thread;
+
 use crate::{
-    Change, Repo, Result, Status, Upstream,
+    Change, Error, Repo, Result, Status, Upstream,
     protocol::{path_from_bytes, text},
 };
+
+pub use detail::{CommitDetail, CommitPerson};
+
+const COMMIT_DATE_FORMAT: &str = "--date=format-local:%Y/%m/%d @ %H:%M";
 
 #[derive(Clone, Debug)]
 pub struct Commit {
@@ -52,26 +60,44 @@ impl Snapshot {
     }
 }
 
-#[derive(Debug)]
-pub struct CommitDetail {
-    pub message: String,
-    pub changes: Vec<Change>,
-}
-
 impl Repo {
     pub fn snapshot(&self, history_limit: Option<usize>) -> Result<Snapshot> {
-        let head = self.resolve_ref("HEAD")?;
-        let branch = self.checked_out_branch()?;
-        let status = self.status()?;
-        let (refs, upstream) = self.references(branch.as_deref())?;
-        let remotes = self.remotes()?;
-        let has_stash = self.resolve_ref("refs/stash")?.is_some();
+        thread::scope(|scope| {
+            let history = thread::Builder::new()
+                .spawn_scoped(scope, || self.history_commits(history_limit))?;
+            let status = thread::Builder::new().spawn_scoped(scope, || self.status())?;
+            let references = thread::Builder::new().spawn_scoped(scope, || {
+                let branch = self.checked_out_branch()?;
+                let (refs, upstream) = self.references(branch.as_deref())?;
+                Ok::<_, Error>((branch, refs, upstream))
+            })?;
+            let head = self.resolve_ref("HEAD")?;
+            let remotes = self.remotes()?;
+            let has_stash = self.resolve_ref("refs/stash")?.is_some();
+            let status = status.join().expect("status reader panicked")?;
+            let (branch, refs, upstream) = references.join().expect("reference reader panicked")?;
+            let (commits, history_limited) = history.join().expect("history reader panicked")?;
+            Ok(Snapshot {
+                branch,
+                head,
+                status,
+                refs,
+                remotes,
+                upstream,
+                has_stash,
+                commits,
+                history_limited,
+            })
+        })
+    }
+
+    fn history_commits(&self, history_limit: Option<usize>) -> Result<(Vec<Commit>, bool)> {
         let mut args = vec![
             "log",
             "--exclude=refs/stash",
             "--all",
             "--topo-order",
-            "--date=format-local:%Y/%m/%d @ %H:%M",
+            COMMIT_DATE_FORMAT,
             "--encoding=UTF-8",
             "--format=%H%x00%P%x00%an%x00%ae%x00%ad%x00%s",
             "-z",
@@ -85,48 +111,7 @@ impl Repo {
         if let Some(limit) = history_limit {
             commits.truncate(limit);
         }
-        Ok(Snapshot {
-            branch,
-            head,
-            status,
-            refs,
-            remotes,
-            upstream,
-            has_stash,
-            commits,
-            history_limited,
-        })
-    }
-
-    pub fn detail(&self, commit: &Commit) -> Result<CommitDetail> {
-        let message = self.read(&["show", "--no-patch", "--format=%B", &commit.id, "--"])?;
-        let args = match commit.parents.first() {
-            Some(parent) => vec![
-                "diff",
-                "--name-status",
-                "-z",
-                "-M",
-                parent,
-                &commit.id,
-                "--",
-            ],
-            None => vec![
-                "diff-tree",
-                "--root",
-                "--no-commit-id",
-                "--name-status",
-                "-r",
-                "-z",
-                "-M",
-                &commit.id,
-                "--",
-            ],
-        };
-        let changes = parse_name_status(&self.read(&args)?);
-        Ok(CommitDetail {
-            message: text(&message).trim_end().to_owned(),
-            changes,
-        })
+        Ok((commits, history_limited))
     }
 
     pub fn committed_files(&self, id: &str) -> Result<Vec<Change>> {
@@ -214,24 +199,4 @@ fn parse_log(bytes: &[u8]) -> Vec<Commit> {
             subject: text(fields[5]),
         })
         .collect()
-}
-
-fn parse_name_status(bytes: &[u8]) -> Vec<Change> {
-    let mut fields = bytes.split(|byte| *byte == 0);
-    let mut changes = Vec::new();
-    while let Some(code) = fields.next().and_then(|field| field.first()).copied() {
-        let Some(first) = fields.next() else { break };
-        let (path, previous) = if matches!(code, b'R' | b'C') {
-            let Some(second) = fields.next() else { break };
-            (path_from_bytes(second), Some(path_from_bytes(first)))
-        } else {
-            (path_from_bytes(first), None)
-        };
-        changes.push(Change {
-            path,
-            previous,
-            code,
-        });
-    }
-    changes
 }

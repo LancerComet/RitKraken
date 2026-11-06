@@ -38,6 +38,7 @@ impl Client {
         let count = history.graph.rows.len() + usize::from(show_wip);
         let view = cx.weak_entity();
         let focus = tab.history.focus.clone();
+        let allow_ref_hover = self.manager.mode.is_none() && !self.branch_dialog.open;
         let lazy =
             self.saved.preferences.lazy_history && history.snapshot.history_limited && !tab.busy;
         let mut list = uniform_list(("history", id), count, move |range, window, cx| {
@@ -58,6 +59,7 @@ impl Client {
                         show_wip,
                         graph_width,
                         selected == selection,
+                        allow_ref_hover,
                     );
                     let view = view.clone();
                     let focus = focus.clone();
@@ -154,9 +156,14 @@ fn history_row(
     show_wip: bool,
     graph_width: Pixels,
     selected: bool,
+    allow_ref_hover: bool,
 ) -> Stateful<Div> {
     let commit = index.map(|index| &history.snapshot.commits[index]);
-    let labels = commit.map_or(&[][..], |commit| history.labels_for(&commit.id));
+    let labels = commit.and_then(|commit| {
+        history
+            .labels_for(&commit.id)
+            .map(|labels| (commit.id.as_str(), labels))
+    });
     let color = index.map_or(TEAL, |index| history.graph.rows[index].node.color);
     let element = div()
         .id(("commit-row", row))
@@ -167,13 +174,17 @@ fn history_row(
         .cursor_pointer()
         .bg(rgb(if selected { SELECT } else { WHITE }))
         .hover(|style| style.bg(rgb(if selected { SELECT } else { HOVER })))
-        .child(ref_labels(labels, color).w(REF_WIDTH).flex_shrink_0())
+        .child(
+            ref_labels(labels, color, allow_ref_hover)
+                .w(REF_WIDTH)
+                .flex_shrink_0(),
+        )
         .child(graph_cell(
             history,
             index,
             graph_width,
             show_wip,
-            !labels.is_empty(),
+            labels.is_some(),
         ));
     if let Some(commit) = commit {
         element

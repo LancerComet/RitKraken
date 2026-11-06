@@ -17,7 +17,7 @@ pub(super) struct History {
     pub position: HashMap<String, usize>,
     pub(super) worktree_summary: ChangeSummary,
     graph: GraphLayout,
-    labels: HashMap<String, Vec<RefBadge>>,
+    labels: HashMap<String, Arc<[RefBadge]>>,
 }
 
 impl History {
@@ -41,8 +41,8 @@ impl History {
         }))
     }
 
-    fn labels_for(&self, id: &str) -> &[RefBadge] {
-        self.labels.get(id).map_or(&[], Vec::as_slice)
+    fn labels_for(&self, id: &str) -> Option<&Arc<[RefBadge]>> {
+        self.labels.get(id).filter(|labels| !labels.is_empty())
     }
 
     fn head_index(&self) -> Option<usize> {

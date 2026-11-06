@@ -24,6 +24,8 @@
       "added": "新增 %{count} 個",
       "conflicted": "衝突 %{count} 個",
       "authored": "撰寫於 %{date}",
+      "co_authors": "共同作者",
+      "committed": "提交於 %{date}",
       "copy_sha": "複製 SHA",
       "deleted": "刪除 %{count} 個",
       "loading": "正在載入提交…",
@@ -31,7 +33,6 @@
       "modified": "修改 %{count} 個",
       "parent": "父提交 %{sha}",
       "renamed": "重新命名 %{count} 個",
-      "sha": "提交 %{sha}",
       "view_all_files": "查看所有檔案",
       "view_changes": "查看變更",
       "worktree_changes": "工作區有 %{count} 個變更檔案"
@@ -39,7 +40,8 @@
     "common": {
       "browse": "瀏覽…",
       "cancel": "取消",
-      "open": "開啟"
+      "open": "開啟",
+      "retry": "重試"
     },
     "error": {
       "binary_file": "二進位檔案無法以文字方式預覽。",
@@ -68,7 +70,6 @@
       "ref_outside_history": "此參照不在已載入的歷史記錄中。",
       "refresh_after_operation": "%{previous}\n重新整理失敗。\n%{detail}",
       "repository_location": "請先輸入儲存庫位置。",
-      "restore_repositories": "先前開啟的儲存庫無法存取。",
       "run_git": "無法執行 Git。\n%{detail}",
       "stale_patch": "磁碟上的差異已變更。請查看更新後的差異，再暫存。",
       "unstageable_selection": "無法單獨暫存或取消暫存所選內容。",
@@ -161,6 +162,10 @@
       "projects": "專案目錄",
       "recent": "最近開啟",
       "recent_heading": "最近開啟的儲存庫",
+      "sort": "排序",
+      "sort_ascending": "名稱正序（A–Z）",
+      "sort_default": "預設順序",
+      "sort_descending": "名稱倒序（Z–A）",
       "title": "儲存庫",
       "url": "儲存庫網址",
       "url_heading": "儲存庫網址",

@@ -1,4 +1,6 @@
-use std::sync::Arc;
+mod restore;
+
+use std::{path::Path, sync::Arc};
 
 use gpui_kit::*;
 use ritkraken_git::Repo;
@@ -13,10 +15,80 @@ use super::{
 
 #[derive(Default)]
 pub(super) struct Session {
-    pub(super) tabs: Vec<RepoTab>,
+    pub(super) tabs: Vec<Tab>,
     pub(super) active: Option<u64>,
-    pub(super) next_tab: u64,
+    next_tab: u64,
     pub(super) opening: bool,
+}
+
+impl Session {
+    fn next_id(&mut self) -> u64 {
+        let id = self.next_tab;
+        self.next_tab += 1;
+        id
+    }
+
+    pub(super) fn active_tab(&self) -> Option<&Tab> {
+        self.entry(self.active?)
+    }
+
+    pub(super) fn entry(&self, id: u64) -> Option<&Tab> {
+        self.tabs.iter().find(|tab| tab.id() == id)
+    }
+
+    pub(super) fn entry_mut(&mut self, id: u64) -> Option<&mut Tab> {
+        self.tabs.iter_mut().find(|tab| tab.id() == id)
+    }
+}
+
+pub(super) enum Tab {
+    Saved(restore::SavedTab),
+    Ready(Box<RepoTab>),
+}
+
+impl Tab {
+    pub(super) fn id(&self) -> u64 {
+        match self {
+            Self::Saved(tab) => tab.id,
+            Self::Ready(tab) => tab.id,
+        }
+    }
+
+    pub(super) fn root(&self) -> &Path {
+        match self {
+            Self::Saved(tab) => &tab.path,
+            Self::Ready(tab) => tab.repo.root(),
+        }
+    }
+
+    pub(super) fn name(&self) -> String {
+        Repo::name_from_path(self.root())
+    }
+
+    pub(super) fn ready(&self) -> Option<&RepoTab> {
+        match self {
+            Self::Ready(tab) => Some(tab),
+            Self::Saved(_) => None,
+        }
+    }
+
+    pub(super) fn ready_mut(&mut self) -> Option<&mut RepoTab> {
+        match self {
+            Self::Ready(tab) => Some(tab),
+            Self::Saved(_) => None,
+        }
+    }
+
+    pub(super) fn can_close(&self) -> bool {
+        !self.ready().is_some_and(|tab| tab.busy)
+    }
+
+    pub(super) fn is_busy(&self) -> bool {
+        match self {
+            Self::Saved(tab) => tab.is_loading(),
+            Self::Ready(tab) => tab.busy,
+        }
+    }
 }
 
 pub(super) struct RepoTab {
@@ -42,18 +114,30 @@ impl RepoTab {
 
 impl Client {
     pub(super) fn show_tab(&mut self, id: u64, window: &mut Window, cx: &mut Context<Self>) {
-        let Some(tab) = self.tab(id) else { return };
-        let first_selection = (tab.changes.request == 0).then(|| tab.history.selected.clone());
+        if self.session.entry(id).is_none() {
+            return;
+        }
         self.session.active = Some(id);
         self.manager.mode = None;
         self.preferences = None;
         self.branch_dialog.open = false;
         self.focus.focus(window, cx);
-        if let Some(selection) = first_selection {
-            self.select(id, selection, Some(ScrollStrategy::Top), window, cx);
-        }
+        self.load_saved_tab(id, window, cx);
+        self.select_initial_commit(id, window, cx);
         self.persist_session();
         cx.notify();
+    }
+
+    fn select_initial_commit(&mut self, id: u64, window: &mut Window, cx: &mut Context<Self>) {
+        if let Some(tab) = self.tab(id).filter(|tab| tab.changes.request == 0) {
+            self.select(
+                id,
+                tab.history.selected.clone(),
+                Some(ScrollStrategy::Top),
+                window,
+                cx,
+            );
+        }
     }
 
     pub(super) fn close_tab(&mut self, id: u64, window: &mut Window, cx: &mut Context<Self>) {
@@ -61,7 +145,7 @@ impl Client {
             .session
             .tabs
             .iter()
-            .position(|tab| tab.id == id && !tab.busy)
+            .position(|tab| tab.id() == id && tab.can_close())
         else {
             return;
         };
@@ -72,7 +156,7 @@ impl Client {
                 .tabs
                 .get(index.min(self.session.tabs.len().saturating_sub(1)))
             {
-                self.show_tab(tab.id, window, cx);
+                self.show_tab(tab.id(), window, cx);
                 return;
             }
             self.session.active = None;
@@ -88,9 +172,12 @@ impl Client {
                 .session
                 .tabs
                 .iter()
-                .map(|tab| tab.repo.root().to_path_buf())
+                .map(|tab| tab.root().to_path_buf())
                 .collect();
-            self.saved.active_tab = self.current().map(|tab| tab.repo.root().to_path_buf());
+            self.saved.active_tab = self
+                .session
+                .active_tab()
+                .map(|tab| tab.root().to_path_buf());
         } else {
             self.saved.open_tabs.clear();
             self.saved.active_tab = None;
@@ -98,64 +185,34 @@ impl Client {
         self.saved.save();
     }
 
-    pub(super) fn restore_tabs(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        self.session.opening = true;
-        let paths = self.saved.open_tabs.clone();
-        let active = self.saved.active_tab.clone();
-        let limit = self.saved.preferences.history_limit();
-        Self::spawn_background(
-            window,
-            cx,
-            move || {
-                paths
-                    .into_iter()
-                    .filter_map(|path| {
-                        let repo = Repo::open(&path).ok()?;
-                        let history = History::load(&repo, limit).ok()?;
-                        Some((repo, history))
-                    })
-                    .collect::<Vec<_>>()
-            },
-            move |this, tabs, window, cx| {
-                this.session.opening = false;
-                let mut selected = None;
-                for (repo, history) in tabs {
-                    let was_active = active.as_deref() == Some(repo.root());
-                    let id = this.insert_tab(repo, history, limit, window, cx);
-                    if was_active || selected.is_none() {
-                        selected = Some(id);
-                    }
-                }
-                if let Some(id) = selected {
-                    this.show_tab(id, window, cx);
-                } else {
-                    this.manager.error = Some(Message::Key("app.error.restore_repositories"));
-                    this.persist_session();
-                    cx.notify();
-                }
-            },
-        );
-    }
-
     pub(super) fn insert_tab(
         &mut self,
         repo: Repo,
         history: Arc<History>,
         limit: Option<usize>,
+        saved_id: Option<u64>,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> u64 {
-        if let Some(tab) = self
+        let existing = self
             .session
             .tabs
             .iter()
-            .find(|tab| tab.repo.root() == repo.root())
-        {
-            return tab.id;
+            .find(|tab| tab.root() == repo.root())
+            .map(Tab::id);
+        let id = existing
+            .or(saved_id)
+            .unwrap_or_else(|| self.session.next_id());
+        if let Some(duplicate) = saved_id.filter(|&saved| saved != id) {
+            self.session.tabs.retain(|tab| tab.id() != duplicate);
+            if self.session.active == Some(duplicate) {
+                self.session.active = Some(id);
+            }
         }
-        let id = self.session.next_tab;
-        self.session.next_tab += 1;
-        self.session.tabs.push(RepoTab {
+        if self.tab(id).is_some() {
+            return id;
+        }
+        let ready = Tab::Ready(Box::new(RepoTab {
             id,
             repo,
             history: HistoryState::new(history, limit, cx),
@@ -164,7 +221,12 @@ impl Client {
             review: ReviewState::new(&self.saved.preferences),
             busy: false,
             notice: None,
-        });
+        }));
+        if let Some(tab) = self.session.entry_mut(id) {
+            *tab = ready;
+        } else {
+            self.session.tabs.push(ready);
+        }
         id
     }
 }

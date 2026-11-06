@@ -8,7 +8,7 @@ use gpui_kit::{component::input::InputState, *};
 use crate::i18n::{Language, LocalizedInput};
 use editor::{EditorDraft, EditorTypography};
 
-use super::{Client, Message, review::DiffLayout};
+use super::{Client, Message, Tab, review::DiffLayout};
 
 const INITIAL_COMMIT_RANGE: RangeInclusive<usize> = 500..=100_000;
 
@@ -207,18 +207,23 @@ impl Client {
         let limit = options.history_limit();
         let history_changed = previous.history_limit() != limit;
         let layout_changed = previous.diff_layout != options.diff_layout;
-        if history_changed && self.session.tabs.iter().any(|tab| tab.busy) {
+        if history_changed && self.session.tabs.iter().any(Tab::is_busy) {
             draft.error = Some(Message::Key("app.error.history_busy"));
             cx.notify();
             return;
         }
         if previous.wrap_lines != options.wrap_lines {
-            for tab in &mut self.session.tabs {
+            for tab in self.session.tabs.iter_mut().filter_map(Tab::ready_mut) {
                 tab.review.wrap_lines = options.wrap_lines;
             }
         }
         let tab_ids = if layout_changed || history_changed {
-            self.session.tabs.iter().map(|tab| tab.id).collect()
+            self.session
+                .tabs
+                .iter()
+                .filter_map(Tab::ready)
+                .map(|tab| tab.id)
+                .collect()
         } else {
             Vec::new()
         };
@@ -247,7 +252,7 @@ impl Client {
         }
         self.manager.localize(window, cx);
         self.branch_dialog.localize(window, cx);
-        for tab in &self.session.tabs {
+        for tab in self.session.tabs.iter().filter_map(Tab::ready) {
             tab.refs.filter.localize(window, cx);
             tab.changes.summary.localize(window, cx);
             tab.changes.description.localize(window, cx);

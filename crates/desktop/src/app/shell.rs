@@ -3,7 +3,7 @@ use gpui_kit::{base::TextSelection, prelude::*, *};
 use crate::i18n::tr;
 
 use super::{
-    Client, Escape, OpenPreferences, OpenRepos, Refresh, RepoTab, Submit,
+    Client, Escape, OpenPreferences, OpenRepos, Refresh, Submit, Tab,
     message::branch_label,
     widgets::{
         GREEN, LINE, MUTED, NAV, NAV_TEXT, PAPER, RED, TEXT, TOOLBAR, Tone, WHITE, button, heading,
@@ -13,11 +13,13 @@ use super::{
 
 impl Render for Client {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let tab = self.current();
+        let tab = self.session.active_tab();
         let body = if let Some(preferences) = &self.preferences {
             self.preferences_view(preferences, cx).into_any_element()
-        } else if let Some(tab) = tab {
+        } else if let Some(Tab::Ready(tab)) = tab {
             self.workspace(tab, window, cx).into_any_element()
+        } else if let Some(Tab::Saved(tab)) = tab {
+            self.saved_tab_view(tab, cx).into_any_element()
         } else {
             self.welcome(cx).into_any_element()
         };
@@ -130,7 +132,7 @@ impl Client {
                         .h_full()
                         .overflow_x_scroll()
                         .children(self.session.tabs.iter().map(|tab| {
-                            let id = tab.id;
+                            let id = tab.id();
                             let active = self.session.active == Some(id);
                             div()
                                 .id(("repo-tab", id))
@@ -151,12 +153,12 @@ impl Client {
                                     this.show_tab(id, window, cx)
                                 }))
                                 .child(div().text_color(rgb(0x93a4c8)).child("◈"))
-                                .child(div().flex_1().min_w_0().truncate().child(tab.repo.name()))
+                                .child(div().flex_1().min_w_0().truncate().child(tab.name()))
                                 .child(button(
                                     ("close-tab", id),
                                     "×",
                                     Tone::Dark,
-                                    !tab.busy,
+                                    tab.can_close(),
                                     cx.listener(move |this, _, window, cx| {
                                         cx.stop_propagation();
                                         this.close_tab(id, window, cx);
@@ -209,11 +211,10 @@ impl Client {
         .flex_shrink_0()
     }
 
-    fn toolbar(&self, tab: Option<&RepoTab>, cx: &mut Context<Self>) -> Div {
-        let (repo, branch) = tab.map_or_else(
-            || (tr!("app.repositories.title"), String::new()),
-            |tab| (tab.repo.name(), branch_label(&tab.history.data.snapshot)),
-        );
+    fn toolbar(&self, tab: Option<&Tab>, cx: &mut Context<Self>) -> Div {
+        let repo = tab.map_or_else(|| tr!("app.repositories.title"), Tab::name);
+        let ready = tab.and_then(Tab::ready);
+        let branch = ready.map_or_else(String::new, |tab| branch_label(&tab.history.data.snapshot));
         div()
             .h(px(52.))
             .flex_shrink_0()
@@ -250,7 +251,7 @@ impl Client {
                         ))
                     }),
             )
-            .when_some(tab, |toolbar, tab| {
+            .when_some(ready, |toolbar, tab| {
                 toolbar.child(self.toolbar_actions(tab, cx))
             })
             .child(
@@ -262,10 +263,13 @@ impl Client {
             )
     }
 
-    fn status_bar(&self, tab: Option<&RepoTab>) -> Div {
-        let (color, message) = if self.session.opening {
+    fn status_bar(&self, tab: Option<&Tab>) -> Div {
+        let ready = tab.and_then(Tab::ready);
+        let (color, message) = if self.session.opening
+            || matches!(tab, Some(Tab::Saved(saved)) if saved.is_loading())
+        {
             (MUTED, tr!("app.status.opening"))
-        } else if let Some(tab) = tab {
+        } else if let Some(tab) = ready {
             if tab.busy {
                 (MUTED, tr!("app.status.running_git"))
             } else if let Some((error, message)) = &tab.notice {
@@ -277,6 +281,8 @@ impl Client {
             } else {
                 (MUTED, tab.repo.root().to_string_lossy().into_owned())
             }
+        } else if let Some(tab) = tab {
+            (MUTED, tab.root().to_string_lossy().into_owned())
         } else {
             (MUTED, tr!("app.status.open_repository"))
         };
@@ -299,7 +305,7 @@ impl Client {
                     .text_color(rgb(color))
                     .child(message),
             )
-            .when_some(tab, |element, tab| {
+            .when_some(ready, |element, tab| {
                 let snapshot = &tab.history.data.snapshot;
                 element.child(div().text_color(rgb(MUTED)).child(tr!(
                     "app.status.commits",

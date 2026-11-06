@@ -3,6 +3,7 @@ use gpui_kit::{
         Sizable,
         resizable::{resizable_panel, v_resizable},
         scroll::ScrollableElement,
+        tooltip::Tooltip,
     },
     prelude::*,
     *,
@@ -14,8 +15,7 @@ use crate::i18n::tr;
 use super::{ChangeSummary, SummaryStyle, change_count};
 use crate::app::{
     Client, Load, RepoTab,
-    avatar::AuthorAvatar,
-    widgets::{LINE, MUTED, Tone, button, error_text, note},
+    widgets::{LINE, Tone, button, error_text, note},
 };
 
 impl Client {
@@ -74,67 +74,7 @@ impl Client {
                     .size_full()
                     .flex()
                     .flex_col()
-                    .child(
-                        div()
-                            .px(px(9.))
-                            .py(px(8.))
-                            .flex()
-                            .items_start()
-                            .justify_between()
-                            .gap(px(5.))
-                            .child(
-                                div()
-                                    .min_w_0()
-                                    .flex()
-                                    .items_center()
-                                    .gap(px(7.))
-                                    .child(AuthorAvatar::new(commit, px(31.), None))
-                                    .child(
-                                        div()
-                                            .min_w_0()
-                                            .flex()
-                                            .flex_col()
-                                            .child(
-                                                div()
-                                                    .truncate()
-                                                    .font_weight(FontWeight::MEDIUM)
-                                                    .child(commit.author.clone()),
-                                            )
-                                            .child(
-                                                div()
-                                                    .truncate()
-                                                    .text_color(rgb(MUTED))
-                                                    .text_size(px(11.))
-                                                    .child(tr!(
-                                                        "app.commit.authored",
-                                                        date = &commit.date
-                                                    )),
-                                            ),
-                                    ),
-                            )
-                            .when_some(commit.parents.first().cloned(), |element, parent| {
-                                element.child(
-                                    button(
-                                        ("parent", id),
-                                        tr!("app.commit.parent", sha = git::short_id(&parent)),
-                                        Tone::Plain,
-                                        tab.history.data.position.contains_key(&parent),
-                                        cx.listener(move |this, _, window, cx| {
-                                            this.select(
-                                                id,
-                                                Some(parent.clone()),
-                                                Some(ScrollStrategy::Center),
-                                                window,
-                                                cx,
-                                            );
-                                        }),
-                                    )
-                                    .flex_shrink_0()
-                                    .h(px(22.))
-                                    .text_size(px(11.)),
-                                )
-                            }),
-                    )
+                    .child(self.commit_people(tab, commit, detail, cx))
                     .child(ChangeSummary::new(&detail.changes).view(SummaryStyle::Labeled))
                     .child(
                         div()
@@ -182,7 +122,6 @@ impl Client {
                     .into_any_element()
             }
         };
-        let clipboard_oid = oid.to_owned();
         div()
             .flex_1()
             .min_h_0()
@@ -224,25 +163,37 @@ impl Client {
                     .flex()
                     .items_center()
                     .justify_center()
-                    .gap(px(6.))
                     .border_b_1()
                     .border_color(rgb(LINE))
-                    .child(tr!("app.commit.sha", sha = git::short_id(oid)))
-                    .child(
-                        button(
-                            ("copy-sha", id),
-                            tr!("app.commit.copy_sha"),
-                            Tone::Plain,
-                            true,
-                            move |_, _, cx| {
-                                cx.write_to_clipboard(ClipboardItem::new_string(
-                                    clipboard_oid.clone(),
-                                ));
-                            },
-                        )
-                        .text_size(px(10.)),
-                    ),
+                    .child(commit_hash_button(id, oid)),
             )
             .child(detail)
     }
+}
+
+fn commit_hash_button(id: u64, oid: &str) -> Stateful<Div> {
+    let clipboard_oid = oid.to_owned();
+    let horizontal_padding = px(8.);
+    let press_offset = px(1.);
+    button(
+        ("copy-sha", id),
+        git::short_id(oid).to_owned(),
+        Tone::Plain,
+        true,
+        move |_, _, cx| {
+            cx.write_to_clipboard(ClipboardItem::new_string(clipboard_oid.clone()));
+        },
+    )
+    .role(Role::Button)
+    .aria_label(tr!("app.commit.copy_sha"))
+    .px(horizontal_padding)
+    .py(press_offset)
+    .active(|style| {
+        style
+            .pl(horizontal_padding + press_offset)
+            .pr(horizontal_padding - press_offset)
+            .pt(press_offset * 2.)
+            .pb_0()
+    })
+    .tooltip(|window, cx| Tooltip::new(tr!("app.commit.copy_sha")).build(window, cx))
 }

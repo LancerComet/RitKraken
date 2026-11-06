@@ -1,13 +1,17 @@
+mod list;
 mod view;
 
-use std::{fs, path::PathBuf};
+use std::{fs, path::PathBuf, sync::Arc};
 
 use gpui_kit::*;
 use ritkraken_git::{self as git, Repo};
 
 use crate::i18n::{LocalizedInput, tr};
 
+use self::list::NameOrder;
 use super::{Client, Message, history::History};
+
+const ICON_SIZE: Pixels = px(12. * 1.2);
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) enum ManagerMode {
@@ -22,6 +26,22 @@ pub(super) enum OpenRepo {
     Init(PathBuf),
 }
 
+impl OpenRepo {
+    pub(super) fn load(
+        self,
+        limit: Option<usize>,
+        default_branch: Option<&str>,
+    ) -> git::Result<(Repo, Arc<History>)> {
+        let repo = match self {
+            Self::Open(path) => Repo::open(&path),
+            Self::Clone(url, path) => Repo::clone(&url, &path),
+            Self::Init(path) => Repo::init(&path, default_branch),
+        }?;
+        let history = History::load(&repo, limit)?;
+        Ok((repo, history))
+    }
+}
+
 #[derive(Clone, PartialEq, Eq)]
 pub(super) enum RepoList {
     Recent,
@@ -32,6 +52,7 @@ pub(super) enum RepoList {
 pub(super) struct RepositoryManager {
     pub(super) mode: Option<ManagerMode>,
     list: RepoList,
+    name_order: Option<NameOrder>,
     projects: Vec<PathBuf>,
     pub(super) error: Option<Message>,
     path: LocalizedInput,
@@ -55,6 +76,7 @@ impl RepositoryManager {
         Self {
             mode: Some(ManagerMode::Open),
             list: RepoList::Recent,
+            name_order: None,
             projects: Vec::new(),
             error: None,
             path,
@@ -143,12 +165,11 @@ impl Client {
                 window,
                 cx,
                 move || {
-                    let mut repositories: Vec<_> = fs::read_dir(root)?
+                    let repositories = fs::read_dir(root)?
                         .filter_map(|entry| entry.ok())
                         .map(|entry| entry.path())
                         .filter(|path| path.join(".git").exists())
                         .collect();
-                    repositories.sort();
                     Ok::<_, std::io::Error>(repositories)
                 },
                 move |this, result, _, cx| {
@@ -214,23 +235,13 @@ impl Client {
         Self::spawn_background(
             window,
             cx,
-            move || {
-                let repo = match request {
-                    OpenRepo::Open(path) => Repo::open(&path),
-                    OpenRepo::Clone(url, path) => Repo::clone(&url, &path),
-                    OpenRepo::Init(path) => {
-                        Repo::init(&path, (!branch.is_empty()).then_some(branch.as_str()))
-                    }
-                }?;
-                let history = History::load(&repo, limit)?;
-                Ok::<_, git::Error>((repo, history))
-            },
+            move || request.load(limit, (!branch.is_empty()).then_some(branch.as_str())),
             move |this, result, window, cx| {
                 this.session.opening = false;
                 match result {
                     Ok((repo, history)) => {
                         this.saved.remember(repo.root());
-                        let id = this.insert_tab(repo, history, limit, window, cx);
+                        let id = this.insert_tab(repo, history, limit, None, window, cx);
                         this.show_tab(id, window, cx);
                     }
                     Err(error) => {

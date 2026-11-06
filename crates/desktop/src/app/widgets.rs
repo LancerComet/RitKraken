@@ -57,6 +57,22 @@ pub(super) fn button(
     enabled: bool,
     on_click: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
 ) -> Stateful<Div> {
+    button_content(
+        id,
+        div().truncate().child(label.into()),
+        tone,
+        enabled,
+        on_click,
+    )
+}
+
+pub(super) fn button_content(
+    id: impl Into<ElementId>,
+    content: impl IntoElement,
+    tone: Tone,
+    enabled: bool,
+    on_click: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
+) -> Stateful<Div> {
     let (background, foreground, border, hover) = tone.colors();
     div()
         .id(id)
@@ -73,7 +89,7 @@ pub(super) fn button(
         .when_some(border, |element, color| {
             element.border_1().border_color(rgb(color))
         })
-        .child(div().truncate().child(label.into()))
+        .child(content)
         .when(enabled, |element| {
             element
                 .cursor_pointer()

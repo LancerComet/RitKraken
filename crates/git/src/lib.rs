@@ -12,7 +12,7 @@ pub use diff::{
     edge_whitespace_key,
 };
 pub use error::{Error, Result, RuleError};
-pub use history::{Commit, CommitDetail, RefKind, Reference, Snapshot, short_id};
+pub use history::{Commit, CommitDetail, CommitPerson, RefKind, Reference, Snapshot, short_id};
 pub use remotes::Upstream;
 pub use repository::Repo;
 pub use worktree::{Change, Status};

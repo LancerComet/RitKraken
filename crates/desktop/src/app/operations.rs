@@ -170,11 +170,13 @@ impl Client {
                 return;
             }
         }
-        if committed || reset_selection {
+        let initial_selection = HistoryState::initial_selection(&tab.history.data);
+        let leave_wip = tab.history.selected.is_none() && initial_selection.is_some();
+        if committed || reset_selection || leave_wip {
             let selected = if committed {
                 tab.history.data.snapshot.head.clone()
             } else {
-                HistoryState::initial_selection(&tab.history.data)
+                initial_selection
             };
             self.select(id, selected, Some(ScrollStrategy::Top), window, cx);
         } else if let Some(file) = tab.review.active.as_ref().map(|diff| diff.file.clone()) {
@@ -213,8 +215,7 @@ impl Client {
             .as_ref()
             .is_some_and(|oid| !tab.history.data.position.contains_key(oid))
         {
-            let selected = HistoryState::initial_selection(&tab.history.data);
-            self.select(id, selected, None, window, cx);
+            self.select(id, initial_selection, None, window, cx);
         }
         cx.notify();
     }

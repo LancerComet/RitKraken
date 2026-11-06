@@ -24,6 +24,8 @@
       "added": "追加 %{count} 件",
       "conflicted": "競合 %{count} 件",
       "authored": "作成日時 %{date}",
+      "co_authors": "共同作成者",
+      "committed": "コミット日時 %{date}",
       "copy_sha": "SHA をコピー",
       "deleted": "削除 %{count} 件",
       "loading": "コミットを読み込み中…",
@@ -31,7 +33,6 @@
       "modified": "変更 %{count} 件",
       "parent": "親コミット %{sha}",
       "renamed": "名前変更 %{count} 件",
-      "sha": "コミット %{sha}",
       "view_all_files": "すべてのファイルを表示",
       "view_changes": "変更を表示",
       "worktree_changes": "作業ツリーの変更ファイル (%{count})"
@@ -39,7 +40,8 @@
     "common": {
       "browse": "参照…",
       "cancel": "キャンセル",
-      "open": "開く"
+      "open": "開く",
+      "retry": "再試行"
     },
     "error": {
       "binary_file": "バイナリファイルはテキストとしてプレビューできません。",
@@ -68,7 +70,6 @@
       "ref_outside_history": "この参照は読み込み済みの履歴に含まれていません。",
       "refresh_after_operation": "%{previous}\n再読み込みに失敗しました。\n%{detail}",
       "repository_location": "リポジトリの場所を入力してください。",
-      "restore_repositories": "前回開いたリポジトリにアクセスできません。",
       "run_git": "Git を実行できませんでした。\n%{detail}",
       "stale_patch": "差分がディスク上で変更されました。更新後の差分を確認してからステージしてください。",
       "unstageable_selection": "選択した変更は個別にステージまたはステージ解除できません。",
@@ -161,6 +162,10 @@
       "projects": "プロジェクトディレクトリ",
       "recent": "最近開いたリポジトリ",
       "recent_heading": "最近開いたリポジトリ",
+      "sort": "並び替え",
+      "sort_ascending": "名前の昇順（A–Z）",
+      "sort_default": "既定の順序",
+      "sort_descending": "名前の降順（Z–A）",
       "title": "リポジトリ",
       "url": "リポジトリの URL",
       "url_heading": "リポジトリの URL",

@@ -7,7 +7,6 @@ use gpui_kit::{
     prelude::*,
     *,
 };
-use ritkraken_git::Commit;
 use unicode_segmentation::UnicodeSegmentation as _;
 
 use self::gravatar::{Gravatar, Key, Lookup};
@@ -37,25 +36,25 @@ impl AvatarCache {
 }
 
 #[derive(IntoElement)]
-pub(super) struct AuthorAvatar {
+pub(super) struct PersonAvatar {
     key: Option<Key>,
     initial: String,
     diameter: Pixels,
     ring: Option<u32>,
 }
 
-impl AuthorAvatar {
-    pub(super) fn new(commit: &Commit, diameter: Pixels, ring: Option<u32>) -> Self {
+impl PersonAvatar {
+    pub(super) fn new(name: &str, email: &str, diameter: Pixels, ring: Option<u32>) -> Self {
         Self {
-            key: gravatar::key(&commit.author_email),
-            initial: author_initial(&commit.author),
+            key: gravatar::key(email),
+            initial: author_initial(name),
             diameter,
             ring,
         }
     }
 }
 
-impl RenderOnce for AuthorAvatar {
+impl RenderOnce for PersonAvatar {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let image = self.key.and_then(|key| load(key, window, cx));
         let avatar = match image {

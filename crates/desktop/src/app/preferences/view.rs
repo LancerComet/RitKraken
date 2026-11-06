@@ -24,6 +24,7 @@ impl Client {
         draft: &PreferenceDraft,
         cx: &mut Context<Self>,
     ) -> Div {
+        let sidebar_text_size = px(15.);
         let form = match draft.page {
             PreferencePage::General => self.general_preferences(draft, cx),
             PreferencePage::Appearance => self.appearance_preferences(draft, cx),
@@ -54,7 +55,7 @@ impl Client {
                         .justify_start()
                         .h(px(41.))
                         .pl(px(14.))
-                        .text_size(px(16.)),
+                        .text_size(sidebar_text_size),
                     )
                     .child(
                         heading(tr!("app.preferences.title"))
@@ -88,7 +89,11 @@ impl Client {
                                     }
                                 }))
                                 .child(icon(glyph, MUTED))
-                                .child(div().text_size(px(15.)).child(tr!(page.label_key())))
+                                .child(
+                                    div()
+                                        .text_size(sidebar_text_size)
+                                        .child(tr!(page.label_key())),
+                                )
                         }),
                     ),
             )

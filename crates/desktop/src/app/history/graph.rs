@@ -4,7 +4,7 @@ use gpui_kit::{prelude::*, *};
 
 use super::{History, layout::Rail};
 use crate::app::{
-    avatar::AuthorAvatar,
+    avatar::PersonAvatar,
     widgets::{TEAL, WHITE},
 };
 
@@ -44,13 +44,15 @@ pub(super) fn graph_cell(
         .child(drawing)
         .when_some(index, |element, index| {
             let node = history.graph.rows[index].node;
+            let commit = &history.snapshot.commits[index];
             element.child(
                 div()
                     .absolute()
                     .left(lane_offset(node.lane) - BAND_HEIGHT / 2.)
                     .top((ROW_HEIGHT - BAND_HEIGHT) / 2.)
-                    .child(AuthorAvatar::new(
-                        &history.snapshot.commits[index],
+                    .child(PersonAvatar::new(
+                        &commit.author,
+                        &commit.author_email,
                         BAND_HEIGHT,
                         Some(node.color),
                     )),
