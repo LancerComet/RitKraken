@@ -4,12 +4,15 @@ use std::ops::RangeInclusive;
 
 use gpui_kit::{component::input::InputState, *};
 
-use super::{Client, review::DiffLayout};
+use crate::i18n::{Language, tr};
+
+use super::{Client, Message, review::DiffLayout};
 
 const INITIAL_COMMIT_RANGE: RangeInclusive<usize> = 500..=100_000;
 
 #[derive(Clone)]
 pub(super) struct Preferences {
+    pub(super) language: Language,
     pub(super) default_branch: String,
     pub(super) initial_commits: usize,
     pub(super) show_all_commits: bool,
@@ -23,6 +26,7 @@ pub(super) struct Preferences {
 impl Default for Preferences {
     fn default() -> Self {
         Self {
+            language: Language::default(),
             default_branch: "main".into(),
             initial_commits: 2000,
             show_all_commits: false,
@@ -39,6 +43,10 @@ impl Preferences {
     pub(super) fn read(value: &serde_json::Value) -> Self {
         let defaults = Self::default();
         Self {
+            language: value["language"]
+                .as_str()
+                .map(Language::from_code)
+                .unwrap_or_default(),
             default_branch: value["default_branch"]
                 .as_str()
                 .map_or(defaults.default_branch, str::to_owned),
@@ -61,7 +69,7 @@ impl Preferences {
                 .unwrap_or(defaults.collapse_review_sidebar),
             diff_layout: DiffLayout::ALL
                 .into_iter()
-                .find(|layout| value["diff_layout"].as_str() == Some(layout.label()))
+                .find(|layout| value["diff_layout"].as_str() == Some(layout.id()))
                 .unwrap_or(defaults.diff_layout),
             wrap_lines: value["wrap_lines"].as_bool().unwrap_or(defaults.wrap_lines),
         }
@@ -69,13 +77,14 @@ impl Preferences {
 
     pub(super) fn json(&self) -> serde_json::Value {
         serde_json::json!({
+            "language": self.language.code(),
             "default_branch": self.default_branch,
             "initial_commits": self.initial_commits,
             "show_all_commits": self.show_all_commits,
             "lazy_history": self.lazy_history,
             "remember_tabs": self.remember_tabs,
             "collapse_review_sidebar": self.collapse_review_sidebar,
-            "diff_layout": self.diff_layout.label(),
+            "diff_layout": self.diff_layout.id(),
             "wrap_lines": self.wrap_lines,
         })
     }
@@ -92,12 +101,22 @@ pub(super) enum PreferencePage {
     Editor,
 }
 
+impl PreferencePage {
+    fn label_key(self) -> &'static str {
+        match self {
+            Self::General => "app.preferences.general",
+            Self::Appearance => "app.preferences.appearance",
+            Self::Editor => "app.preferences.editor",
+        }
+    }
+}
+
 pub(super) struct PreferenceDraft {
     pub(super) page: PreferencePage,
     pub(super) options: Preferences,
     pub(super) branch: Entity<InputState>,
     pub(super) count: Entity<InputState>,
-    pub(super) error: Option<String>,
+    pub(super) error: Option<Message>,
 }
 
 impl Client {
@@ -112,7 +131,7 @@ impl Client {
         let options = self.saved.preferences.clone();
         let branch = cx.new(|cx| {
             InputState::new(window, cx)
-                .placeholder("Use Git config")
+                .placeholder(tr!("app.preferences.branch_placeholder"))
                 .default_value(options.default_branch.clone())
         });
         let count = cx.new(|cx| {
@@ -147,7 +166,7 @@ impl Client {
                 .filter(|count| INITIAL_COMMIT_RANGE.contains(count));
             let Some(count) = parsed else {
                 draft.page = PreferencePage::General;
-                draft.error = Some("Enter an initial commit count between 500 and 100,000.".into());
+                draft.error = Some(Message::Key("app.error.initial_commit_count"));
                 cx.notify();
                 return;
             };
@@ -155,14 +174,12 @@ impl Client {
         }
         options.default_branch = draft.branch.read(cx).value().trim().to_owned();
         let previous = &self.saved.preferences;
+        let language_changed = previous.language != options.language;
         let limit = options.history_limit();
         let history_changed = previous.history_limit() != limit;
         let layout_changed = previous.diff_layout != options.diff_layout;
         if history_changed && self.session.tabs.iter().any(|tab| tab.busy) {
-            draft.error = Some(
-                "Wait for the current Git operation to finish before changing the history limit."
-                    .into(),
-            );
+            draft.error = Some(Message::Key("app.error.history_busy"));
             cx.notify();
             return;
         }
@@ -183,6 +200,9 @@ impl Client {
         }
         self.saved.preferences = options;
         self.preferences = None;
+        if language_changed {
+            self.localize(window, cx);
+        }
         self.persist_session();
         self.focus.focus(window, cx);
         if history_changed {
@@ -191,5 +211,39 @@ impl Client {
             }
         }
         cx.notify();
+    }
+
+    fn localize(&self, window: &mut Window, cx: &mut Context<Self>) {
+        self.saved.preferences.language.apply();
+        self.manager.localize(window, cx);
+        self.branch_dialog.localize(window, cx);
+        for tab in &self.session.tabs {
+            tab.refs.filter.localize(window, cx);
+            tab.changes.summary.localize(window, cx);
+            tab.changes.description.localize(window, cx);
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{DiffLayout, Language, Preferences};
+
+    #[test]
+    fn language_preference_preserves_legacy_settings() {
+        let mut saved = serde_json::json!({"diff_layout": "Inline", "initial_commits": 750});
+        assert_eq!(Preferences::read(&saved).language, Language::English);
+        saved["language"] = "unknown".into();
+        assert_eq!(Preferences::read(&saved).language, Language::English);
+
+        for language in Language::ALL {
+            saved["language"] = language.code().into();
+            let options = Preferences::read(&saved);
+            assert_eq!(options.language, language);
+            assert_eq!(options.diff_layout, DiffLayout::Inline);
+            assert_eq!(options.initial_commits, 750);
+            assert_eq!(options.json()["language"], language.code());
+            assert_eq!(options.json()["diff_layout"], "Inline");
+        }
     }
 }

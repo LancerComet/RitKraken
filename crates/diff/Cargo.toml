@@ -12,6 +12,7 @@ doctest = false
 gpui = { package = "gpui-pre", version = "=0.3.11" }
 gpui-base = "=0.9.0"
 gpui-component = { version = "=0.9.0", features = ["syntect"] }
+ritkraken-git = { path = "../git" }
 ropey = "=2.0.0-beta.1"
 rust-i18n = "4.2"
 similar = { version = "2.7", features = ["unicode"] }

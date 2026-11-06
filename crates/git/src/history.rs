@@ -28,7 +28,7 @@ pub struct Reference {
 
 #[derive(Debug)]
 pub struct Snapshot {
-    pub branch: String,
+    pub branch: Option<String>,
     pub head: Option<String>,
     pub status: Status,
     pub refs: Vec<Reference>,
@@ -47,7 +47,7 @@ impl Snapshot {
     }
 
     pub fn is_current_branch(&self, reference: &Reference) -> bool {
-        reference.kind == RefKind::Local && reference.name == self.branch
+        reference.kind == RefKind::Local && self.branch.as_deref() == Some(reference.name.as_str())
     }
 }
 
@@ -60,14 +60,9 @@ pub struct CommitDetail {
 impl Repo {
     pub fn snapshot(&self, history_limit: Option<usize>) -> Result<Snapshot> {
         let head = self.resolve_ref("HEAD")?;
-        let checked_out = self.checked_out_branch()?;
-        let branch = checked_out.clone().unwrap_or_else(|| {
-            head.as_deref()
-                .map(|id| format!("Detached at {}", short_id(id)))
-                .unwrap_or_else(|| "HEAD".into())
-        });
+        let branch = self.checked_out_branch()?;
         let status = self.status()?;
-        let (refs, upstream) = self.references(checked_out.as_deref())?;
+        let (refs, upstream) = self.references(branch.as_deref())?;
         let remotes = self.remotes()?;
         let has_stash = self.resolve_ref("refs/stash")?.is_some();
         let mut args = vec![

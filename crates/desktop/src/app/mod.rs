@@ -1,5 +1,6 @@
 mod changes;
 mod history;
+mod message;
 mod operations;
 mod preferences;
 mod refs;
@@ -16,6 +17,7 @@ use std::path::PathBuf;
 
 use gpui_kit::*;
 
+use message::Message;
 use operations::RepoOperation;
 use preferences::PreferenceDraft;
 use repository_manager::{OpenRepo, RepositoryManager};
@@ -57,14 +59,14 @@ pub fn bind_keys(cx: &mut App) {
 enum Load<T> {
     Pending,
     Ready(T),
-    Failed(String),
+    Failed(Message),
 }
 
-impl<T, E: std::fmt::Display> From<Result<T, E>> for Load<T> {
+impl<T, E: Into<Message>> From<Result<T, E>> for Load<T> {
     fn from(result: Result<T, E>) -> Self {
         match result {
             Ok(value) => Self::Ready(value),
-            Err(error) => Self::Failed(error.to_string()),
+            Err(error) => Self::Failed(error.into()),
         }
     }
 }
@@ -82,6 +84,8 @@ pub struct Client {
 
 impl Client {
     pub fn new(path: Option<PathBuf>, window: &mut Window, cx: &mut Context<Self>) -> Self {
+        let saved = SavedRepos::load();
+        saved.preferences.language.apply();
         let focus = cx.focus_handle();
         focus.focus(window, cx);
         let activation = cx.observe_window_activation(window, |this, window, cx| {
@@ -96,7 +100,7 @@ impl Client {
         let mut app = Self {
             session: Session::default(),
             manager: RepositoryManager::new(window, cx),
-            saved: SavedRepos::load(),
+            saved,
             preferences: None,
             branch_dialog: BranchDialog::new(window, cx),
             panes: WorkspacePanes::new(cx),

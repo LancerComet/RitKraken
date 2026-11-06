@@ -1,11 +1,13 @@
-use gpui_kit::{prelude::*, *};
+use gpui_kit::{component::tooltip::Tooltip, prelude::*, *};
 use ritkraken_diff::{Diff, DiffHunkSeparator};
 use ritkraken_git::Scope;
 
-use super::{DiffLayout, FileReview};
+use crate::i18n::tr;
+
+use super::{DiffLayout, FileReview, staging::attach_controls};
 use crate::app::{
     Client, Load, RepoOperation, RepoTab,
-    changes::{StageAction, change_mark},
+    changes::{StageAction, StageTarget, change_mark},
     widgets::{LINE, MUTED, PAPER, TEXT, Tone, WHITE, button, error_text, icon, note},
 };
 
@@ -16,15 +18,37 @@ impl DiffLayout {
         enabled: bool,
         on_click: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
     ) -> Stateful<Div> {
-        let label = self.label();
         button(
-            label,
-            label,
+            self.id(),
+            tr!(self.label_key()),
             Tone::Outline.selected_when(selected == Some(self)),
             enabled,
             on_click,
         )
     }
+}
+
+fn toolbar_toggle(
+    id: &'static str,
+    label_key: &'static str,
+    selected: bool,
+    enabled: bool,
+    glyph: impl IntoElement,
+    on_click: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
+) -> Stateful<Div> {
+    let label: SharedString = tr!(label_key).into();
+    button(
+        id,
+        "",
+        Tone::Outline.selected_when(selected),
+        enabled,
+        on_click,
+    )
+    .w(px(24.))
+    .px(px(0.))
+    .child(glyph)
+    .aria_label(label.clone())
+    .tooltip(move |window, cx| Tooltip::new(label.clone()).build(window, cx))
 }
 
 impl Client {
@@ -35,11 +59,11 @@ impl Client {
         cx: &mut Context<Self>,
     ) -> Div {
         let id = tab.id;
-        let scope = match &review.file.scope {
-            Scope::Worktree => "Working directory",
-            Scope::Index => "Staged",
-            Scope::Commit { .. } => "Commit",
-        };
+        let scope = tr!(match &review.file.scope {
+            Scope::Worktree => "app.review.worktree",
+            Scope::Index => "app.review.index",
+            Scope::Commit { .. } => "app.review.commit",
+        });
         let (marker, color) = change_mark(review.file.change.code);
         let stage_action = StageAction::for_scope(&review.file.scope);
         let active_layout = (!review.show_source).then_some(tab.review.layout);
@@ -51,27 +75,25 @@ impl Client {
             } else {
                 DiffHunkSeparator::Simple
             };
-            Diff::new(state)
+            let diff = Diff::new(state)
                 .size_full()
                 .header_visible(false)
                 .hunk_separator(separator)
-                .soft_wrap(tab.review.wrap_lines)
-                .into_any_element()
+                .soft_wrap(tab.review.wrap_lines);
+            attach_controls(diff, tab, review, cx).into_any_element()
         } else if review.show_source {
             match &review.source {
                 Some(Load::Failed(error)) => error_text(error).into_any_element(),
-                _ => note("Loading file contents…").into_any_element(),
+                _ => note(tr!("app.review.loading_contents")).into_any_element(),
             }
         } else {
             match &review.patch {
-                Load::Pending => note("Loading diff…").into_any_element(),
+                Load::Pending => note(tr!("app.review.loading_diff")).into_any_element(),
                 Load::Failed(error) => error_text(error).into_any_element(),
-                Load::Ready(_) => note(
-                    review
-                        .message
-                        .clone()
-                        .unwrap_or_else(|| "No textual changes.".into()),
-                )
+                Load::Ready(_) => note(review.message.as_ref().map_or_else(
+                    || tr!("app.review.no_text_changes"),
+                    |message| message.text(),
+                ))
                 .into_any_element(),
             }
         };
@@ -104,7 +126,7 @@ impl Client {
                         row.child(
                             button(
                                 ("review-file-action", id),
-                                format!("{} File", action.verb()),
+                                action.label(StageTarget::File),
                                 action.tone(),
                                 !tab.busy,
                                 cx.listener(move |this, _, window, cx| {
@@ -148,25 +170,30 @@ impl Client {
                                 .child(scope),
                         ),
                     )
-                    .child(div().flex().flex_shrink_0().children(
-                        [(true, "File View"), (false, "Diff View")].into_iter().map(
-                            |(show, label)| {
+                    .child(
+                        div().flex().flex_shrink_0().children(
+                            [
+                                (true, "app.review.file_view"),
+                                (false, "app.review.diff_view"),
+                            ]
+                            .into_iter()
+                            .map(|(show, key)| {
                                 button(
-                                    label,
-                                    label,
+                                    key,
+                                    tr!(key),
                                     Tone::Outline.selected_when(review.show_source == show),
                                     true,
                                     cx.listener(move |this, _, window, cx| {
                                         this.show_source(id, show, window, cx)
                                     }),
                                 )
-                            },
+                            }),
                         ),
-                    ))
+                    )
                     .child(
                         div()
                             .flex_1()
-                            .min_w(px(202.))
+                            .min_w(px(229.))
                             .flex()
                             .justify_end()
                             .items_center()
@@ -205,20 +232,35 @@ impl Client {
                                 }),
                             ))
                             .child(
-                                button(
-                                    "wrap-diff",
-                                    "¶",
-                                    Tone::Outline.selected_when(tab.review.wrap_lines),
-                                    review.state().is_some(),
-                                    cx.listener(move |this, _, _, cx| {
-                                        if let Some(tab) = this.tab_mut(id) {
-                                            tab.review.wrap_lines = !tab.review.wrap_lines;
-                                            cx.notify();
-                                        }
-                                    }),
-                                )
-                                .w(px(24.))
-                                .px(px(0.)),
+                                div()
+                                    .flex()
+                                    .gap(px(3.))
+                                    .flex_shrink_0()
+                                    .child(toolbar_toggle(
+                                        "ignore-edge-whitespace",
+                                        "app.review.ignore_edge_whitespace",
+                                        tab.review.ignore_edge_whitespace,
+                                        !review.show_source
+                                            && !tab.busy
+                                            && matches!(review.patch, Load::Ready(_)),
+                                        "¶",
+                                        cx.listener(move |this, _, window, cx| {
+                                            this.toggle_edge_whitespace(id, window, cx);
+                                        }),
+                                    ))
+                                    .child(toolbar_toggle(
+                                        "wrap-diff",
+                                        "app.preferences.wrap_lines",
+                                        tab.review.wrap_lines,
+                                        review.state().is_some(),
+                                        icon("icons/text-wrap.svg", TEXT),
+                                        cx.listener(move |this, _, _, cx| {
+                                            if let Some(tab) = this.tab_mut(id) {
+                                                tab.review.wrap_lines = !tab.review.wrap_lines;
+                                                cx.notify();
+                                            }
+                                        }),
+                                    )),
                             ),
                     ),
             )
@@ -228,62 +270,12 @@ impl Client {
                     && tab.review.layout != DiffLayout::Hunk,
                 |view| {
                     view.child(
-                        note("Showing the available patch context.")
+                        note(tr!("app.review.available_context"))
                             .py(px(4.))
                             .bg(rgb(PAPER)),
                     )
                 },
             )
-            .when(!review.show_source && !review.hunks.is_empty(), |view| {
-                view.child(self.hunk_actions(tab, review, cx))
-            })
             .child(div().flex_1().min_h_0().overflow_hidden().child(content))
-    }
-
-    fn hunk_actions(&self, tab: &RepoTab, review: &FileReview, cx: &mut Context<Self>) -> Div {
-        let (Load::Ready(patch), Some(action)) =
-            (&review.patch, StageAction::for_scope(&review.file.scope))
-        else {
-            return div();
-        };
-        let id = tab.id;
-        div()
-            .h(px(31.))
-            .flex_shrink_0()
-            .min_w_0()
-            .border_b_1()
-            .border_color(rgb(LINE))
-            .bg(rgb(PAPER))
-            .child(
-                div()
-                    .id(("hunks", id))
-                    .size_full()
-                    .flex()
-                    .items_center()
-                    .gap(px(5.))
-                    .px(px(7.))
-                    .overflow_x_scroll()
-                    .children(review.hunks.iter().enumerate().map(|(index, header)| {
-                        let patch = patch.clone();
-                        let file = review.file.clone();
-                        let position = header.split("@@").nth(1).unwrap_or(header).trim();
-                        button(
-                            ("hunk-action", index),
-                            format!("{} hunk {}  ({position})", action.verb(), index + 1),
-                            action.tone(),
-                            !tab.busy,
-                            cx.listener(move |this, _, window, cx| {
-                                this.update_repo(
-                                    id,
-                                    Some(RepoOperation::Hunk(file.clone(), patch.clone(), index)),
-                                    window,
-                                    cx,
-                                );
-                            }),
-                        )
-                        .flex_shrink_0()
-                        .h(px(22.))
-                    })),
-            )
     }
 }

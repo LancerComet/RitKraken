@@ -6,7 +6,7 @@ use std::sync::Arc;
 use gpui_kit::*;
 use ritkraken_git::Repo;
 
-use super::{Client, Load};
+use super::{Client, Load, Message};
 pub(super) use layout::History;
 
 impl History {
@@ -82,7 +82,7 @@ impl Client {
                 },
             );
         } else if tab.history.selected.is_some() {
-            tab.changes.detail = Load::Failed("This ref is outside the loaded history.".into());
+            tab.changes.detail = Load::Failed(Message::Key("app.error.ref_outside_history"));
         }
         cx.notify();
     }

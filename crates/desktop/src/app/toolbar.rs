@@ -4,8 +4,14 @@ use gpui_kit::component::{
     menu::{DropdownMenu, PopupMenuItem},
 };
 
-use gpui_kit::{component::input::Input, prelude::*, *};
+use gpui_kit::{
+    component::input::{Input, InputState},
+    prelude::*,
+    *,
+};
 use ritkraken_git as git;
+
+use crate::i18n::{LocalizedInput, tr};
 
 use super::{
     Client, RepoOperation, RepoTab,
@@ -20,25 +26,30 @@ impl Client {
         let remote_available = available && !snapshot.remotes.is_empty();
         let remotes = snapshot.remotes.clone();
         let view = cx.weak_entity();
-        let fetch_menu = toolbar_button("fetch-options", "Fetch options", remote_available, cx)
-            .w(px(16.))
-            .child(icon("icons/chevron-down.svg", NAV_TEXT).size(px(11.)))
-            .dropdown_menu(move |menu, _, _| {
-                let menu = menu.item(edit_item(
-                    "Fetch All",
+        let fetch_menu = toolbar_button(
+            "fetch-options",
+            "app.toolbar.fetch_options",
+            remote_available,
+            cx,
+        )
+        .w(px(16.))
+        .child(icon("icons/chevron-down.svg", NAV_TEXT).size(px(11.)))
+        .dropdown_menu(move |menu, _, _| {
+            let menu = menu.item(edit_item(
+                tr!("app.toolbar.fetch_all"),
+                id,
+                RepoOperation::Fetch(None),
+                &view,
+            ));
+            remotes.iter().fold(menu, |menu, remote| {
+                menu.item(edit_item(
+                    tr!("app.toolbar.fetch_remote", remote = remote),
                     id,
-                    RepoOperation::Fetch(None),
+                    RepoOperation::Fetch(Some(remote.clone())),
                     &view,
-                ));
-                remotes.iter().fold(menu, |menu, remote| {
-                    menu.item(edit_item(
-                        format!("Fetch {remote}"),
-                        id,
-                        RepoOperation::Fetch(Some(remote.clone())),
-                        &view,
-                    ))
-                })
-            });
+                ))
+            })
+        });
         let can_stash = available
             && snapshot.head.is_some()
             && tab.has_changes()
@@ -55,9 +66,9 @@ impl Client {
             .child(
                 toolbar_tile(
                     "fetch",
-                    "Fetch",
+                    "app.toolbar.fetch",
                     "icons/arrow-down-to-line.svg",
-                    "Fetch All",
+                    "app.toolbar.fetch_all",
                     remote_available,
                     cx,
                 )
@@ -70,9 +81,9 @@ impl Client {
             .child(
                 toolbar_tile(
                     "branch",
-                    "Branch",
+                    "app.toolbar.branch",
                     "icons/git-branch.svg",
-                    "Create branch",
+                    "app.toolbar.create_branch_hint",
                     available,
                     cx,
                 )
@@ -88,9 +99,9 @@ impl Client {
             .child(
                 toolbar_tile(
                     "stash",
-                    "Stash",
+                    "app.toolbar.stash",
                     "icons/download.svg",
-                    "Stash changes",
+                    "app.toolbar.stash_hint",
                     can_stash,
                     cx,
                 )
@@ -101,9 +112,9 @@ impl Client {
             .child(
                 toolbar_tile(
                     "pop",
-                    "Pop",
+                    "app.toolbar.pop",
                     "icons/upload.svg",
-                    "Pop latest stash",
+                    "app.toolbar.pop_hint",
                     available && snapshot.has_stash,
                     cx,
                 )
@@ -128,16 +139,15 @@ impl Client {
                 .any(|reference| snapshot.is_current_branch(reference));
         let tile = toolbar_tile(
             "push",
-            "Push",
+            "app.toolbar.push",
             "icons/arrow-up-to-line.svg",
-            "Push current branch",
+            "app.toolbar.push_hint",
             can_push,
             cx,
         );
-        if !can_push {
+        let Some(branch) = snapshot.branch.clone().filter(|_| can_push) else {
             return tile.into_any_element();
-        }
-        let branch = snapshot.branch.clone();
+        };
         if let Some(upstream) = snapshot
             .upstream
             .as_ref()
@@ -160,7 +170,10 @@ impl Client {
         tile.dropdown_menu(move |menu, _, _| {
             remotes.iter().fold(menu, |menu, remote| {
                 menu.item(edit_item(
-                    format!("Push and track {remote}/{branch}"),
+                    tr!(
+                        "app.toolbar.push_and_track",
+                        upstream = format!("{remote}/{branch}")
+                    ),
                     id,
                     RepoOperation::Push {
                         branch: branch.clone(),
@@ -192,7 +205,8 @@ fn edit_item(
     })
 }
 
-fn toolbar_button(id: &'static str, hint: &'static str, enabled: bool, cx: &App) -> Button {
+fn toolbar_button(id: &'static str, hint_key: &'static str, enabled: bool, cx: &App) -> Button {
+    let hint: SharedString = tr!(hint_key).into();
     Button::new(id)
         .custom(
             ButtonCustomVariant::new(cx)
@@ -201,7 +215,7 @@ fn toolbar_button(id: &'static str, hint: &'static str, enabled: bool, cx: &App)
                 .active(rgb(0x3e455e).into()),
         )
         .disabled(!enabled)
-        .accessibility_label(hint)
+        .accessibility_label(hint.clone())
         .tooltip(hint)
         .min_w_0()
         .p(px(0.))
@@ -213,13 +227,13 @@ fn toolbar_button(id: &'static str, hint: &'static str, enabled: bool, cx: &App)
 
 fn toolbar_tile(
     id: &'static str,
-    label: &'static str,
+    label_key: &'static str,
     glyph: &'static str,
-    hint: &'static str,
+    hint_key: &'static str,
     enabled: bool,
     cx: &App,
 ) -> Button {
-    toolbar_button(id, hint, enabled, cx).w(px(52.)).child(
+    toolbar_button(id, hint_key, enabled, cx).w(px(52.)).child(
         div()
             .flex()
             .flex_col()
@@ -231,7 +245,7 @@ fn toolbar_tile(
                     .text_size(px(11.))
                     .line_height(px(12.))
                     .text_color(rgb(0xc5cde0))
-                    .child(label),
+                    .child(tr!(label_key)),
             )
             .child(icon(glyph, NAV_TEXT).size(px(18.))),
     )
@@ -239,15 +253,17 @@ fn toolbar_tile(
 
 pub(super) struct BranchDialog {
     pub(super) open: bool,
-    name: Entity<gpui_kit::component::input::InputState>,
+    name: LocalizedInput,
 }
 
 impl BranchDialog {
     pub(super) fn new(window: &mut Window, cx: &mut Context<Client>) -> Self {
-        let name = cx.new(|cx| {
-            gpui_kit::component::input::InputState::new(window, cx).placeholder("Branch name")
-        });
+        let name = LocalizedInput::new("app.branch.name", cx, |cx| InputState::new(window, cx));
         Self { open: false, name }
+    }
+
+    pub(super) fn localize(&self, window: &mut Window, cx: &mut App) {
+        self.name.localize(window, cx);
     }
 }
 
@@ -266,7 +282,7 @@ impl Client {
                 .child(
                     div()
                         .text_size(px(16.))
-                        .child("Create and check out a branch"),
+                        .child(tr!("app.branch.create_and_checkout")),
                 )
                 .child(Input::new(&self.branch_dialog.name))
                 .child(
@@ -276,14 +292,14 @@ impl Client {
                         .gap(px(6.))
                         .child(button(
                             "cancel-branch",
-                            "Cancel",
+                            tr!("app.common.cancel"),
                             Tone::Outline,
                             true,
                             cx.listener(|this, _, window, cx| this.escape(window, cx)),
                         ))
                         .child(button(
                             "create-branch",
-                            "Create Branch",
+                            tr!("app.branch.create"),
                             Tone::Green,
                             true,
                             cx.listener(|this, _, window, cx| {

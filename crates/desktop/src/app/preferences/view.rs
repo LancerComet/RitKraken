@@ -1,7 +1,13 @@
-use gpui_kit::component::{Disableable, checkbox::Checkbox};
-
+use crate::i18n::{Language, tr};
 use gpui_kit::{
-    component::{input::Input, scroll::ScrollableElement},
+    component::{
+        Disableable,
+        button::Button,
+        checkbox::Checkbox,
+        input::Input,
+        menu::{DropdownMenu as _, PopupMenuItem},
+        scroll::ScrollableElement,
+    },
     prelude::*,
     *,
 };
@@ -19,12 +25,10 @@ impl Client {
         draft: &PreferenceDraft,
         cx: &mut Context<Self>,
     ) -> Div {
-        let (title, form) = match draft.page {
-            PreferencePage::General => ("General", self.general_preferences(draft, cx)),
-            PreferencePage::Appearance => {
-                ("UI Customization", self.appearance_preferences(draft, cx))
-            }
-            PreferencePage::Editor => ("Editor", self.editor_preferences(draft, cx)),
+        let form = match draft.page {
+            PreferencePage::General => self.general_preferences(draft, cx),
+            PreferencePage::Appearance => self.appearance_preferences(draft, cx),
+            PreferencePage::Editor => self.editor_preferences(draft, cx),
         };
         div()
             .size_full()
@@ -43,7 +47,7 @@ impl Client {
                     .child(
                         button(
                             "exit-preferences",
-                            "‹  Exit Preferences",
+                            tr!("app.preferences.exit"),
                             Tone::Plain,
                             true,
                             cx.listener(|this, _, window, cx| this.save_preferences(window, cx)),
@@ -53,22 +57,22 @@ impl Client {
                         .pl(px(14.))
                         .text_size(px(16.)),
                     )
-                    .child(heading("PREFERENCES").px(px(14.)).py(px(11.)))
+                    .child(
+                        heading(tr!("app.preferences.title"))
+                            .px(px(14.))
+                            .py(px(11.)),
+                    )
                     .children(
                         [
-                            (PreferencePage::General, "General", "icons/settings.svg"),
-                            (
-                                PreferencePage::Appearance,
-                                "UI Customization",
-                                "icons/panel-left.svg",
-                            ),
-                            (PreferencePage::Editor, "Editor", "icons/file-diff.svg"),
+                            (PreferencePage::General, "icons/settings.svg"),
+                            (PreferencePage::Appearance, "icons/panel-left.svg"),
+                            (PreferencePage::Editor, "icons/file-diff.svg"),
                         ]
                         .into_iter()
-                        .map(|(page, label, glyph)| {
+                        .map(|(page, glyph)| {
                             let active = draft.page == page;
                             div()
-                                .id(label)
+                                .id(page.label_key())
                                 .w_full()
                                 .flex()
                                 .items_center()
@@ -85,7 +89,7 @@ impl Client {
                                     }
                                 }))
                                 .child(icon(glyph, MUTED))
-                                .child(div().text_size(px(15.)).child(label))
+                                .child(div().text_size(px(15.)).child(tr!(page.label_key())))
                         }),
                     ),
             )
@@ -102,9 +106,9 @@ impl Client {
                             div()
                                 .text_size(px(23.))
                                 .font_weight(FontWeight::SEMIBOLD)
-                                .child(title),
+                                .child(tr!(draft.page.label_key())),
                         )
-                        .when_some(draft.error.as_deref(), |body, error| {
+                        .when_some(draft.error.as_ref(), |body, error| {
                             body.child(error_text(error))
                         })
                         .child(form)
@@ -116,33 +120,76 @@ impl Client {
     fn general_preferences(&self, draft: &PreferenceDraft, cx: &mut Context<Self>) -> Div {
         let options = &draft.options;
         let limited = !options.show_all_commits;
-        div().flex().flex_col().gap(px(18.))
-            .child(preference_row("Default Branch Name",
+        div()
+            .flex()
+            .flex_col()
+            .gap(px(18.))
+            .child(preference_row(
+                "app.preferences.language",
+                language_picker(options.language, cx),
+                Some("app.preferences.language_hint"),
+            ))
+            .child(preference_row(
+                "app.preferences.default_branch",
                 Input::new(&draft.branch).w(px(255.)),
-                Some("Sets the initial branch for new repositories. Leave blank to use the Git configuration.")))
-            .child(preference_row("Show All Commits in Graph",
-                preference_check("show-all-history", "Show All Commits in Graph", options.show_all_commits, true,
-                    |options, checked| options.show_all_commits = checked, cx),
-                Some("Loads the full reachable history when the repository is opened.")))
-            .child(preference_row("Initial Commits in Graph",
+                Some("app.preferences.default_branch_hint"),
+            ))
+            .child(preference_row(
+                "app.preferences.show_all_history",
+                preference_check(
+                    "show-all-history",
+                    "app.preferences.show_all_history",
+                    options.show_all_commits,
+                    true,
+                    |options, checked| options.show_all_commits = checked,
+                    cx,
+                ),
+                Some("app.preferences.show_all_history_hint"),
+            ))
+            .child(preference_row(
+                "app.preferences.initial_commits",
                 Input::new(&draft.count).w(px(255.)).disabled(!limited),
-                Some("Minimum 500. This is the first batch loaded into the Commit Graph.")))
-            .child(preference_row("Lazy Load Commits in Graph",
-                preference_check("lazy-history", "Lazy Load Commits in Graph", options.lazy_history, limited,
-                    |options, checked| options.lazy_history = checked, cx),
-                Some("Loads older commits when you reach the end of the visible history.")))
-            .child(preference_row("Remember tabs",
-                preference_check("remember-tabs", "Remember tabs", options.remember_tabs, true,
-                    |options, checked| options.remember_tabs = checked, cx),
-                Some("Restores open repositories and the selected tab on the next launch.")))
+                Some("app.preferences.initial_commits_hint"),
+            ))
+            .child(preference_row(
+                "app.preferences.lazy_history",
+                preference_check(
+                    "lazy-history",
+                    "app.preferences.lazy_history",
+                    options.lazy_history,
+                    limited,
+                    |options, checked| options.lazy_history = checked,
+                    cx,
+                ),
+                Some("app.preferences.lazy_history_hint"),
+            ))
+            .child(preference_row(
+                "app.preferences.remember_tabs",
+                preference_check(
+                    "remember-tabs",
+                    "app.preferences.remember_tabs",
+                    options.remember_tabs,
+                    true,
+                    |options, checked| options.remember_tabs = checked,
+                    cx,
+                ),
+                Some("app.preferences.remember_tabs_hint"),
+            ))
     }
 
     fn appearance_preferences(&self, draft: &PreferenceDraft, cx: &mut Context<Self>) -> Div {
-        div().flex().flex_col().gap(px(18.))
-            .child(preference_row("Collapse sidebar in File View",
-                preference_check("collapse-review-sidebar", "Collapse sidebar in File View", draft.options.collapse_review_sidebar, true,
-                    |options, checked| options.collapse_review_sidebar = checked, cx),
-                Some("Shows the compact branch rail when opening a file. The previous sidebar is restored when the file closes.")))
+        div().flex().flex_col().gap(px(18.)).child(preference_row(
+            "app.preferences.collapse_review_sidebar",
+            preference_check(
+                "collapse-review-sidebar",
+                "app.preferences.collapse_review_sidebar",
+                draft.options.collapse_review_sidebar,
+                true,
+                |options, checked| options.collapse_review_sidebar = checked,
+                cx,
+            ),
+            Some("app.preferences.collapse_review_sidebar_hint"),
+        ))
     }
 
     fn editor_preferences(&self, draft: &PreferenceDraft, cx: &mut Context<Self>) -> Div {
@@ -168,26 +215,57 @@ impl Client {
             .flex_col()
             .gap(px(18.))
             .child(preference_row(
-                "Default Diff Layout",
+                "app.preferences.diff_layout",
                 layouts,
-                Some("Choose a compact hunk view, a full inline diff, or two panes."),
+                Some("app.preferences.diff_layout_hint"),
             ))
             .child(preference_row(
-                "Wrap long lines",
+                "app.preferences.wrap_lines",
                 preference_check(
                     "default-wrap",
-                    "Wrap long lines",
+                    "app.preferences.wrap_lines",
                     options.wrap_lines,
                     true,
                     |options, checked| options.wrap_lines = checked,
                     cx,
                 ),
-                Some("Wraps long lines in file previews and diffs."),
+                Some("app.preferences.wrap_lines_hint"),
             ))
     }
 }
 
-fn preference_row(label: &'static str, input: impl IntoElement, hint: Option<&'static str>) -> Div {
+fn language_picker(selected: Language, cx: &Context<Client>) -> impl IntoElement {
+    let view = cx.weak_entity();
+    Button::new("preferences-language")
+        .outline()
+        .label(selected.native_name())
+        .accessibility_label(tr!("app.preferences.language"))
+        .child(icon("icons/chevron-down.svg", MUTED).size(px(12.)))
+        .w(px(255.))
+        .dropdown_menu(move |menu, _, _| {
+            Language::ALL.into_iter().fold(menu, |menu, language| {
+                let view = view.clone();
+                menu.item(
+                    PopupMenuItem::new(language.native_name())
+                        .checked(language == selected)
+                        .on_click(move |_, _, cx| {
+                            let _ = view.update(cx, |this, cx| {
+                                if let Some(preferences) = this.preferences.as_mut() {
+                                    preferences.options.language = language;
+                                    cx.notify();
+                                }
+                            });
+                        }),
+                )
+            })
+        })
+}
+
+fn preference_row(
+    label_key: &'static str,
+    input: impl IntoElement,
+    hint_key: Option<&'static str>,
+) -> Div {
     div()
         .flex()
         .items_start()
@@ -198,7 +276,7 @@ fn preference_row(label: &'static str, input: impl IntoElement, hint: Option<&'s
                 .flex_shrink_0()
                 .pt(px(6.))
                 .text_right()
-                .child(label),
+                .child(tr!(label_key)),
         )
         .child(
             div()
@@ -209,22 +287,27 @@ fn preference_row(label: &'static str, input: impl IntoElement, hint: Option<&'s
                 .flex_col()
                 .gap(px(4.))
                 .child(input)
-                .when_some(hint, |control, hint| {
-                    control.child(div().text_size(px(11.)).text_color(rgb(MUTED)).child(hint))
+                .when_some(hint_key, |control, key| {
+                    control.child(
+                        div()
+                            .text_size(px(11.))
+                            .text_color(rgb(MUTED))
+                            .child(tr!(key)),
+                    )
                 }),
         )
 }
 
 fn preference_check(
     id: &'static str,
-    label: &'static str,
+    label_key: &'static str,
     checked: bool,
     enabled: bool,
     edit: impl Fn(&mut Preferences, bool) + 'static,
     cx: &mut Context<Client>,
 ) -> Checkbox {
     Checkbox::new(id)
-        .accessibility_label(label)
+        .accessibility_label(tr!(label_key))
         .checked(checked)
         .disabled(!enabled)
         .on_click(cx.listener(move |this, checked: &bool, _, cx| {

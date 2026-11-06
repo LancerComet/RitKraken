@@ -11,6 +11,8 @@ use gpui_kit::{
 };
 use ritkraken_git::{RefKind, Reference};
 
+use crate::i18n::{LocalizedInput, tr};
+
 use super::{
     Client, RepoOperation, RepoTab,
     widgets::{
@@ -21,21 +23,26 @@ use super::{
 const REF_GROUPS: [(RefKind, &str, &str, &str); 3] = [
     (
         RefKind::Local,
-        "LOCAL",
-        "Local branches",
+        "app.refs.local",
+        "app.refs.local_branches",
         "icons/laptop.svg",
     ),
     (
         RefKind::Remote,
-        "REMOTE",
-        "Remote branches",
+        "app.refs.remote",
+        "app.refs.remote_branches",
         "icons/cloud.svg",
     ),
-    (RefKind::Tag, "TAGS", "Tags", "icons/tag.svg"),
+    (
+        RefKind::Tag,
+        "app.refs.tags",
+        "app.refs.tags",
+        "icons/tag.svg",
+    ),
 ];
 
 pub(super) struct ReferenceState {
-    pub(super) filter: Entity<InputState>,
+    pub(super) filter: LocalizedInput,
     closed_groups: HashSet<RefKind>,
     closed_folders: HashSet<String>,
     pub(super) collapsed: bool,
@@ -44,8 +51,7 @@ pub(super) struct ReferenceState {
 
 impl ReferenceState {
     pub(super) fn new(window: &mut Window, cx: &mut Context<Client>) -> Self {
-        let filter =
-            cx.new(|cx| InputState::new(window, cx).placeholder("Filter branches and tags"));
+        let filter = LocalizedInput::new("app.refs.filter", cx, |cx| InputState::new(window, cx));
         let subscription = cx.observe(&filter, |_, _, cx| cx.notify());
         Self {
             filter,
@@ -107,6 +113,7 @@ impl Client {
                 let count = tab.history.data.snapshot.refs_of_kind(kind).count();
                 div()
                     .id(title)
+                    .aria_label(tr!(title))
                     .w(px(31.))
                     .h(px(41.))
                     .flex()
@@ -169,11 +176,15 @@ impl Client {
                                 .h(px(22.))
                                 .child(icon("icons/chevron-left.svg", TEXT)),
                             )
-                            .child(div().child(format!("Viewing {count}/{}", refs.len()))),
+                            .child(div().child(tr!(
+                                "app.refs.viewing",
+                                count = count,
+                                total = refs.len()
+                            ))),
                     )
                     .child(button(
                         "reset-branch-filter",
-                        "Show All",
+                        tr!("app.refs.show_all"),
                         Tone::Plain,
                         !filter.is_empty(),
                         cx.listener(move |this, _, window, cx| {
@@ -244,8 +255,9 @@ impl Client {
                     }
                 }))
                 .child(heading(format!(
-                    "{}  {title}",
-                    if open { "⌄" } else { "›" }
+                    "{}  {}",
+                    if open { "⌄" } else { "›" },
+                    tr!(title)
                 )))
                 .child(
                     div()

@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use gpui_kit::{component::scroll::ScrollableElement, prelude::*, *};
-use ritkraken_git::{self as git, RefKind};
+use ritkraken_git as git;
 
 use super::{History, layout::Rail};
 use crate::app::{
@@ -9,6 +9,7 @@ use crate::app::{
     changes::distinct_file_count,
     widgets::{HEADER, HOVER, LINE, MUTED, SELECT, TEAL, WHITE, heading},
 };
+use crate::i18n::tr;
 
 const ROW: f32 = 25.;
 const REF_WIDTH: f32 = 132.;
@@ -88,18 +89,18 @@ impl Client {
                     .bg(rgb(HEADER))
                     .border_b_1()
                     .border_color(rgb(LINE))
-                    .child(column("BRANCH / TAG", REF_WIDTH))
-                    .child(column("GRAPH", graph_width).flex_shrink_0())
+                    .child(column("app.history.ref", REF_WIDTH))
+                    .child(column("app.history.graph", graph_width).flex_shrink_0())
                     .child(
-                        heading("COMMIT MESSAGE")
+                        heading(tr!("app.history.message"))
                             .min_w(px(95.))
                             .flex_1()
                             .pl(px(7.))
                             .truncate(),
                     )
-                    .child(column("AUTHOR", 111.))
-                    .child(column("DATE / TIME", DATE_WIDTH))
-                    .child(column("SHA", 62.)),
+                    .child(column("app.history.author", 111.))
+                    .child(column("app.history.date_time", DATE_WIDTH))
+                    .child(column("app.history.sha", 62.)),
             )
             .child(
                 div()
@@ -112,8 +113,8 @@ impl Client {
     }
 }
 
-fn column(label: &'static str, width: f32) -> Div {
-    heading(label)
+fn column(key: &'static str, width: f32) -> Div {
+    heading(tr!(key))
         .w(px(width))
         .min_w_0()
         .truncate()
@@ -157,9 +158,7 @@ fn history_row(
         let labels: Vec<_> = history.labels_for(oid).collect();
         let first = labels
             .iter()
-            .find(|reference| {
-                reference.kind == RefKind::Local && reference.name == history.snapshot.branch
-            })
+            .find(|reference| history.snapshot.is_current_branch(reference))
             .copied()
             .or_else(|| labels.first().copied());
         let refs = div()
@@ -170,8 +169,7 @@ fn history_row(
             .px(px(5.))
             .gap(px(2.))
             .when_some(first, |element, reference| {
-                let current =
-                    reference.name == history.snapshot.branch && reference.kind == RefKind::Local;
+                let current = history.snapshot.is_current_branch(reference);
                 element
                     .child(
                         div()
@@ -231,13 +229,13 @@ fn history_row(
                                 .border_color(rgb(LINE))
                                 .rounded(px(3.))
                                 .text_color(rgb(MUTED))
-                                .child("// WIP"),
+                                .child(tr!("app.history.wip")),
                         )
                         .child(div().text_color(rgb(MUTED)).text_size(px(11.)).child(
                             if count == 0 {
-                                "Working directory".into()
+                                tr!("app.review.worktree")
                             } else {
-                                format!("{count} changes")
+                                tr!("app.history.changes", count = count)
                             },
                         )),
                 ),

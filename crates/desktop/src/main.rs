@@ -1,16 +1,20 @@
 #![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
 
 mod app;
+mod i18n;
 
 use std::path::PathBuf;
 
 use gpui_kit::*;
+
+rust_i18n::i18n!("locales", fallback = "en");
 
 fn main() {
     let path = std::env::args_os().nth(1).map(PathBuf::from);
     gpui_kit::application()
         .with_assets(gpui_kit::assets::AllAssets)
         .run(move |cx| {
+            i18n::init();
             gpui_kit::init(cx);
             ritkraken_diff::init(cx);
             app::bind_keys(cx);

@@ -1,0 +1,141 @@
+--- a/diff/document.rs
++++ b/diff/document.rs
+@@ -484,6 +484,13 @@ impl DiffFile {
+         }
+     }
+ 
++    pub(crate) fn hunk_has_changes(&self, index: usize) -> bool {
++        match &self.hunk_headings {
++            Some(headings) => headings[index].has_changes,
++            None => self.pairs()[self.hunks()[index].pairs()].iter().any(LinePair::is_changed),
++        }
++    }
++
+     pub(crate) fn hunk_label(&self, index: usize) -> &SharedString {
+         match &self.hunk_headings {
+             Some(headings) => &headings[index].label,
+@@ -538,6 +545,18 @@ impl DiffFile {
+     pub fn is_truncated(&self) -> bool {
+         self.inner.hunks.iter().any(Hunk::is_truncated)
+     }
++    /// Compares supplied lines by source position. Git can align identical
++    /// duplicates across each other before the whitespace filter runs.
++    pub fn same_text_ignoring_edge_whitespace(&self) -> bool {
++        let keys = |side| {
++            self.lines(side).iter().map(move |line| {
++                let bytes = self.source(side)[line.source()].as_bytes();
++                (line.line_number(), ritkraken_git::edge_whitespace_key(bytes))
++            })
++        };
++        keys(DiffSide::Original).eq(keys(DiffSide::Modified))
++    }
++
+     pub fn additions(&self) -> usize {
+         self.inner.additions
+     }
+--- a/diff/parser.rs
++++ b/diff/parser.rs
+@@ -34,11 +34,11 @@ impl std::error::Error for DiffParseError {}
+ 
+ type Result<T> = std::result::Result<T, DiffParseError>;
+ 
+-/// Relaxations for [`DiffFile::parse_with`]. Every relaxation is off by
+-/// default, which parses exactly as [`DiffFile::parse`] does.
++/// Settings for [`DiffFile::parse_with`]. The defaults match [`DiffFile::parse`].
+ #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+ pub struct DiffParseOptions {
+     truncated_hunks: bool,
++    ignore_edge_whitespace: bool,
+ }
+ 
+ impl DiffParseOptions {
+@@ -54,6 +54,12 @@ impl DiffParseOptions {
+         self
+     }
+ 
++    /// Treats changes confined to leading or trailing whitespace as context.
++    pub fn ignore_edge_whitespace(mut self, ignore: bool) -> Self {
++        self.ignore_edge_whitespace = ignore;
++        self
++    }
++
+     pub fn has_truncated_hunks(&self) -> bool {
+         self.truncated_hunks
+     }
+@@ -143,13 +149,32 @@ impl File {
+         )
+     }
+ 
+-    fn flush_changes(&mut self, deleted: &mut Vec<usize>, added: &mut Vec<usize>) {
+-        for ix in 0..deleted.len().max(added.len()) {
+-            self.pairs.push(LinePair::new(
+-                deleted.get(ix).copied(),
+-                added.get(ix).copied(),
+-                true,
+-            ));
++    fn flush_changes(
++        &mut self,
++        deleted: &mut Vec<usize>,
++        added: &mut Vec<usize>,
++        options: DiffParseOptions,
++    ) {
++        if deleted.is_empty() && added.is_empty() {
++            return;
++        }
++        let lines = |side: &SideBuilder, index: usize| side.lines[index].1.clone();
++        let original = deleted.iter().map(|&index| {
++            self.original.source[lines(&self.original, index)].as_bytes()
++        });
++        let modified = added.iter().map(|&index| {
++            self.modified.source[lines(&self.modified, index)].as_bytes()
++        });
++        for group in ritkraken_git::align_changed_lines(original, modified, options.ignore_edge_whitespace) {
++            let original = &deleted[group.original];
++            let modified = &added[group.modified];
++            for ix in 0..original.len().max(modified.len()) {
++                self.pairs.push(LinePair::new(
++                    original.get(ix).copied(),
++                    modified.get(ix).copied(),
++                    !group.equivalent,
++                ));
++            }
+         }
+         deleted.clear();
+         added.clear();
+@@ -399,7 +424,7 @@ fn parse_hunk(
+         }
+         match tag {
+             b' ' => {
+-                file.flush_changes(&mut deleted, &mut added);
++                file.flush_changes(&mut deleted, &mut added, options);
+                 if old_used >= old_count || new_used >= new_count {
+                     return Err(DiffParseError::new(
+                         ix + 1,
+@@ -444,7 +469,7 @@ fn parse_hunk(
+             "hunk ended before its declared line counts",
+         ));
+     }
+-    file.flush_changes(&mut deleted, &mut added);
++    file.flush_changes(&mut deleted, &mut added, options);
+     file.hunks.push(Hunk::new(
+         pairs_start..file.pairs.len(),
+         original_start..file.original.lines.len(),
+--- a/diff/state.rs
++++ b/diff/state.rs
+@@ -1757,10 +1757,12 @@ fn project_file(
+     let mut ix = 0;
+     while ix < pairs.len() {
+         while document.hunk_start(hunk_ix) == Some(ix) {
+-            rows.push(DisplayRow::Hunk {
+-                file,
+-                hunk: hunk_ix,
+-            });
++            if document.hunk_has_changes(hunk_ix) {
++                rows.push(DisplayRow::Hunk {
++                    file,
++                    hunk: hunk_ix,
++                });
++            }
+             hunk_ix += 1;
+         }
+         let end = hunk_end[ix].min(document.hunk_start(hunk_ix).unwrap_or(pairs.len()));

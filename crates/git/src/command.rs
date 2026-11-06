@@ -1,4 +1,5 @@
 use std::{
+    io::Write,
     path::Path,
     process::{Command, Output, Stdio},
 };
@@ -73,6 +74,21 @@ pub(crate) fn run_write(command: &mut Command) -> Result<()> {
     checked(command.output().map_err(process_error)?).map(drop)
 }
 
+pub(crate) fn run_with_input(command: &mut Command, parts: &[&[u8]]) -> Result<Vec<u8>> {
+    let mut child = command
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(process_error)?;
+    let mut input = child.stdin.take().expect("piped stdin");
+    let written = parts.iter().try_for_each(|part| input.write_all(part));
+    drop(input);
+    let output = checked(child.wait_with_output().map_err(process_error)?)?;
+    written.map_err(process_error)?;
+    Ok(output)
+}
+
 pub(crate) fn checked(output: Output) -> Result<Vec<u8>> {
     if output.status.success() {
         return Ok(output.stdout);
@@ -85,12 +101,14 @@ pub(crate) fn checked(output: Output) -> Result<Vec<u8>> {
         stderr.trim()
     };
     let status = output.status;
-    let message = if message.is_empty() {
-        format!("Git exited with {status}.")
+    if message.is_empty() {
+        Err(Error::Exited(status))
     } else {
-        message.to_owned()
-    };
-    Err(Error::Git { status, message })
+        Err(Error::Git {
+            status,
+            message: message.to_owned(),
+        })
+    }
 }
 
 pub(crate) fn process_error(error: std::io::Error) -> Error {

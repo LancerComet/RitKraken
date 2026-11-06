@@ -1,6 +1,6 @@
 use std::{path::PathBuf, process::Command};
 
-use crate::{Repo, Result, command::run_write, protocol::path_from_bytes};
+use crate::{Repo, Result, RuleError, command::run_write, protocol::path_from_bytes};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Change {
@@ -55,7 +55,7 @@ impl Repo {
     pub fn commit(&self, summary: &str, description: &str) -> Result<()> {
         let summary = summary.trim();
         if summary.is_empty() {
-            return Err("Enter a commit summary.".into());
+            return Err(RuleError::EmptyCommitSummary.into());
         }
         let mut git = self.git();
         git.args(["commit", "-m", summary]);

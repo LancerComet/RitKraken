@@ -5,7 +5,9 @@ use std::{fs, path::PathBuf};
 use gpui_kit::*;
 use ritkraken_git::{self as git, Repo};
 
-use super::{Client, history::History};
+use crate::i18n::{LocalizedInput, tr};
+
+use super::{Client, Message, history::History};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) enum ManagerMode {
@@ -31,10 +33,10 @@ pub(super) struct RepositoryManager {
     pub(super) mode: Option<ManagerMode>,
     list: RepoList,
     projects: Vec<PathBuf>,
-    pub(super) error: Option<String>,
-    path: Entity<InputState>,
-    url: Entity<InputState>,
-    search: Entity<InputState>,
+    pub(super) error: Option<Message>,
+    path: LocalizedInput,
+    url: LocalizedInput,
+    search: LocalizedInput,
     _search: Subscription,
 }
 
@@ -42,9 +44,13 @@ use gpui_kit::component::input::InputState;
 
 impl RepositoryManager {
     pub(super) fn new(window: &mut Window, cx: &mut Context<Client>) -> Self {
-        let path = cx.new(|cx| InputState::new(window, cx).placeholder("Repository directory"));
-        let url = cx.new(|cx| InputState::new(window, cx).placeholder("Repository URL"));
-        let search = cx.new(|cx| InputState::new(window, cx).placeholder("Filter repos by name"));
+        let path = LocalizedInput::new("app.repositories.directory", cx, |cx| {
+            InputState::new(window, cx)
+        });
+        let url = LocalizedInput::new("app.repositories.url", cx, |cx| InputState::new(window, cx));
+        let search = LocalizedInput::new("app.repositories.filter", cx, |cx| {
+            InputState::new(window, cx)
+        });
         let subscription = cx.observe(&search, |_, _, cx| cx.notify());
         Self {
             mode: Some(ManagerMode::Open),
@@ -55,6 +61,12 @@ impl RepositoryManager {
             url,
             search,
             _search: subscription,
+        }
+    }
+
+    pub(super) fn localize(&self, window: &mut Window, cx: &mut App) {
+        for input in [&self.path, &self.url, &self.search] {
+            input.localize(window, cx);
         }
     }
 }
@@ -80,11 +92,11 @@ impl Client {
             directories: true,
             multiple: false,
             prompt: Some(
-                if project {
-                    "Choose project directory"
+                tr!(if project {
+                    "app.repositories.choose_project"
                 } else {
-                    "Choose repository directory"
-                }
+                    "app.repositories.choose_repository"
+                })
                 .into(),
             ),
         });
@@ -109,7 +121,7 @@ impl Client {
                     }
                 }
                 Ok(Err(error)) => {
-                    this.manager.error = Some(error.to_string());
+                    this.manager.error = Some(Message::detail("app.error.choose_directory", error));
                     cx.notify();
                 }
                 _ => {}
@@ -143,7 +155,10 @@ impl Client {
                     if this.manager.list == RepoList::Project(path) {
                         match result {
                             Ok(paths) => this.manager.projects = paths,
-                            Err(error) => this.manager.error = Some(error.to_string()),
+                            Err(error) => {
+                                this.manager.error =
+                                    Some(Message::detail("app.error.list_repositories", error))
+                            }
                         }
                         cx.notify();
                     }
@@ -175,7 +190,7 @@ impl Client {
                 OpenRepo::Clone(url.into(), path.into())
             }
             _ => {
-                self.manager.error = Some("Enter the repository location first.".into());
+                self.manager.error = Some(Message::Key("app.error.repository_location"));
                 cx.notify();
                 return;
             }
@@ -220,7 +235,7 @@ impl Client {
                     }
                     Err(error) => {
                         this.manager.mode = Some(this.manager.mode.unwrap_or(ManagerMode::Open));
-                        this.manager.error = Some(error.to_string());
+                        this.manager.error = Some(error.into());
                     }
                 }
                 cx.notify();

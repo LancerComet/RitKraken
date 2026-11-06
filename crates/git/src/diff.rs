@@ -1,16 +1,21 @@
+mod hunk;
+mod staging;
+mod whitespace;
+
 use std::{
     fs,
-    io::{self, Read, Write},
+    io::{self, Read},
     ops::Range,
     process::{Command, ExitStatus, Stdio},
 };
 
 use crate::{
-    Change, Error, Repo, Result,
+    Change, Error, Repo, Result, RuleError,
     command::{checked, process_error, read_output, without_optional_locks},
-    protocol::text,
     worktree::append_paths,
 };
+pub use staging::{PatchSelection, PatchSide};
+pub use whitespace::{align_changed_lines, edge_whitespace_key};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Scope {
@@ -30,6 +35,7 @@ pub struct Patch {
     bytes: Vec<u8>,
     hunks: Vec<Range<usize>>,
     header: usize,
+    ignore_edge_whitespace: bool,
 }
 
 pub const PATCH_VIEW_LIMIT: usize = 8 * 1024 * 1024;
@@ -40,6 +46,9 @@ const PATCH_OPTIONS: &[&str] = &[
     "--full-index",
     "--src-prefix=a/",
     "--dst-prefix=b/",
+    "--output-indicator-old=-",
+    "--output-indicator-new=+",
+    "--output-indicator-context= ",
 ];
 
 impl Repo {
@@ -96,7 +105,7 @@ impl Repo {
 
     pub fn file_contents(&self, file: &FileTarget) -> Result<String> {
         if file.change.code == b'D' {
-            return Err("This file was deleted in the selected version.".into());
+            return Err(RuleError::DeletedFile.into());
         }
         let path = &file.change.path;
         let bytes = match &file.scope {
@@ -109,7 +118,7 @@ impl Repo {
                         .map_err(Error::from);
                 }
                 if !metadata.is_file() {
-                    return Err("This entry does not have text file contents.".into());
+                    return Err(RuleError::NoFileContents.into());
                 }
                 fs::File::open(path)
                     .and_then(read_preview_bytes)
@@ -125,43 +134,11 @@ impl Repo {
                 read_preview(self.git().args(["cat-file", "blob"]).arg(object), false)?
             }
         };
-        let bytes = bytes.ok_or("This file exceeds the 8 MiB preview limit.")?;
+        let bytes = bytes.ok_or(RuleError::FilePreviewLimit)?;
         if bytes.contains(&0) {
-            return Err("Binary file contents cannot be previewed as text.".into());
+            return Err(RuleError::BinaryFile.into());
         }
-        String::from_utf8(bytes).map_err(|_| "This file does not contain UTF-8 text.".into())
-    }
-
-    pub fn apply_hunk(&self, file: &FileTarget, shown: &Patch, index: usize) -> Result<()> {
-        let patch = self.patch(file)?;
-        if patch.bytes != shown.bytes {
-            return Err(
-                "The diff changed on disk. Review the refreshed diff before staging.".into(),
-            );
-        }
-        let range = patch
-            .hunks
-            .get(index)
-            .ok_or("This hunk cannot be staged separately.")?;
-        let mut git = self.git();
-        git.args(["apply", "--cached", "--whitespace=nowarn"]);
-        if file.scope == Scope::Index {
-            git.arg("--reverse");
-        }
-        let mut child = git
-            .arg("-")
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .map_err(process_error)?;
-        let mut input = child.stdin.take().expect("piped stdin");
-        let write_result = input
-            .write_all(&patch.bytes[..patch.header])
-            .and_then(|_| input.write_all(&patch.bytes[range.clone()]));
-        drop(input);
-        checked(child.wait_with_output().map_err(process_error)?)?;
-        write_result.map_err(process_error)
+        String::from_utf8(bytes).map_err(|_| RuleError::InvalidFileEncoding.into())
     }
 }
 
@@ -195,10 +172,7 @@ fn read_preview(command: &mut Command, is_untracked_diff: bool) -> Result<Option
     {
         Ok(bytes)
     } else {
-        Err(Error::Git {
-            status,
-            message: format!("Git could not read this preview ({status})."),
-        })
+        Err(Error::PreviewRead(status))
     }
 }
 
@@ -207,12 +181,9 @@ impl Patch {
         let mut hunks: Vec<Range<usize>> = Vec::new();
         let mut offset = 0;
         let mut headers = 0;
-        let mut mode_change = false;
         for line in bytes.split_inclusive(|byte| *byte == b'\n') {
             if line.starts_with(b"diff --git ") {
                 headers += 1;
-            } else if line.starts_with(b"old mode ") || line.starts_with(b"new mode ") {
-                mode_change = true;
             } else if line.starts_with(b"@@ ") {
                 if let Some(previous) = hunks.last_mut() {
                     previous.end = offset;
@@ -226,7 +197,7 @@ impl Patch {
             || file.change.code != b'M'
             || file.change.previous.is_some()
             || headers != 1
-            || mode_change
+            || !staging::is_text_modification(&bytes[..header])
             || bytes.len() > PATCH_VIEW_LIMIT
         {
             hunks.clear();
@@ -235,11 +206,23 @@ impl Patch {
             bytes,
             hunks,
             header,
+            ignore_edge_whitespace: false,
         }
     }
 
     pub fn bytes(&self) -> &[u8] {
         &self.bytes
+    }
+
+    pub fn with_edge_whitespace_ignored(mut self, ignore: bool) -> Self {
+        // The viewer uses a lossy preview for other encodings. Compare only
+        // when the text it shows maps exactly back to the patch bytes.
+        self.ignore_edge_whitespace = ignore && std::str::from_utf8(&self.bytes).is_ok();
+        self
+    }
+
+    pub fn ignores_edge_whitespace(&self) -> bool {
+        self.ignore_edge_whitespace
     }
 
     pub fn same_file_versions(&self, full_patch: &[u8]) -> bool {
@@ -250,33 +233,11 @@ impl Patch {
     }
 
     pub fn first_context_line(&self) -> Option<usize> {
-        if self.header == 0 {
-            return None;
-        }
-        let range = self.bytes[self.header..]
-            .split(|byte| *byte == b' ')
-            .nth(2)?;
-        let start = range
-            .strip_prefix(b"+")?
-            .split(|byte| *byte == b',')
-            .next()?;
-        std::str::from_utf8(start)
-            .ok()?
-            .parse::<usize>()
-            .ok()
-            .filter(|line| *line > 0)
+        let [_, modified] = hunk::ranges(&self.bytes[self.header..])?;
+        (!modified.is_empty()).then_some(modified.start)
     }
 
-    pub fn hunk_labels(&self) -> Vec<String> {
-        self.hunks
-            .iter()
-            .map(|range| {
-                let line = self.bytes[range.clone()]
-                    .split(|byte| *byte == b'\n')
-                    .next()
-                    .unwrap_or_default();
-                text(line)
-            })
-            .collect()
+    pub fn hunk_count(&self) -> usize {
+        self.hunks.len()
     }
 }

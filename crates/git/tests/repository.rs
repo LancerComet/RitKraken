@@ -1,6 +1,8 @@
 use std::{fs, path::Path, process::Command};
 
-use ritkraken_git::{FileTarget, PATCH_VIEW_LIMIT, Repo, Scope, Upstream};
+use ritkraken_git::{
+    FileTarget, PATCH_VIEW_LIMIT, PatchSelection, PatchSide, Repo, Scope, Upstream,
+};
 
 fn command(directory: Option<&Path>) -> Command {
     let mut git = Command::new("git");
@@ -65,13 +67,14 @@ fn partial_stage_preserves_other_edits_and_refuses_a_stale_patch() {
     };
     assert_eq!(target.change.path, Path::new(name));
     let patch = repo.patch(&target).unwrap();
-    assert_eq!(patch.hunk_labels().len(), 2);
+    assert_eq!(patch.hunk_count(), 2);
     let full_patch = repo.full_patch(&target).unwrap().unwrap();
     assert!(patch.same_file_versions(&full_patch));
     assert!(String::from_utf8_lossy(&full_patch).contains(" original 20"));
     assert!(!String::from_utf8_lossy(patch.bytes()).contains(" original 20"));
     assert_eq!(repo.file_contents(&target).unwrap(), modified);
-    repo.apply_hunk(&target, &patch, 0).unwrap();
+    repo.apply_partial(&target, &patch, PatchSelection::Hunk(0))
+        .unwrap();
     let status = repo.status().unwrap();
     assert_eq!(status.staged[0].path, status.unstaged[0].path);
     assert_eq!(std::fs::read_to_string(&path).unwrap(), modified);
@@ -87,12 +90,13 @@ fn partial_stage_preserves_other_edits_and_refuses_a_stale_patch() {
     let indexed = repo.file_contents(&staged).unwrap();
     assert!(indexed.contains("first edit"));
     assert!(!indexed.contains("second edit"));
-    repo.apply_hunk(&staged, &staged_patch, 0).unwrap();
+    repo.apply_partial(&staged, &staged_patch, PatchSelection::Hunk(0))
+        .unwrap();
     assert!(repo.status().unwrap().staged.is_empty());
 
     std::fs::write(&path, modified.replace("first edit", "changed externally")).unwrap();
     assert!(
-        repo.apply_hunk(&target, &patch, 0)
+        repo.apply_partial(&target, &patch, PatchSelection::Hunk(0))
             .unwrap_err()
             .to_string()
             .contains("changed on disk")
@@ -100,7 +104,8 @@ fn partial_stage_preserves_other_edits_and_refuses_a_stale_patch() {
     assert!(repo.status().unwrap().staged.is_empty());
 
     let current = repo.patch(&target).unwrap();
-    repo.apply_hunk(&target, &current, 1).unwrap();
+    repo.apply_partial(&target, &current, PatchSelection::Hunk(1))
+        .unwrap();
     repo.commit("Partial commit", "").unwrap();
     let snapshot = repo.snapshot(None).unwrap();
     assert_eq!(snapshot.commits[0].subject, "Partial commit");
@@ -131,6 +136,138 @@ fn partial_stage_preserves_other_edits_and_refuses_a_stale_patch() {
     assert!(limited.history_limited);
     assert_eq!(limited.commits[0].id, snapshot.commits[0].id);
     assert_eq!(limited.commits.len(), 1);
+}
+
+fn apply_line(repo: &Repo, scope: Scope, side: PatchSide, number: usize) {
+    let status = repo.status().unwrap();
+    let change = match &scope {
+        Scope::Worktree => status.unstaged,
+        Scope::Index => status.staged,
+        Scope::Commit { .. } => unreachable!(),
+    }
+    .remove(0);
+    let file = FileTarget { scope, change };
+    let patch = repo.patch(&file).unwrap();
+    repo.apply_partial(&file, &patch, PatchSelection::Line { side, number })
+        .unwrap();
+}
+
+#[test]
+fn a_line_action_targets_one_side_and_one_occurrence_of_repeated_edits() {
+    let (_directory, repo) = fixture();
+    let path = repo.root().join("repeated.txt");
+    let first = format!("{}old\n{}", "context\n".repeat(5), "context\n".repeat(14));
+    let tail = "context\n".repeat(7);
+    let original = format!("{first}old\n{tail}");
+    fs::write(&path, &original).unwrap();
+    repo.stage(None).unwrap();
+    repo.commit("Baseline", "").unwrap();
+    let modified = original.replace("old\n", "chosen\nother\n");
+    fs::write(&path, &modified).unwrap();
+    let indexed =
+        || git_output(command(Some(repo.root())).args(["cat-file", "blob", ":repeated.txt"]));
+
+    apply_line(&repo, Scope::Worktree, PatchSide::Modified, 22);
+    assert_eq!(indexed(), format!("{first}old\nchosen\n{tail}").as_bytes());
+    apply_line(&repo, Scope::Index, PatchSide::Modified, 22);
+    assert_eq!(indexed(), original.as_bytes());
+
+    apply_line(&repo, Scope::Worktree, PatchSide::Original, 21);
+    assert_eq!(indexed(), format!("{first}{tail}").as_bytes());
+    apply_line(&repo, Scope::Index, PatchSide::Original, 21);
+    assert_eq!(indexed(), original.as_bytes());
+    assert_eq!(fs::read(&path).unwrap(), modified.as_bytes());
+}
+
+#[test]
+fn a_line_action_preserves_raw_bytes_at_the_end_of_the_file() {
+    let (_directory, repo) = fixture();
+    let path = repo.root().join("eof.txt");
+    let indexed = || git_output(command(Some(repo.root())).args(["cat-file", "blob", ":eof.txt"]));
+    fs::write(&path, b"keep\r\nold").unwrap();
+    repo.stage(None).unwrap();
+    repo.commit("Baseline", "").unwrap();
+    fs::write(&path, b"keep\r\nnew").unwrap();
+
+    apply_line(&repo, Scope::Worktree, PatchSide::Modified, 2);
+    assert_eq!(indexed(), b"keep\r\nold\r\nnew");
+    apply_line(&repo, Scope::Index, PatchSide::Modified, 3);
+    assert_eq!(indexed(), b"keep\r\nold\r\n");
+    assert_eq!(fs::read(&path).unwrap(), b"keep\r\nnew");
+}
+
+#[test]
+fn a_line_action_can_partially_stage_an_edit_of_a_tracked_empty_file() {
+    let (_directory, repo) = fixture();
+    let path = repo.root().join("empty.txt");
+    let indexed =
+        || git_output(command(Some(repo.root())).args(["cat-file", "blob", ":empty.txt"]));
+    fs::write(&path, []).unwrap();
+    repo.stage(None).unwrap();
+    repo.commit("Baseline", "").unwrap();
+    fs::write(&path, b"first\r\nsecond\r\n").unwrap();
+
+    apply_line(&repo, Scope::Worktree, PatchSide::Modified, 2);
+    assert_eq!(indexed(), b"second\r\n");
+    apply_line(&repo, Scope::Index, PatchSide::Modified, 1);
+    assert!(indexed().is_empty());
+    assert_eq!(fs::read(&path).unwrap(), b"first\r\nsecond\r\n");
+}
+
+#[test]
+fn whitespace_filtered_staging_uses_visible_context_and_preserves_index_bytes() {
+    let (_directory, repo) = fixture();
+    let path = repo.root().join("whitespace.txt");
+    let original = "start\n  before\n  after\n  x = 1\nend\n";
+    let modified = "start\nbefore  \nadded\n\tafter\n\tx  = 1\nend\n";
+    fs::write(&path, original).unwrap();
+    repo.stage(None).unwrap();
+    repo.commit("Baseline", "").unwrap();
+    fs::write(&path, modified).unwrap();
+
+    let file = FileTarget {
+        scope: Scope::Worktree,
+        change: repo.status().unwrap().unstaged.remove(0),
+    };
+    let filtered = || {
+        repo.patch(&file)
+            .unwrap()
+            .with_edge_whitespace_ignored(true)
+    };
+    let indexed =
+        || git_output(command(Some(repo.root())).args(["cat-file", "blob", ":whitespace.txt"]));
+    repo.apply_partial(
+        &file,
+        &filtered(),
+        PatchSelection::Line {
+            side: PatchSide::Modified,
+            number: 3,
+        },
+    )
+    .unwrap();
+    assert_eq!(
+        indexed(),
+        b"start\n  before\nadded\n  after\n  x = 1\nend\n"
+    );
+
+    repo.apply_partial(&file, &filtered(), PatchSelection::Hunk(0))
+        .unwrap();
+    assert_eq!(
+        indexed(),
+        b"start\n  before\nadded\n  after\n\tx  = 1\nend\n"
+    );
+    let staged = FileTarget {
+        scope: Scope::Index,
+        change: repo.status().unwrap().staged.remove(0),
+    };
+    let patch = repo
+        .patch(&staged)
+        .unwrap()
+        .with_edge_whitespace_ignored(true);
+    repo.apply_partial(&staged, &patch, PatchSelection::Hunk(0))
+        .unwrap();
+    assert_eq!(indexed(), original.as_bytes());
+    assert_eq!(fs::read(&path).unwrap(), modified.as_bytes());
 }
 
 #[test]

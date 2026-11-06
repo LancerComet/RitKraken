@@ -1,4 +1,4 @@
-//! RitKraken's viewport and divider extension of the pinned GPUI Diff.
+//! RitKraken's viewport and change controls for the pinned GPUI Diff.
 
 use gpui::App;
 use gpui_component::{
@@ -15,6 +15,7 @@ macro_rules! _rust_i18n_t {
 }
 pub(crate) use _rust_i18n_t;
 
+mod controls;
 mod split;
 include!(concat!(env!("OUT_DIR"), "/modules.rs"));
 use language_name::language_name;
@@ -45,7 +46,8 @@ mod highlighter {
 use gpui_component::Rope;
 
 pub use diff::{
-    Diff, DiffFile, DiffHunkSeparator, DiffLinePosition, DiffMode, DiffSide, DiffState,
+    Diff, DiffFile, DiffHunkSeparator, DiffLinePosition, DiffMode, DiffParseOptions, DiffSide,
+    DiffState,
 };
 
 pub fn init(cx: &mut App) {

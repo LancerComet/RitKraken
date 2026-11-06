@@ -3,7 +3,9 @@ use std::{collections::HashSet, path::PathBuf};
 use gpui_kit::{component::scroll::ScrollableElement, prelude::*, *};
 use ritkraken_git::{Change, FileTarget, Scope};
 
-use super::{StageAction, change_mark};
+use crate::i18n::tr;
+
+use super::{StageAction, StageTarget, change_mark};
 use crate::app::{
     Client, RepoOperation, RepoTab,
     widgets::{HOVER, MUTED, PAPER, SELECT, Tone, button, icon, note},
@@ -20,14 +22,14 @@ impl Client {
             .justify_center()
             .children(
                 [
-                    (false, "path-mode", "☰  Path"),
-                    (true, "tree-mode", "▦  Tree"),
+                    (false, "path-mode", "app.changes.path_mode"),
+                    (true, "tree-mode", "app.changes.tree_mode"),
                 ]
                 .into_iter()
                 .map(|(tree, name, label)| {
                     button(
                         (name, id),
-                        label,
+                        tr!(label),
                         Tone::Outline.selected_when(tab.changes.tree == tree),
                         true,
                         cx.listener(move |this, _, _, cx| {
@@ -54,7 +56,10 @@ impl Client {
             Scope::Commit { .. } => ("commit-files", 2),
         };
         if files.is_empty() {
-            return div().flex_1().min_h_0().child(note("No files"));
+            return div()
+                .flex_1()
+                .min_h_0()
+                .child(note(tr!("app.changes.no_files")));
         }
         let id = tab.id;
         let selected = tab.review.active.as_ref().map(|diff| diff.file.clone());
@@ -134,7 +139,7 @@ impl Client {
                                 row.child(
                                     button(
                                         ("file-stage", index),
-                                        action.verb(),
+                                        action.label(StageTarget::Row),
                                         Tone::Plain,
                                         !busy,
                                         move |_, window, cx| {

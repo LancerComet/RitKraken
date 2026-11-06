@@ -1,7 +1,10 @@
 use gpui_kit::{prelude::*, *};
 
+use crate::i18n::tr;
+
 use super::{
     Client, Escape, OpenPreferences, OpenRepos, Refresh, RepoTab, Submit,
+    message::branch_label,
     widgets::{
         GREEN, LINE, MUTED, NAV, NAV_TEXT, PAPER, RED, TEXT, TOOLBAR, Tone, WHITE, button, heading,
         icon,
@@ -93,7 +96,10 @@ impl Client {
                             .bg(rgb(0x245962)),
                     ),
             )
-            .child(Self::repository_manager_button("open-repos", "Open", cx).mr(action_gap))
+            .child(
+                Self::repository_manager_button("open-repos", tr!("app.common.open"), cx)
+                    .mr(action_gap),
+            )
             .child(
                 div().flex_1().min_w_0().h_full().child(
                     div()
@@ -168,7 +174,7 @@ impl Client {
 
     fn repository_manager_button(
         id: &'static str,
-        label: &'static str,
+        label: impl Into<SharedString>,
         cx: &Context<Self>,
     ) -> Stateful<Div> {
         button(
@@ -184,8 +190,8 @@ impl Client {
 
     fn toolbar(&self, tab: Option<&RepoTab>, cx: &mut Context<Self>) -> Div {
         let (repo, branch) = tab.map_or_else(
-            || ("Repositories".to_owned(), String::new()),
-            |tab| (tab.repo.name(), tab.history.data.snapshot.branch.clone()),
+            || (tr!("app.repositories.title"), String::new()),
+            |tab| (tab.repo.name(), branch_label(&tab.history.data.snapshot)),
         );
         div()
             .h(px(48.))
@@ -207,7 +213,7 @@ impl Client {
                             .flex()
                             .flex_col()
                             .min_w_0()
-                            .child(heading("REPOSITORY").text_color(rgb(0xb3bdd7)))
+                            .child(heading(tr!("app.toolbar.repository")).text_color(rgb(0xb3bdd7)))
                             .child(
                                 div()
                                     .max_w(px(200.))
@@ -228,7 +234,10 @@ impl Client {
                                 .flex()
                                 .flex_col()
                                 .min_w_0()
-                                .child(heading("BRANCH").text_color(rgb(0xb3bdd7)))
+                                .child(
+                                    heading(tr!("app.toolbar.branch_heading"))
+                                        .text_color(rgb(0xb3bdd7)),
+                                )
                                 .child(div().max_w(px(270.)).truncate().child(branch)),
                         )
                     }),
@@ -241,26 +250,27 @@ impl Client {
                     .min_w(px(58.))
                     .text_right()
                     .text_color(rgb(0xaeb8d3))
-                    .child("Local Git"),
+                    .child(tr!("app.toolbar.local_git")),
             )
     }
 
     fn status_bar(&self, tab: Option<&RepoTab>) -> Div {
         let (color, message) = if self.session.opening {
-            (MUTED, "Opening repository…".to_owned())
+            (MUTED, tr!("app.status.opening"))
         } else if let Some(tab) = tab {
             if tab.busy {
-                (MUTED, "Running Git…".to_owned())
+                (MUTED, tr!("app.status.running_git"))
             } else if let Some((error, message)) = &tab.notice {
+                let text = message.text();
                 (
                     if *error { RED } else { GREEN },
-                    message.lines().next().unwrap_or(message).to_owned(),
+                    text.lines().next().unwrap_or(&text).to_owned(),
                 )
             } else {
                 (MUTED, tab.repo.root().to_string_lossy().into_owned())
             }
         } else {
-            (MUTED, "Open a repository to begin".to_owned())
+            (MUTED, tr!("app.status.open_repository"))
         };
         div()
             .flex()
@@ -283,10 +293,10 @@ impl Client {
             )
             .when_some(tab, |element, tab| {
                 let snapshot = &tab.history.data.snapshot;
-                element.child(div().text_color(rgb(MUTED)).child(format!(
-                    "{}{} commits",
-                    snapshot.commits.len(),
-                    if snapshot.history_limited { "+" } else { "" }
+                element.child(div().text_color(rgb(MUTED)).child(tr!(
+                    "app.status.commits",
+                    count = snapshot.commits.len(),
+                    more = if snapshot.history_limited { "+" } else { "" }
                 )))
             })
             .child(

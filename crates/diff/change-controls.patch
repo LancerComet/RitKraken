@@ -1,0 +1,309 @@
+--- a/diff/document.rs
++++ b/diff/document.rs
+@@ -396,6 +396,7 @@ struct DocumentInner {
+ pub struct DiffFile {
+     inner: Arc<DocumentInner>,
+     language: Option<SharedString>,
++    hunk_headings: Option<Arc<[crate::controls::HunkHeading]>>,
+ }
+ 
+ impl DiffFile {
+@@ -466,6 +467,27 @@ impl DiffFile {
+                 conflicts: Vec::new(),
+             }),
+             language: None,
++            hunk_headings: None,
++        }
++    }
++
++    /// Projects the compact patch's hunk headers onto a full-context document.
++    pub fn with_hunk_headings_from(mut self, compact: &Self) -> Option<Self> {
++        self.hunk_headings = Some(crate::controls::hunk_headings(&self, compact)?);
++        Some(self)
++    }
++
++    pub(crate) fn hunk_start(&self, index: usize) -> Option<usize> {
++        match &self.hunk_headings {
++            Some(headings) => headings.get(index).map(|heading| heading.pair),
++            None => self.hunks().get(index).map(|hunk| hunk.pairs().start),
++        }
++    }
++
++    pub(crate) fn hunk_label(&self, index: usize) -> &SharedString {
++        match &self.hunk_headings {
++            Some(headings) => &headings[index].label,
++            None => self.hunks()[index].label(),
+         }
+     }
+ 
+--- a/diff/mod.rs
++++ b/diff/mod.rs
+@@ -38,7 +38,7 @@ use crate::{
+     scroll::{ScrollableMask, Scrollbar},
+     v_flex,
+ };
+-use crate::split::SplitLayout;
++use crate::{controls::ChangeControls, split::SplitLayout};
+ use actions::*;
+ use conflict::ConflictPart;
+ use decoration::{Decorations, GutterMarkers};
+@@ -238,6 +238,7 @@ pub struct Diff {
+     decorations: Rc<Decorations>,
+     gutter_markers: Rc<GutterMarkers>,
+     gutter_marker_content: Option<MarkerRenderer>,
++    change_controls: Option<Rc<ChangeControls>>,
+     on_add_annotation: Option<RangeHandler>,
+     on_line_click: Option<ClickHandler>,
+     on_line_hover: Option<HoverHandler>,
+@@ -270,6 +271,7 @@ impl Diff {
+             decorations: Rc::default(),
+             gutter_markers: Rc::default(),
+             gutter_marker_content: None,
++            change_controls: None,
+             on_add_annotation: None,
+             on_line_click: None,
+             on_line_hover: None,
+@@ -379,6 +381,16 @@ impl Diff {
+         }));
+         self
+     }
++    /// Renders controls on hunk headings and in the gutter of changed lines.
++    pub fn render_change_controls<H: IntoElement, L: IntoElement>(
++        mut self,
++        hunk: impl Fn(usize, &mut Window, &mut App) -> H + 'static,
++        line: impl Fn(DiffLinePosition, &mut Window, &mut App) -> L + 'static,
++    ) -> Self {
++        self.change_controls = Some(Rc::new(ChangeControls::new(hunk, line)));
++        self
++    }
++
+     /// Replaces the content of each file header, keeping its shell, separator
+     /// and collapse control.
+     pub fn render_header<F, E>(mut self, render: F) -> Self
+@@ -533,7 +545,8 @@ fn render_diff(
+                     || !file.lines(DiffSide::Modified).is_empty())
+         }))
+     .then(|| state.split_layout());
+-    let marker_lane = !props.gutter_markers.is_empty() && props.gutter_marker_content.is_some();
++    let marker_lane = props.change_controls.is_some()
++        || (!props.gutter_markers.is_empty() && props.gutter_marker_content.is_some());
+     let lane_width = if marker_lane { row_height } else { px(0.) };
+     let layout = LayoutKey::new(
+         rem,
+@@ -592,6 +605,8 @@ fn render_diff(
+         decorations: props.decorations,
+         gutter_markers: props.gutter_markers,
+         gutter_marker_content: props.gutter_marker_content.filter(|_| marker_lane),
++        change_controls: props.change_controls,
++        heading_width: (split.is_none() && viewport_width > px(0.)).then_some(viewport_width),
+         lane_width,
+         on_add_annotation: props.on_add_annotation,
+         on_line_click: props.on_line_click,
+@@ -858,6 +873,8 @@ struct CodePresentation {
+     gutter_markers: Rc<GutterMarkers>,
+     /// Set only while the marker lane is shown.
+     gutter_marker_content: Option<MarkerRenderer>,
++    change_controls: Option<Rc<ChangeControls>>,
++    heading_width: Option<Pixels>,
+     lane_width: Pixels,
+     on_add_annotation: Option<RangeHandler>,
+     on_line_click: Option<ClickHandler>,
+@@ -972,7 +989,7 @@ fn render_row(
+     match row {
+         DisplayRow::File(file) => render_file_header(*file, &code, window, cx),
+         DisplayRow::Notice(file) => render_notice(&code.files[*file], cx),
+-        DisplayRow::Hunk { file, hunk } => render_hunk_separator(*file, *hunk, &code, cx),
++        DisplayRow::Hunk { file, hunk } => render_hunk_separator(*file, *hunk, &code, window, cx),
+         DisplayRow::Fold { file, pairs } => render_fold(*file, pairs.clone(), &code, cx),
+         DisplayRow::Conflict {
+             file,
+@@ -1035,19 +1052,39 @@ fn render_hunk_separator(
+     file: usize,
+     hunk: usize,
+     code: &CodePresentation,
+-    cx: &App,
++    window: &mut Window,
++    cx: &mut App,
+ ) -> AnyElement {
+-    let hunks = code.files[file].hunks();
++    let document = &code.files[file];
+     let row = h_flex()
+         .w_full()
+         .px_3()
+         .bg(cx.theme().muted.opacity(0.35))
+         .text_xs()
+         .text_color(cx.theme().muted_foreground);
++    if let Some(controls) = &code.change_controls {
++        return row
++            .py(px(4.))
++            .gap_2()
++            .when_some(code.heading_width, |row, width| {
++                // Keep controls in view when code is scrolled horizontally.
++                row.w(width).relative().left(-code.horizontal_scroll.offset().x)
++            })
++            .child(
++                div()
++                    .flex_1()
++                    .min_w_0()
++                    .truncate()
++                    .child(document.hunk_label(hunk).clone()),
++            )
++            .child((controls.hunk)(hunk, window, cx))
++            .into_any_element();
++    }
++    let hunks = document.hunks();
+     match code.hunk_separator {
+         DiffHunkSeparator::Metadata => row
+             .h_6()
+-            .child(hunks[hunk].label().clone())
++            .child(document.hunk_label(hunk).clone())
+             .into_any_element(),
+         DiffHunkSeparator::LineInfo => {
+             let hidden = hunks[hunk].hidden_lines_before(hunk.checked_sub(1).map(|ix| &hunks[ix]));
+@@ -1794,10 +1831,14 @@ fn code_line(
+                 .background()
+                 .unwrap_or_else(|| cx.theme().warning.opacity(0.2))
+         });
+-    let marker_lane = code.gutter_marker_content.clone().map(|render| {
+-        let marker = positions
+-            .iter()
+-            .find_map(|position| code.gutter_markers.at(position));
++    let marker_lane = (code.lane_width > px(0.)).then(|| {
++        let control = code.change_controls.as_ref().filter(|_| changed)
++            .map(|controls| (controls.line)(position.clone(), window, cx))
++            .or_else(|| {
++                let render = code.gutter_marker_content.as_ref()?;
++                let marker = positions.iter().find_map(|position| code.gutter_markers.at(position))?;
++                Some(render(marker, window, cx))
++            });
+         div()
+             .id("marker-lane")
+             .flex_shrink_0()
+@@ -1805,10 +1846,9 @@ fn code_line(
+             .flex()
+             .items_center()
+             .justify_center()
+-            // Keep presses on a marker from starting a text or line selection.
+-            .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+-            .when_some(marker, |this, marker| {
+-                this.child(render(marker, window, cx))
++            .when_some(control, |this, control| {
++                this.on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
++                    .child(control)
+             })
+     });
+     h_flex()
+--- a/diff/state.rs
++++ b/diff/state.rs
+@@ -655,6 +655,51 @@ impl DiffState {
+         cx.notify();
+     }
+ 
++    /// Retains a refreshed review's nearby source line, horizontal offset
++    /// and split divider.
++    pub fn refresh_files(
++        &mut self,
++        files: impl IntoIterator<Item = DiffFile>,
++        cx: &mut Context<Self>,
++    ) {
++        let top = self.list.logical_scroll_top().item_ix;
++        let was_heading = matches!(self.rows.get(top), Some(DisplayRow::Hunk { .. }));
++        let anchor = self.row_position(top);
++        let horizontal_offset = self.horizontal_scroll.offset();
++        self.set_files(files, cx);
++        if let Some(position) = anchor.filter(|position| self.line_index(position).is_some()) {
++            self.scroll_to_line(position.clone(), cx);
++            if was_heading
++                && let Some(item_ix) = self.source_row(&position).and_then(|ix| ix.checked_sub(1))
++                && matches!(self.rows.get(item_ix), Some(DisplayRow::Hunk { .. }))
++            {
++                self.scroll_to_row(item_ix);
++            }
++        } else {
++            self.scroll_to_first_hunk(cx);
++        }
++        self.horizontal_scroll.set_offset(horizontal_offset);
++    }
++
++    /// Places the first hunk's heading at the top of the visible diff.
++    pub fn scroll_to_first_hunk(&mut self, cx: &mut Context<Self>) {
++        if let Some(item_ix) = self
++            .rows
++            .iter()
++            .position(|row| matches!(row, DisplayRow::Hunk { .. }))
++        {
++            self.scroll_to_row(item_ix);
++            cx.notify();
++        }
++    }
++
++    fn scroll_to_row(&self, item_ix: usize) {
++        self.list.scroll_to(ListOffset {
++            item_ix,
++            offset_in_item: px(0.),
++        });
++    }
++
+     /// Changes the display mode while preserving source-line selection and a
+     /// nearby source row.
+     pub fn set_mode(&mut self, mode: DiffMode, cx: &mut Context<Self>) {
+@@ -1326,9 +1371,19 @@ impl DiffState {
+ 
+     /// Rebuilds rows and restores the source line at the top of the viewport.
+     fn rebuild_at_anchor(&mut self) {
+-        let anchor = self.row_position(self.list.logical_scroll_top().item_ix);
++        let top = self.list.logical_scroll_top().item_ix;
++        let heading = self
++            .rows
++            .get(top)
++            .filter(|row| matches!(row, DisplayRow::Hunk { .. }))
++            .cloned();
++        let anchor = self.row_position(top);
+         self.rebuild(false);
+-        if let Some(anchor) = anchor {
++        if let Some(item_ix) =
++            heading.and_then(|heading| self.rows.iter().position(|row| *row == heading))
++        {
++            self.scroll_to_row(item_ix);
++        } else if let Some(anchor) = anchor {
+             self.reveal_line(&anchor);
+         }
+     }
+@@ -1696,25 +1751,22 @@ fn project_file(
+     expanded: &[Range<usize>],
+ ) {
+     let pairs = document.pairs();
+-    let hunks = document.hunks();
+     let hunk_end = hunk_ends(document);
+     let visible = visible_pairs(document, context, min_collapsed_lines, expanded);
+     let mut hunk_ix = 0;
+     let mut ix = 0;
+     while ix < pairs.len() {
+-        while let Some(hunk) = hunks.get(hunk_ix) {
+-            if hunk.pairs().start != ix {
+-                break;
+-            }
++        while document.hunk_start(hunk_ix) == Some(ix) {
+             rows.push(DisplayRow::Hunk {
+                 file,
+                 hunk: hunk_ix,
+             });
+             hunk_ix += 1;
+         }
++        let end = hunk_end[ix].min(document.hunk_start(hunk_ix).unwrap_or(pairs.len()));
+         if !visible[ix] {
+             let start = ix;
+-            while ix < pairs.len() && ix < hunk_end[start] && !visible[ix] {
++            while ix < end && !visible[ix] {
+                 ix += 1;
+             }
+             rows.push(DisplayRow::Fold {
+@@ -1723,7 +1775,7 @@ fn project_file(
+             });
+         } else if mode == DiffMode::Unified && pairs[ix].is_changed() {
+             let start = ix;
+-            while ix < pairs.len() && ix < hunk_end[start] && pairs[ix].is_changed() {
++            while ix < end && pairs[ix].is_changed() {
+                 ix += 1;
+             }
+             for pair in &pairs[start..ix] {

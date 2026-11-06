@@ -8,7 +8,8 @@ Rust 桌面 Git 客户端。界面以 GitKraken Desktop 9.11.0 的三栏布局�
 
 1. 点提交图里的 `// WIP` 查看工作区，或点历史提交查看说明和文件。
 2. 点右栏的文件打开文件页。分支栏会收成图标栏，关闭文件时恢复。在 **File View** 查看对应版本，在 **Diff View** 切换 **Hunk**、**Inline** 或 **Split**，用箭头跳到上一个或下一个改动。**Split** 默认平分可见区域，拖动中线可以调整比例。
-3. 用 **Stage** 暂存整文件，或用 **Stage hunk** 暂存一个区块。已暂存区块可在 **Staged Files** 中打开并取消暂存。
+   Diff 工具栏的 **¶** 切换是否忽略行首和行尾空白，旁边的折行图标独立切换自动换行。
+3. 用 **Stage File** 暂存整文件。Diff 中每个区块的标题都有 **Stage Hunk**，悬停变更行时可点 `+` 暂存该行。从 **Staged Files** 打开已暂存的差异，用 **Unstage Hunk** 或行旁的 `−` 取消暂存。
 4. 填写 **Summary** 并提交。选择 **View changes** 回到剩余工作区改动。
 
 单击分支可定位提交，双击本地分支可切换分支。`F5` 刷新，`Ctrl+O` 打开仓库管理。
@@ -16,6 +17,8 @@ Rust 桌面 Git 客户端。界面以 GitKraken Desktop 9.11.0 的三栏布局�
 **Fetch** 更新所有远端的跟踪引用，右侧箭头可选单个远端。**Push** 推送当前分支，首次推送可从菜单选远端并建立跟踪。**Branch** 创建并切换分支。**Stash** 收起暂存、未暂存和未跟踪的改动，**Pop** 恢复最近一次 stash 和它的暂存状态。
 
 右上角齿轮或 `Ctrl+,` 打开偏好设置，点 **Exit Preferences** 保存。默认先加载 2,000 条提交，到达提交图底部时继续加载，并在下次启动恢复打开的仓库标签。
+
+在 **Preferences → General → Language** 选择英语、简体中文、繁体中文或日语。退出偏好设置时应用并保存语言。首次启动和旧版设置默认使用英语。
 
 ## 构建
 
@@ -38,12 +41,12 @@ cargo test --workspace --release --locked
 python tools/check_project.py
 ```
 
-也可用 `cargo run --release -- <仓库路径>` 直接打开仓库。文件和 diff 预览上限为 8 MiB。区块暂存适用于普通文本修改，新增、删除、重命名和二进制文件可整文件暂存。
+也可用 `cargo run --release -- <仓库路径>` 直接打开仓库。文件和 diff 预览上限为 8 MiB。区块和单行暂存适用于普通文本修改，新增、删除、重命名和二进制文件可整文件暂存。
 
 ## 代码组织
 
 - `crates/git` 提供仓库、历史、工作区、diff 和远端操作。这个包独立于 GPUI，集成测试使用临时仓库和本地 bare 远端。
-- `crates/diff` 复用锁定版本的 GPUI Diff 渲染器，并扩展 Split View 的窗格布局。Cargo 在构建目录应用 `split-viewport.patch`。升级 GPUI Kit 时需要一起核对补丁和分割布局。[GPUI Kit 源码与许可证](https://github.com/longbridge/gpui-kit)
+- `crates/diff` 复用锁定版本的 GPUI Diff 渲染器，扩展 Split View 窗格布局、区块和行操作，以及空白过滤。Cargo 在构建目录应用 `crates/diff` 中的补丁。升级 GPUI Kit 时需要一起核对这些补丁。[GPUI Kit 源码与许可证](https://github.com/longbridge/gpui-kit)
 - `crates/desktop` 负责窗口与交互。仓库管理、引用、提交图、暂存与提交详情、文件审阅、工具栏和设置各自维护功能代码。`shell.rs` 组合应用外壳，`session.rs` 管理标签，`operations.rs` 调度后台 Git 操作。
 
 项目文件的硬上限是 1000 行。`tools/check_project.py` 检查已跟踪和未被 Git 忽略的文件。依赖变更后，可运行 `python tools/check_project.py --compact-lock <Cargo生成的锁文件>` 保存紧凑的锁文件，然后用 `--locked` 验证构建。

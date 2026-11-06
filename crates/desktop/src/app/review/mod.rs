@@ -1,12 +1,13 @@
+mod staging;
 mod view;
 
 use std::sync::Arc;
 
 use gpui_kit::*;
-use ritkraken_diff::{DiffFile, DiffLinePosition, DiffMode, DiffSide, DiffState};
+use ritkraken_diff::{DiffFile, DiffLinePosition, DiffMode, DiffParseOptions, DiffSide, DiffState};
 use ritkraken_git::{self as git, FileTarget, PATCH_VIEW_LIMIT, Patch, Repo};
 
-use super::{Client, Load, preferences::Preferences};
+use super::{Client, Load, Message, preferences::Preferences};
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub(super) enum DiffLayout {
@@ -19,11 +20,19 @@ pub(super) enum DiffLayout {
 impl DiffLayout {
     pub(super) const ALL: [Self; 3] = [Self::Hunk, Self::Inline, Self::Split];
 
-    pub(super) fn label(self) -> &'static str {
+    pub(super) fn id(self) -> &'static str {
         match self {
             Self::Hunk => "Hunk",
             Self::Inline => "Inline",
             Self::Split => "Split",
+        }
+    }
+
+    pub(super) fn label_key(self) -> &'static str {
+        match self {
+            Self::Hunk => "app.review.hunk",
+            Self::Inline => "app.review.inline",
+            Self::Split => "app.review.split",
         }
     }
 
@@ -42,9 +51,8 @@ pub(super) struct FileReview {
     pub(super) file: FileTarget,
     pub(super) patch: Load<Arc<Patch>>,
     pub(super) viewer: Option<Entity<DiffState>>,
-    pub(super) message: Option<String>,
+    pub(super) message: Option<Message>,
     pub(super) compact_context: bool,
-    pub(super) hunks: Vec<String>,
     pub(super) source: Option<Load<Entity<DiffState>>>,
     pub(super) show_source: bool,
     pub(super) collapsed_sidebar: bool,
@@ -65,49 +73,90 @@ impl FileReview {
 
 struct LoadedDiff {
     patch: Arc<Patch>,
-    hunks: Vec<String>,
-    document: git::Result<Vec<DiffFile>>,
+    document: Result<Vec<DiffFile>, Message>,
     compact_context: bool,
 }
 
-fn load_diff(repo: &Repo, file: &FileTarget) -> git::Result<LoadedDiff> {
-    let patch = Arc::new(repo.patch(file)?);
-    let hunks = patch.hunk_labels();
-    let document = parse_patch(patch.bytes());
+fn load_diff(
+    repo: &Repo,
+    file: &FileTarget,
+    ignore_edge_whitespace: bool,
+) -> git::Result<LoadedDiff> {
+    let patch = Arc::new(
+        repo.patch(file)?
+            .with_edge_whitespace_ignored(ignore_edge_whitespace),
+    );
+    let document = parse_patch(patch.bytes(), patch.ignores_edge_whitespace());
     let needs_context = matches!(file.change.code, b'M' | b'R' | b'C')
         && document
             .as_ref()
             .is_ok_and(|files| files.iter().any(|file| !file.is_binary()));
     let (document, compact_context) = if !needs_context {
         (document, false)
-    } else if let Ok(Some(full)) = repo.full_patch(file)
-        && patch.same_file_versions(&full)
-        && let Ok(files) = parse_patch(&full)
+    } else if let Ok(compact) = &document
+        && let Some(files) = load_full_diff(repo, file, &patch, compact)
     {
         (Ok(files), false)
     } else {
         (document, true)
     };
+    let document = document.and_then(|files| {
+        if patch.ignores_edge_whitespace()
+            && patch.first_context_line().is_some()
+            && files
+                .iter()
+                .all(DiffFile::same_text_ignoring_edge_whitespace)
+        {
+            Err(Message::Key("app.review.no_changes_ignoring_whitespace"))
+        } else {
+            Ok(files)
+        }
+    });
+    let compact_context = compact_context && document.is_ok();
     Ok(LoadedDiff {
         patch,
-        hunks,
         document,
         compact_context,
     })
 }
 
-fn parse_patch(bytes: &[u8]) -> git::Result<Vec<DiffFile>> {
+fn load_full_diff(
+    repo: &Repo,
+    file: &FileTarget,
+    patch: &Patch,
+    compact: &[DiffFile],
+) -> Option<Vec<DiffFile>> {
+    let bytes = repo.full_patch(file).ok()??;
+    if !patch.same_file_versions(&bytes) {
+        return None;
+    }
+    if patch.ignores_edge_whitespace() && std::str::from_utf8(&bytes).is_err() {
+        return None;
+    }
+    let files = parse_patch(&bytes, patch.ignores_edge_whitespace()).ok()?;
+    if patch.hunk_count() == 0 {
+        return Some(files);
+    }
+    let [compact] = compact else { return None };
+    let [full]: [DiffFile; 1] = files.try_into().ok()?;
+    Some(vec![full.with_hunk_headings_from(compact)?])
+}
+
+fn parse_patch(bytes: &[u8], ignore_edge_whitespace: bool) -> Result<Vec<DiffFile>, Message> {
     if bytes.len() > PATCH_VIEW_LIMIT {
-        return Err("This diff exceeds the 8 MiB preview limit.".into());
+        return Err(Message::Key("app.error.diff_preview_limit"));
     }
     let files = if bytes.is_empty() {
         Vec::new()
     } else {
-        DiffFile::parse(&String::from_utf8_lossy(bytes))
-            .map_err(|error| format!("Git produced a diff this viewer cannot display.\n{error}"))?
+        DiffFile::parse_with(
+            &String::from_utf8_lossy(bytes),
+            DiffParseOptions::new().ignore_edge_whitespace(ignore_edge_whitespace),
+        )
+        .map_err(|error| Message::detail("app.error.diff_parse", error))?
     };
     if files.is_empty() {
-        Err("No textual changes for this file.".into())
+        Err(Message::Key("app.review.no_text_changes"))
     } else {
         Ok(files)
     }
@@ -124,8 +173,14 @@ impl Client {
         let collapse_default = self.saved.preferences.collapse_review_sidebar;
         let Some(tab) = self.tab_mut(id) else { return };
         let repo = tab.repo.clone();
+        let ignore_edge_whitespace = tab.review.ignore_edge_whitespace;
         let target = file.clone();
         let previous = tab.review.active.as_ref();
+        let viewer = previous
+            .filter(|diff| {
+                diff.file.scope == file.scope && diff.file.change.path == file.change.path
+            })
+            .and_then(|diff| diff.viewer.clone());
         let show_source = file.change.code == b' ' || previous.is_some_and(|diff| diff.show_source);
         let collapsed_sidebar = previous.map_or(collapse_default, |diff| diff.collapsed_sidebar);
         let request = tab.review.set_active(Some(FileReview {
@@ -134,7 +189,6 @@ impl Client {
             viewer: None,
             message: None,
             compact_context: false,
-            hunks: Vec::new(),
             source: None,
             show_source,
             collapsed_sidebar,
@@ -142,7 +196,7 @@ impl Client {
         Self::spawn_background(
             window,
             cx,
-            move || load_diff(&repo, &target),
+            move || load_diff(&repo, &target, ignore_edge_whitespace),
             move |this, result, _, cx| {
                 let Some((diff, layout)) = this.review_for_request(id, request) else {
                     return;
@@ -150,8 +204,8 @@ impl Client {
                 match result {
                     Ok(loaded) => {
                         let line = loaded.patch.first_context_line();
+                        let stageable = loaded.patch.hunk_count() > 0;
                         diff.patch = Load::Ready(loaded.patch);
-                        diff.hunks = loaded.hunks;
                         diff.compact_context = loaded.compact_context;
                         match loaded.document {
                             Ok(files) => {
@@ -164,20 +218,32 @@ impl Client {
                                         line,
                                     ))
                                 });
-                                diff.viewer = Some(cx.new(|cx| {
-                                    let mut state = DiffState::new(files, cx);
-                                    layout.apply(&mut state, cx);
-                                    if let Some(anchor) = anchor.filter(|anchor| anchor.line() > 1)
-                                    {
-                                        state.scroll_to_line(anchor, cx);
+                                diff.viewer = Some(match viewer {
+                                    Some(viewer) => {
+                                        viewer.update(cx, |state, cx| {
+                                            layout.apply(state, cx);
+                                            state.refresh_files(files, cx);
+                                        });
+                                        viewer
                                     }
-                                    state
-                                }));
+                                    None => cx.new(|cx| {
+                                        let mut state = DiffState::new(files, cx);
+                                        layout.apply(&mut state, cx);
+                                        if stageable {
+                                            state.scroll_to_first_hunk(cx);
+                                        } else if let Some(anchor) =
+                                            anchor.filter(|anchor| anchor.line() > 1)
+                                        {
+                                            state.scroll_to_line(anchor, cx);
+                                        }
+                                        state
+                                    }),
+                                });
                             }
-                            Err(message) => diff.message = Some(message.to_string()),
+                            Err(message) => diff.message = Some(message),
                         }
                     }
-                    Err(error) => diff.patch = Load::Failed(error.to_string()),
+                    Err(error) => diff.patch = Load::Failed(error.into()),
                 }
                 cx.notify();
             },
@@ -252,6 +318,23 @@ impl Client {
         cx.notify();
     }
 
+    fn toggle_edge_whitespace(&mut self, id: u64, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(tab) = self.tab_mut(id).filter(|tab| !tab.busy) else {
+            return;
+        };
+        let Some(review) = tab
+            .review
+            .active
+            .as_ref()
+            .filter(|review| !review.show_source)
+        else {
+            return;
+        };
+        let file = review.file.clone();
+        tab.review.ignore_edge_whitespace = !tab.review.ignore_edge_whitespace;
+        self.open_diff(id, file, window, cx);
+    }
+
     pub(super) fn move_diff_change(&mut self, id: u64, forward: bool, cx: &mut Context<Self>) {
         if let Some(state) = self
             .tab_mut(id)
@@ -273,6 +356,7 @@ pub(super) struct ReviewState {
     request: u64,
     pub(super) layout: DiffLayout,
     pub(super) wrap_lines: bool,
+    ignore_edge_whitespace: bool,
 }
 
 impl ReviewState {
@@ -282,6 +366,7 @@ impl ReviewState {
             request: 0,
             layout: options.diff_layout,
             wrap_lines: options.wrap_lines,
+            ignore_edge_whitespace: false,
         }
     }
 

@@ -6,13 +6,15 @@ use std::collections::HashSet;
 
 use gpui_kit::{
     component::{
-        input::{InputEvent, InputState, TextareaState},
+        input::{InputEvent, InputState, TextareaMode, TextareaState},
         scroll::ScrollableElement,
     },
     prelude::*,
     *,
 };
 use ritkraken_git::{self as git, Change, CommitDetail, Scope};
+
+use crate::i18n::{LocalizedInput, tr};
 
 use super::{
     Client, Load, RepoOperation, RepoTab,
@@ -25,6 +27,14 @@ pub(super) enum StageAction {
     Unstage,
 }
 
+pub(super) enum StageTarget {
+    Row,
+    File,
+    All,
+    Hunk,
+    Line,
+}
+
 impl StageAction {
     pub(super) fn for_scope(scope: &Scope) -> Option<Self> {
         match scope {
@@ -34,11 +44,19 @@ impl StageAction {
         }
     }
 
-    pub(super) fn verb(self) -> &'static str {
-        match self {
-            Self::Stage => "Stage",
-            Self::Unstage => "Unstage",
-        }
+    pub(super) fn label(self, target: StageTarget) -> String {
+        tr!(match (self, target) {
+            (Self::Stage, StageTarget::Row) => "app.stage.stage",
+            (Self::Unstage, StageTarget::Row) => "app.stage.unstage",
+            (Self::Stage, StageTarget::File) => "app.stage.stage_file",
+            (Self::Unstage, StageTarget::File) => "app.stage.unstage_file",
+            (Self::Stage, StageTarget::All) => "app.stage.stage_all",
+            (Self::Unstage, StageTarget::All) => "app.stage.unstage_all",
+            (Self::Stage, StageTarget::Hunk) => "app.stage.stage_hunk",
+            (Self::Unstage, StageTarget::Hunk) => "app.stage.unstage_hunk",
+            (Self::Stage, StageTarget::Line) => "app.stage.stage_line",
+            (Self::Unstage, StageTarget::Line) => "app.stage.unstage_line",
+        })
     }
 
     pub(super) fn tone(self) -> Tone {
@@ -55,8 +73,8 @@ pub(super) struct ChangesState {
     commit_files: Option<Load<Vec<Change>>>,
     pub(super) request: u64,
     scroll: [UniformListScrollHandle; 3],
-    pub(super) summary: Entity<InputState>,
-    pub(super) description: Entity<TextareaState>,
+    pub(super) summary: LocalizedInput,
+    pub(super) description: LocalizedInput<TextareaMode>,
     tree: bool,
     message_panes: Entity<gpui_kit::base::ResizableState>,
     _summary: Subscription,
@@ -64,11 +82,10 @@ pub(super) struct ChangesState {
 
 impl ChangesState {
     pub(super) fn new(window: &mut Window, cx: &mut Context<Client>) -> Self {
-        let summary = cx.new(|cx| InputState::new(window, cx).placeholder("Summary"));
-        let description = cx.new(|cx| {
-            TextareaState::new(window, cx)
-                .rows(3)
-                .placeholder("Description")
+        let summary =
+            LocalizedInput::new("app.changes.summary", cx, |cx| InputState::new(window, cx));
+        let description = LocalizedInput::new("app.changes.description", cx, |cx| {
+            TextareaState::new(window, cx).rows(3)
         });
         let subscription = cx.subscribe_in(
             &summary,

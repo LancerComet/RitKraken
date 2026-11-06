@@ -8,9 +8,12 @@ use gpui_kit::{
 };
 use ritkraken_git::{Change, Scope};
 
-use super::{StageAction, change_count};
+use crate::i18n::tr;
+
+use super::{StageAction, StageTarget, change_count};
 use crate::app::{
     Client, RepoOperation, RepoTab,
+    message::branch_label,
     widgets::{LINE, Tone, button},
 };
 
@@ -20,14 +23,10 @@ impl Client {
         let status = &snapshot.status;
         let id = tab.id;
         let enabled = tab.commit_enabled(cx);
-        let label = if status.staged.is_empty() {
-            "Stage files/changes to commit".into()
-        } else {
-            format!(
-                "Commit changes to {} file{}",
-                status.staged.len(),
-                if status.staged.len() == 1 { "" } else { "s" }
-            )
+        let label = match status.staged.len() {
+            0 => tr!("app.changes.stage_to_commit"),
+            1 => tr!("app.changes.commit_one"),
+            count => tr!("app.changes.commit_many", count = count),
         };
         div()
             .flex_1()
@@ -44,14 +43,14 @@ impl Client {
                     .px(px(6.))
                     .border_b_1()
                     .border_color(rgb(LINE))
-                    .child(format!("{} file changes on", change_count(tab)))
+                    .child(tr!("app.changes.changed_files", count = change_count(tab)))
                     .child(
                         div()
                             .px(px(4.))
                             .min_w_0()
                             .truncate()
                             .bg(rgb(0xbbe4ea))
-                            .child(snapshot.branch.clone()),
+                            .child(branch_label(snapshot)),
                     ),
             )
             .child(self.file_mode(tab, cx))
@@ -63,14 +62,14 @@ impl Client {
                     .flex_col()
                     .child(self.file_section(
                         tab,
-                        "Unstaged Files",
+                        "app.changes.unstaged_files",
                         &status.unstaged,
                         Scope::Worktree,
                         cx,
                     ))
                     .child(self.file_section(
                         tab,
-                        "Staged Files",
+                        "app.changes.staged_files",
                         &status.staged,
                         Scope::Index,
                         cx,
@@ -88,7 +87,7 @@ impl Client {
                     .child(
                         div()
                             .font_weight(FontWeight::MEDIUM)
-                            .child("Commit Message"),
+                            .child(tr!("app.changes.commit_message")),
                     )
                     .child(Input::new(&tab.changes.summary).small())
                     .child(Textarea::new(&tab.changes.description).small().h(px(63.)))
@@ -108,7 +107,7 @@ impl Client {
     fn file_section(
         &self,
         tab: &RepoTab,
-        title: &'static str,
+        title_key: &'static str,
         files: &[Change],
         scope: Scope,
         cx: &mut Context<Self>,
@@ -134,13 +133,13 @@ impl Client {
                     .child(
                         div()
                             .font_weight(FontWeight::MEDIUM)
-                            .child(format!("{title} ({})", files.len())),
+                            .child(tr!(title_key, count = files.len())),
                     )
                     .when_some(action, |e, action| {
                         e.child(
                             button(
-                                title,
-                                format!("{} all changes", action.verb()),
+                                title_key,
+                                action.label(StageTarget::All),
                                 action.tone(),
                                 !tab.busy,
                                 cx.listener(move |this, _, window, cx| {

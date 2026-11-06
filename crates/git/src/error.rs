@@ -8,10 +8,42 @@ pub enum Error {
     Invocation(#[source] io::Error),
     #[error("{message}")]
     Git { status: ExitStatus, message: String },
+    #[error("Git exited with {0}.")]
+    Exited(ExitStatus),
+    #[error("Git could not read this preview ({0}).")]
+    PreviewRead(ExitStatus),
     #[error(transparent)]
     Io(#[from] io::Error),
+    #[error(transparent)]
+    Rule(#[from] RuleError),
     #[error("{0}")]
     InvalidOperation(String),
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum RuleError {
+    #[error("This file was deleted in the selected version.")]
+    DeletedFile,
+    #[error("This entry does not have text file contents.")]
+    NoFileContents,
+    #[error("This file exceeds the 8 MiB preview limit.")]
+    FilePreviewLimit,
+    #[error("Binary file contents cannot be previewed as text.")]
+    BinaryFile,
+    #[error("This file does not contain UTF-8 text.")]
+    InvalidFileEncoding,
+    #[error("The diff changed on disk. Review the refreshed diff before staging.")]
+    StalePatch,
+    #[error("This selection cannot be staged or unstaged separately.")]
+    UnstageableSelection,
+    #[error("The checked-out branch changed. Review the current branch before pushing.")]
+    BranchChanged,
+    #[error("The upstream changed. Review the current upstream before pushing.")]
+    UpstreamChanged,
+    #[error("Remote {0} is no longer configured.")]
+    MissingRemote(String),
+    #[error("Enter a commit summary.")]
+    EmptyCommitSummary,
 }
 
 impl From<&str> for Error {

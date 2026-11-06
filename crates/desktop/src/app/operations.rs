@@ -1,10 +1,10 @@
 use std::sync::Arc;
 
 use gpui_kit::*;
-use ritkraken_git::{self as git, Change, FileTarget, Patch, Repo, Scope};
+use ritkraken_git::{self as git, Change, FileTarget, Patch, PatchSelection, Repo, Scope};
 
 use super::{
-    Client,
+    Client, Message,
     changes::StageAction,
     history::{History, HistoryState},
 };
@@ -12,7 +12,7 @@ use super::{
 #[derive(Clone)]
 pub(super) enum RepoOperation {
     StageFiles(StageAction, Option<Change>),
-    Hunk(FileTarget, Arc<Patch>, usize),
+    StagePatch(FileTarget, Arc<Patch>, PatchSelection),
     Commit(String, String),
     Switch(String),
     Branch(String),
@@ -31,7 +31,7 @@ impl RepoOperation {
         match self {
             Self::StageFiles(StageAction::Stage, change) => repo.stage(change.as_ref()),
             Self::StageFiles(StageAction::Unstage, change) => repo.unstage(change.as_ref()),
-            Self::Hunk(file, patch, index) => repo.apply_hunk(file, patch, *index),
+            Self::StagePatch(file, patch, selection) => repo.apply_partial(file, patch, *selection),
             Self::Commit(summary, description) => repo.commit(summary, description),
             Self::Switch(branch) => repo.switch(branch),
             Self::Branch(branch) => repo.create_branch(branch),
@@ -46,21 +46,23 @@ impl RepoOperation {
         }
     }
 
-    fn label(&self) -> &'static str {
+    fn status_key(&self) -> &'static str {
         match self {
-            Self::StageFiles(StageAction::Stage, _) => "Changes staged",
-            Self::StageFiles(StageAction::Unstage, _) => "Changes unstaged",
-            Self::Hunk(file, ..) => match StageAction::for_scope(&file.scope) {
-                Some(StageAction::Unstage) => "Hunk unstaged",
-                _ => "Hunk staged",
+            Self::StageFiles(StageAction::Stage, _) => "app.notice.staged",
+            Self::StageFiles(StageAction::Unstage, _) => "app.notice.unstaged",
+            Self::StagePatch(file, _, selection) => match (file.scope == Scope::Index, selection) {
+                (false, PatchSelection::Hunk(_)) => "app.notice.hunk_staged",
+                (true, PatchSelection::Hunk(_)) => "app.notice.hunk_unstaged",
+                (false, PatchSelection::Line { .. }) => "app.notice.line_staged",
+                (true, PatchSelection::Line { .. }) => "app.notice.line_unstaged",
             },
-            Self::Commit(..) => "Commit created",
-            Self::Switch(_) => "Branch checked out",
-            Self::Branch(_) => "Branch created",
-            Self::Fetch(_) => "Fetch completed",
-            Self::Push { .. } => "Branch pushed",
-            Self::Stash => "Changes stashed",
-            Self::Pop => "Stash restored",
+            Self::Commit(..) => "app.notice.committed",
+            Self::Switch(_) => "app.notice.switched",
+            Self::Branch(_) => "app.notice.branched",
+            Self::Fetch(_) => "app.notice.fetched",
+            Self::Push { .. } => "app.notice.pushed",
+            Self::Stash => "app.notice.stashed",
+            Self::Pop => "app.notice.popped",
         }
     }
 }
@@ -128,7 +130,7 @@ impl Client {
         if let Some((result, edit)) = result {
             match result {
                 Ok(()) => {
-                    tab.notice = Some((false, edit.label().into()));
+                    tab.notice = Some((false, Message::Key(edit.status_key())));
                     committed = matches!(edit, RepoOperation::Commit(..));
                     reset_selection = matches!(
                         edit,
@@ -146,7 +148,7 @@ impl Client {
                             .update(cx, |input, cx| input.set_value("", window, cx));
                     }
                 }
-                Err(error) => tab.notice = Some((true, error.to_string())),
+                Err(error) => tab.notice = Some((true, error.into())),
             }
         }
         match history {
@@ -155,12 +157,14 @@ impl Client {
                 tab.history.limit = limit;
             }
             Err(error) => {
-                let message = tab
-                    .notice
-                    .as_ref()
-                    .map_or(error.to_string(), |(_, previous)| {
-                        format!("{previous}\nRefresh failed: {error}")
-                    });
+                let message = if let Some((_, previous)) = tab.notice.take() {
+                    Message::RefreshFailed {
+                        previous: Box::new(previous),
+                        error,
+                    }
+                } else {
+                    error.into()
+                };
                 tab.notice = Some((true, message));
                 cx.notify();
                 return;

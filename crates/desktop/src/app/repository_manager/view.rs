@@ -5,6 +5,8 @@ use gpui_kit::{
 };
 use ritkraken_git::Repo;
 
+use crate::i18n::tr;
+
 use super::{ManagerMode, OpenRepo, RepoList};
 use crate::app::{
     Client,
@@ -34,18 +36,18 @@ impl Client {
                         div()
                             .text_size(px(26.))
                             .font_weight(FontWeight::SEMIBOLD)
-                            .child("Repositories"),
+                            .child(tr!("app.repositories.title")),
                     )
                     .child(div().h(px(3.)).w(px(110.)).bg(rgb(TEAL)))
                     .child(
                         div()
                             .text_color(rgb(MUTED))
-                            .child("Open, clone, or initialize a local Git repository."),
+                            .child(tr!("app.repositories.welcome_hint")),
                     )
                     .child(
                         button(
                             "welcome-open",
-                            "Open Repository Management",
+                            tr!("app.repositories.open_manager"),
                             Tone::Outline,
                             true,
                             cx.listener(|this, _, window, cx| this.open_manager(window, cx)),
@@ -55,7 +57,7 @@ impl Client {
                     )
                     .when(!self.saved.recent.is_empty(), |element| {
                         element
-                            .child(heading("RECENT REPOSITORIES").mt(px(12.)))
+                            .child(heading(tr!("app.repositories.recent_heading")).mt(px(12.)))
                             .children(self.saved.recent.iter().take(5).enumerate().map(
                                 |(index, path)| {
                                     let root = path.clone();
@@ -115,7 +117,7 @@ impl Client {
                             div()
                                 .text_size(px(16.))
                                 .font_weight(FontWeight::MEDIUM)
-                                .child("Repository Management"),
+                                .child(tr!("app.repositories.manager")),
                         )
                         .child(button(
                             "close-manager",
@@ -125,7 +127,7 @@ impl Client {
                             cx.listener(|this, _, window, cx| this.escape(window, cx)),
                         )),
                 )
-                .when_some(self.manager.error.as_deref(), |element, error| {
+                .when_some(self.manager.error.as_ref(), |element, error| {
                     element.child(error_text(error))
                 })
                 .child(
@@ -144,15 +146,15 @@ impl Client {
                                 .border_color(rgb(LINE))
                                 .children(
                                     [
-                                        (ManagerMode::Open, "Open"),
-                                        (ManagerMode::Clone, "Clone"),
-                                        (ManagerMode::Init, "Init"),
+                                        (ManagerMode::Open, "app.common.open"),
+                                        (ManagerMode::Clone, "app.repositories.clone"),
+                                        (ManagerMode::Init, "app.repositories.init_tab"),
                                     ]
                                     .into_iter()
-                                    .map(|(target, title)| {
+                                    .map(|(target, key)| {
                                         button(
-                                            title,
-                                            title,
+                                            key,
+                                            tr!(key),
                                             Tone::Plain.selected_when(mode == target),
                                             !self.session.opening,
                                             cx.listener(move |this, _, _, cx| {
@@ -191,7 +193,7 @@ impl Client {
             .child(
                 button(
                     "browse-repo",
-                    "▱  Open a Repository",
+                    format!("▱  {}", tr!("app.repositories.open_repository")),
                     Tone::Plain,
                     !self.session.opening,
                     cx.listener(|this, _, window, cx| this.browse(false, window, cx)),
@@ -201,12 +203,12 @@ impl Client {
             )
             .children(
                 [
-                    (RepoList::Recent, "◷  Recently Opened"),
-                    (RepoList::Favorites, "☆  Favorites"),
+                    (RepoList::Recent, "◷", "app.repositories.recent"),
+                    (RepoList::Favorites, "☆", "app.repositories.favorites"),
                 ]
                 .into_iter()
-                .map(|(list, label)| {
-                    self.repo_list_button(label, label, list, cx)
+                .map(|(list, glyph, key)| {
+                    self.repo_list_button(key, format!("{glyph}  {}", tr!(key)), list, cx)
                         .h(px(34.))
                         .rounded(px(0.))
                 }),
@@ -221,7 +223,7 @@ impl Client {
                     .justify_between()
                     .border_t_1()
                     .border_color(rgb(LINE))
-                    .child(div().child("Project Directories"))
+                    .child(div().child(tr!("app.repositories.projects")))
                     .child(
                         button(
                             "add-project",
@@ -273,8 +275,8 @@ impl Client {
 
     fn open_list(&self, cx: &mut Context<Self>) -> Div {
         let (label, repositories) = match &self.manager.list {
-            RepoList::Recent => ("Recently Opened".to_owned(), &self.saved.recent),
-            RepoList::Favorites => ("Favorites".to_owned(), &self.saved.favorites),
+            RepoList::Recent => (tr!("app.repositories.recent"), &self.saved.recent),
+            RepoList::Favorites => (tr!("app.repositories.favorites"), &self.saved.favorites),
             RepoList::Project(path) => (Repo::name_from_path(path), &self.manager.projects),
         };
         let filter = self.manager.search.read(cx).value().to_lowercase();
@@ -308,7 +310,7 @@ impl Client {
                         .flex_col()
                         .px(px(8.))
                         .when(repositories.is_empty(), |e| {
-                            e.child(note("No repositories in this list yet."))
+                            e.child(note(tr!("app.repositories.empty_list")))
                         })
                         .children(
                             repositories
@@ -389,7 +391,7 @@ impl Client {
                     )
                     .child(button(
                         "open-path",
-                        "Open",
+                        tr!("app.common.open"),
                         Tone::Green,
                         !self.session.opening,
                         cx.listener(|this, _, window, cx| this.open_from_input(window, cx)),
@@ -406,16 +408,16 @@ impl Client {
             .flex()
             .flex_col()
             .gap(px(9.))
-            .child(div().text_size(px(18.)).child(if clone {
-                "Clone a Repository"
+            .child(div().text_size(px(18.)).child(tr!(if clone {
+                "app.repositories.clone_repository"
             } else {
-                "Initialize a Repository"
-            }))
+                "app.repositories.init_repository"
+            })))
             .when(clone, |e| {
-                e.child(heading("REPOSITORY URL"))
+                e.child(heading(tr!("app.repositories.url_heading")))
                     .child(Input::new(&self.manager.url))
             })
-            .child(heading("DESTINATION DIRECTORY"))
+            .child(heading(tr!("app.repositories.destination")))
             .child(
                 div()
                     .flex()
@@ -429,7 +431,7 @@ impl Client {
                     )
                     .child(button(
                         "browse-destination",
-                        "Browse…",
+                        tr!("app.common.browse"),
                         Tone::Outline,
                         !self.session.opening,
                         cx.listener(|this, _, window, cx| this.browse(false, window, cx)),
@@ -438,7 +440,11 @@ impl Client {
             .child(
                 button(
                     "repository-submit",
-                    if clone { "Clone" } else { "Initialize" },
+                    tr!(if clone {
+                        "app.repositories.clone"
+                    } else {
+                        "app.repositories.initialize"
+                    }),
                     Tone::Green,
                     !self.session.opening,
                     cx.listener(|this, _, window, cx| this.open_from_input(window, cx)),

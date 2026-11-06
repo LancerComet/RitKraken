@@ -9,8 +9,6 @@ const UPSTREAM_VERSION: &str = "0.9.0";
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let manifest_dir = PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").unwrap());
     let output_dir = PathBuf::from(env::var_os("OUT_DIR").unwrap());
-    let patch = manifest_dir.join("split-viewport.patch");
-    println!("cargo:rerun-if-changed={}", patch.display());
     println!("cargo:rerun-if-changed=../../Cargo.lock");
 
     let upstream = match cached_source() {
@@ -37,20 +35,34 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("cargo:rerun-if-changed={}", source.display());
         fs::copy(source, generated.join(file))?;
     }
-    let result = Command::new("git")
-        .current_dir(&generated)
-        .env_remove("GIT_DIR")
-        .env_remove("GIT_WORK_TREE")
-        .env("GIT_CEILING_DIRECTORIES", &output_dir)
-        .args(["apply", "--no-index", "--whitespace=nowarn"])
-        .arg(&patch)
-        .output()?;
-    if !result.status.success() {
-        return Err(format!(
-            "Could not apply the GPUI Diff patch: {}",
-            String::from_utf8_lossy(&result.stderr)
-        )
-        .into());
+    for name in [
+        "split-viewport.patch",
+        "change-controls.patch",
+        "edge-whitespace.patch",
+    ] {
+        let patch = manifest_dir.join(name);
+        println!("cargo:rerun-if-changed={}", patch.display());
+        let result = Command::new("git")
+            .current_dir(&generated)
+            .env_remove("GIT_DIR")
+            .env_remove("GIT_WORK_TREE")
+            .env("GIT_CEILING_DIRECTORIES", &output_dir)
+            .args([
+                "-c",
+                "core.autocrlf=false",
+                "apply",
+                "--no-index",
+                "--whitespace=nowarn",
+            ])
+            .arg(patch)
+            .output()?;
+        if !result.status.success() {
+            return Err(format!(
+                "Could not apply {name}: {}",
+                String::from_utf8_lossy(&result.stderr)
+            )
+            .into());
+        }
     }
     fs::write(
         output_dir.join("modules.rs"),

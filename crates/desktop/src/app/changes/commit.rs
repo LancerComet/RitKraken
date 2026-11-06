@@ -9,6 +9,8 @@ use gpui_kit::{
 };
 use ritkraken_git::{self as git, Change, Scope};
 
+use crate::i18n::tr;
+
 use super::{change_count, change_mark};
 use crate::app::{
     Client, Load, RepoTab,
@@ -31,10 +33,10 @@ impl Client {
             .get(oid)
             .and_then(|index| tab.history.data.snapshot.commits.get(*index))
         else {
-            return div().child(note("This commit is outside the loaded history."));
+            return div().child(note(tr!("app.error.commit_outside_history")));
         };
         let detail = match &tab.changes.detail {
-            Load::Pending => note("Loading commit…").into_any_element(),
+            Load::Pending => note(tr!("app.commit.loading")).into_any_element(),
             Load::Failed(error) => error_text(error).into_any_element(),
             Load::Ready(detail) => {
                 let scope = Scope::Commit {
@@ -62,7 +64,7 @@ impl Client {
                     match &tab.changes.commit_files {
                         Some(Load::Ready(files)) => self.file_list(tab, files, scope, cx),
                         Some(Load::Failed(error)) => error_text(error),
-                        _ => note("Loading commit tree…"),
+                        _ => note(tr!("app.commit.loading_tree")),
                     }
                 } else {
                     self.file_list(tab, &detail.changes, scope, cx)
@@ -118,7 +120,10 @@ impl Client {
                                                     .truncate()
                                                     .text_color(rgb(MUTED))
                                                     .text_size(px(11.))
-                                                    .child(format!("authored {}", commit.date)),
+                                                    .child(tr!(
+                                                        "app.commit.authored",
+                                                        date = &commit.date
+                                                    )),
                                             ),
                                     ),
                             )
@@ -126,7 +131,7 @@ impl Client {
                                 element.child(
                                     button(
                                         ("parent", id),
-                                        format!("parent: {}", git::short_id(&parent)),
+                                        tr!("app.commit.parent", sha = git::short_id(&parent)),
                                         Tone::Plain,
                                         tab.history.data.position.contains_key(&parent),
                                         cx.listener(move |this, _, window, cx| {
@@ -161,7 +166,7 @@ impl Client {
                                     gpui_kit::component::checkbox::Checkbox::new(("all-files", id))
                                         .small()
                                         .checked(tab.changes.show_all_files)
-                                        .label("View all files")
+                                        .label(tr!("app.commit.view_all_files"))
                                         .on_click(cx.listener(
                                             move |this, show: &bool, window, cx| {
                                                 this.show_committed_files(id, *show, window, cx);
@@ -209,14 +214,14 @@ impl Client {
                         .gap(px(6.))
                         .px(px(5.))
                         .bg(rgb(0xaac4f7))
-                        .child(div().truncate().child(format!(
-                            "{} file changes in working directory",
-                            change_count(tab)
+                        .child(div().truncate().child(tr!(
+                            "app.commit.worktree_changes",
+                            count = change_count(tab)
                         )))
                         .child(
                             button(
                                 ("view-changes", id),
-                                "View changes",
+                                tr!("app.commit.view_changes"),
                                 Tone::Outline,
                                 true,
                                 cx.listener(move |this, _, window, cx| {
@@ -237,11 +242,11 @@ impl Client {
                     .gap(px(6.))
                     .border_b_1()
                     .border_color(rgb(LINE))
-                    .child(format!("commit: {}", git::short_id(oid)))
+                    .child(tr!("app.commit.sha", sha = git::short_id(oid)))
                     .child(
                         button(
                             ("copy-sha", id),
-                            "Copy SHA",
+                            tr!("app.commit.copy_sha"),
                             Tone::Plain,
                             true,
                             move |_, _, cx| {
@@ -279,20 +284,20 @@ fn change_summary(changes: &[Change]) -> Div {
             counts
                 .into_iter()
                 .zip([
-                    (b'A', "added"),
-                    (b'D', "deleted"),
-                    (b'R', "renamed"),
-                    (b'M', "modified"),
+                    (b'A', "app.commit.added"),
+                    (b'D', "app.commit.deleted"),
+                    (b'R', "app.commit.renamed"),
+                    (b'M', "app.commit.modified"),
                 ])
                 .filter(|(count, _)| *count > 0)
-                .map(|(count, (code, label))| {
+                .map(|(count, (code, key))| {
                     let (mark, color) = change_mark(code);
                     div()
                         .flex()
                         .items_center()
                         .gap(px(3.))
                         .child(div().text_color(rgb(color)).child(mark))
-                        .child(format!("{count} {label}"))
+                        .child(tr!(key, count = count))
                 }),
         )
 }

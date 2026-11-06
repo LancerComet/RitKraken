@@ -1,5 +1,7 @@
 use gpui_kit::{prelude::*, *};
 
+use super::Message;
+
 pub(super) const WHITE: u32 = 0xffffff;
 pub(super) const PAPER: u32 = 0xf6f7f8;
 pub(super) const HEADER: u32 = 0xf1f2f4;
@@ -117,12 +119,12 @@ pub(super) fn note(message: impl Into<SharedString>) -> Div {
         .child(message.into())
 }
 
-pub(super) fn error_text(message: &str) -> Div {
+pub(super) fn error_text(message: &Message) -> Div {
     div()
         .px(px(12.))
         .py(px(8.))
         .bg(rgb(0xfcebec))
         .text_color(rgb(RED))
         .text_size(px(12.))
-        .child(message.to_owned())
+        .child(message.text())
 }

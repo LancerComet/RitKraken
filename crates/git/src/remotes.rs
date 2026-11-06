@@ -1,4 +1,4 @@
-use crate::{Repo, Result, command::run_write, protocol::text};
+use crate::{Repo, Result, RuleError, command::run_write, protocol::text};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Upstream {
@@ -21,12 +21,10 @@ impl Repo {
 
     pub fn push(&self, branch: &str, upstream: &Upstream, set_upstream: bool) -> Result<()> {
         if self.checked_out_branch()?.as_deref() != Some(branch) {
-            return Err(
-                "The checked-out branch changed. Review the current branch before pushing.".into(),
-            );
+            return Err(RuleError::BranchChanged.into());
         }
         if !set_upstream && self.references(Some(branch))?.1.as_ref() != Some(upstream) {
-            return Err("The upstream changed. Review the current upstream before pushing.".into());
+            return Err(RuleError::UpstreamChanged.into());
         }
         self.ensure_remote(&upstream.remote)?;
         let mut git = self.git();
@@ -51,7 +49,7 @@ impl Repo {
         {
             Ok(())
         } else {
-            Err(format!("Remote {remote} is no longer configured.").into())
+            Err(RuleError::MissingRemote(remote.into()).into())
         }
     }
 }

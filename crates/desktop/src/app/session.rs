@@ -4,7 +4,7 @@ use gpui_kit::*;
 use ritkraken_git::Repo;
 
 use super::{
-    Client,
+    Client, Message,
     changes::ChangesState,
     history::{History, HistoryState},
     refs::ReferenceState,
@@ -27,7 +27,7 @@ pub(super) struct RepoTab {
     pub(super) changes: ChangesState,
     pub(super) review: ReviewState,
     pub(super) busy: bool,
-    pub(super) notice: Option<(bool, String)>,
+    pub(super) notice: Option<(bool, Message)>,
 }
 
 impl RepoTab {
@@ -129,8 +129,7 @@ impl Client {
                 if let Some(id) = selected {
                     this.show_tab(id, window, cx);
                 } else {
-                    this.manager.error =
-                        Some("Previously opened repositories are unavailable.".into());
+                    this.manager.error = Some(Message::Key("app.error.restore_repositories"));
                     this.persist_session();
                     cx.notify();
                 }
