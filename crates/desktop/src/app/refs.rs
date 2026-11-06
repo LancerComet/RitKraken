@@ -153,6 +153,7 @@ impl Client {
                     .items_center()
                     .justify_between()
                     .h(px(26.))
+                    .my(px(3.))
                     .px(px(9.))
                     .child(
                         div()
@@ -253,11 +254,14 @@ impl Client {
                         cx.notify();
                     }
                 }))
-                .child(heading(format!(
-                    "{}  {}",
-                    if open { "⌄" } else { "›" },
-                    tr!(title)
-                )))
+                .child(
+                    div()
+                        .flex()
+                        .items_center()
+                        .gap(px(3.))
+                        .child(disclosure_chevron(open))
+                        .child(heading(tr!(title)).text_size(px(13.))),
+                )
                 .child(
                     div()
                         .text_size(px(11.))
@@ -281,6 +285,7 @@ impl Client {
                             .id(SharedString::from(key.clone()))
                             .flex()
                             .items_center()
+                            .gap(px(3.))
                             .h(px(22.))
                             .pl(px(10. + 13. * depth as f32))
                             .min_w_0()
@@ -294,11 +299,13 @@ impl Client {
                                     cx.notify();
                                 }
                             }))
-                            .child(div().text_color(rgb(MUTED)).truncate().child(format!(
-                                "{}  {}",
-                                if collapsed { "›" } else { "⌄" },
-                                parts[depth]
-                            ))),
+                            .child(disclosure_chevron(!collapsed))
+                            .child(
+                                div()
+                                    .text_color(rgb(MUTED))
+                                    .truncate()
+                                    .child(parts[depth].to_owned()),
+                            ),
                     );
                 }
                 if collapsed {
@@ -366,6 +373,14 @@ impl Client {
         }
         group
     }
+}
+
+fn disclosure_chevron(open: bool) -> Svg {
+    icon("icons/chevron-right.svg", MUTED)
+        .size(px(12.))
+        .when(open, |arrow| {
+            arrow.with_transformation(Transformation::rotate(radians(std::f32::consts::FRAC_PI_2)))
+        })
 }
 
 fn matches_ref_filter(reference: &Reference, filter: &str) -> bool {

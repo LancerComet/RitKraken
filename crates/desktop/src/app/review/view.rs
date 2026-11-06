@@ -1,5 +1,5 @@
 use gpui_kit::{component::tooltip::Tooltip, prelude::*, *};
-use ritkraken_diff::{Diff, DiffHunkSeparator};
+use ritkraken_diff::{Diff, DiffHunkSeparator, DiffState, DiffTypography};
 use ritkraken_git::Scope;
 
 use crate::i18n::tr;
@@ -12,6 +12,25 @@ use crate::app::{
 };
 
 impl DiffLayout {
+    pub(in crate::app) fn viewer(
+        self,
+        state: &Entity<DiffState>,
+        wrap_lines: bool,
+        typography: DiffTypography,
+    ) -> Diff {
+        let separator = if self == Self::Hunk {
+            DiffHunkSeparator::Metadata
+        } else {
+            DiffHunkSeparator::Simple
+        };
+        Diff::new(state)
+            .size_full()
+            .header_visible(false)
+            .hunk_separator(separator)
+            .soft_wrap(wrap_lines)
+            .typography(typography)
+    }
+
     pub(in crate::app) fn selector_button(
         self,
         selected: Option<Self>,
@@ -70,16 +89,11 @@ impl Client {
         let can_navigate = !review.show_source && review.viewer.is_some();
         let change = review.file.change.clone();
         let content = if let Some(state) = review.state() {
-            let separator = if tab.review.layout == DiffLayout::Hunk {
-                DiffHunkSeparator::Metadata
-            } else {
-                DiffHunkSeparator::Simple
-            };
-            let diff = Diff::new(state)
-                .size_full()
-                .header_visible(false)
-                .hunk_separator(separator)
-                .soft_wrap(tab.review.wrap_lines);
+            let diff = tab.review.layout.viewer(
+                state,
+                tab.review.wrap_lines,
+                self.saved.preferences.editor.diff_typography(),
+            );
             attach_controls(diff, tab, review, cx).into_any_element()
         } else if review.show_source {
             match &review.source {

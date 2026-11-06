@@ -39,6 +39,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "split-viewport.patch",
         "change-controls.patch",
         "edge-whitespace.patch",
+        "editor-typography.patch",
     ] {
         let patch = manifest_dir.join(name);
         println!("cargo:rerun-if-changed={}", patch.display());

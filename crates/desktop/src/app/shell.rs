@@ -215,12 +215,12 @@ impl Client {
             |tab| (tab.repo.name(), branch_label(&tab.history.data.snapshot)),
         );
         div()
-            .h(px(48.))
+            .h(px(52.))
             .flex_shrink_0()
             .flex()
             .items_center()
             .justify_between()
-            .px(px(10.))
+            .px(px(15.))
             .bg(rgb(TOOLBAR))
             .text_color(rgb(NAV_TEXT))
             .child(
@@ -229,20 +229,12 @@ impl Client {
                     .items_center()
                     .gap(px(12.))
                     .min_w_0()
-                    .child(
-                        div()
-                            .flex()
-                            .flex_col()
-                            .min_w_0()
-                            .child(heading(tr!("app.toolbar.repository")).text_color(rgb(0xb3bdd7)))
-                            .child(
-                                div()
-                                    .max_w(px(200.))
-                                    .truncate()
-                                    .font_weight(FontWeight::SEMIBOLD)
-                                    .child(repo),
-                            ),
-                    )
+                    .child(toolbar_location(
+                        "app.toolbar.repository",
+                        repo,
+                        px(200.),
+                        FontWeight::SEMIBOLD,
+                    ))
                     .when(!branch.is_empty(), |row| {
                         row.child(
                             div()
@@ -250,17 +242,12 @@ impl Client {
                                 .text_color(rgb(0x9da8c3))
                                 .child("›"),
                         )
-                        .child(
-                            div()
-                                .flex()
-                                .flex_col()
-                                .min_w_0()
-                                .child(
-                                    heading(tr!("app.toolbar.branch_heading"))
-                                        .text_color(rgb(0xb3bdd7)),
-                                )
-                                .child(div().max_w(px(270.)).truncate().child(branch)),
-                        )
+                        .child(toolbar_location(
+                            "app.toolbar.branch_heading",
+                            branch,
+                            px(270.),
+                            FontWeight::NORMAL,
+                        ))
                     }),
             )
             .when_some(tab, |toolbar, tab| {
@@ -326,4 +313,29 @@ impl Client {
                     .child(env!("CARGO_PKG_VERSION")),
             )
     }
+}
+
+fn toolbar_location(
+    label: &'static str,
+    value: String,
+    max_width: Pixels,
+    weight: FontWeight,
+) -> Div {
+    div()
+        .flex()
+        .flex_col()
+        .min_w_0()
+        .child(
+            heading(tr!(label))
+                .text_size(px(12.))
+                .text_color(rgb(0xb3bdd7)),
+        )
+        .child(
+            div()
+                .max_w(max_width)
+                .truncate()
+                .text_size(px(14.))
+                .font_weight(weight)
+                .child(value),
+        )
 }

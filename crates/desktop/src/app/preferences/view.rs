@@ -15,7 +15,6 @@ use gpui_kit::{
 use super::{PreferenceDraft, PreferencePage, Preferences};
 use crate::app::{
     Client,
-    review::DiffLayout,
     widgets::{HEADER, HOVER, LINE, MUTED, PAPER, SELECT, Tone, button, error_text, heading, icon},
 };
 
@@ -191,47 +190,6 @@ impl Client {
             Some("app.preferences.collapse_review_sidebar_hint"),
         ))
     }
-
-    fn editor_preferences(&self, draft: &PreferenceDraft, cx: &mut Context<Self>) -> Div {
-        let options = &draft.options;
-        let layouts = div()
-            .flex()
-            .children(DiffLayout::ALL.into_iter().map(|layout| {
-                layout
-                    .selector_button(
-                        Some(options.diff_layout),
-                        true,
-                        cx.listener(move |this, _, _, cx| {
-                            if let Some(preferences) = this.preferences.as_mut() {
-                                preferences.options.diff_layout = layout;
-                                cx.notify();
-                            }
-                        }),
-                    )
-                    .w(px(72.))
-            }));
-        div()
-            .flex()
-            .flex_col()
-            .gap(px(18.))
-            .child(preference_row(
-                "app.preferences.diff_layout",
-                layouts,
-                Some("app.preferences.diff_layout_hint"),
-            ))
-            .child(preference_row(
-                "app.preferences.wrap_lines",
-                preference_check(
-                    "default-wrap",
-                    "app.preferences.wrap_lines",
-                    options.wrap_lines,
-                    true,
-                    |options, checked| options.wrap_lines = checked,
-                    cx,
-                ),
-                Some("app.preferences.wrap_lines_hint"),
-            ))
-    }
 }
 
 fn language_picker(selected: Language, cx: &Context<Client>) -> impl IntoElement {
@@ -257,7 +215,7 @@ fn language_picker(selected: Language, cx: &Context<Client>) -> impl IntoElement
         })
 }
 
-fn preference_row(
+pub(super) fn preference_row(
     label_key: &'static str,
     input: impl IntoElement,
     hint_key: Option<&'static str>,
@@ -294,7 +252,7 @@ fn preference_row(
         )
 }
 
-fn preference_check(
+pub(super) fn preference_check(
     id: &'static str,
     label_key: &'static str,
     checked: bool,

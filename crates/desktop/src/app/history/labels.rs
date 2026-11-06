@@ -119,7 +119,7 @@ pub(super) fn ref_labels(labels: &[RefBadge], color: u32) -> Div {
                         .id("commit-ref")
                         .tooltip(move |window, cx| Tooltip::new(tooltip.clone()).build(window, cx))
                         .when(first.checked_out, |e| {
-                            e.child(icon("icons/check.svg", TEXT).size(px(12.)))
+                            e.child(badge_icon("icons/check.svg"))
                         })
                         .child(
                             div()
@@ -127,11 +127,7 @@ pub(super) fn ref_labels(labels: &[RefBadge], color: u32) -> Div {
                                 .truncate()
                                 .child(first.display_name().to_owned()),
                         )
-                        .children(
-                            first
-                                .icons()
-                                .map(|kind| icon(ref_icon(kind), TEXT).size(px(12.))),
-                        ),
+                        .children(first.icons().map(|kind| badge_icon(ref_icon(kind)))),
                 )
                 .when(!rest.is_empty(), |element| {
                     let tooltip = rest
@@ -156,6 +152,10 @@ pub(super) fn ref_labels(labels: &[RefBadge], color: u32) -> Div {
                         .bg(rgb(color).opacity(CONNECTOR_OPACITY)),
                 )
         })
+}
+
+fn badge_icon(path: &'static str) -> Svg {
+    icon(path, TEXT).size(px(16.))
 }
 
 fn badge(color: u32, opacity: f32) -> Div {

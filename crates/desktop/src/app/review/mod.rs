@@ -36,7 +36,7 @@ impl DiffLayout {
         }
     }
 
-    fn apply(self, state: &mut DiffState, cx: &mut Context<DiffState>) {
+    pub(super) fn apply(self, state: &mut DiffState, cx: &mut Context<DiffState>) {
         let mode = if self == Self::Split {
             DiffMode::Split
         } else {

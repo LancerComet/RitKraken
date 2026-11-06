@@ -1,3 +1,4 @@
+mod editor;
 mod view;
 
 use std::ops::RangeInclusive;
@@ -5,6 +6,7 @@ use std::ops::RangeInclusive;
 use gpui_kit::{component::input::InputState, *};
 
 use crate::i18n::{Language, LocalizedInput};
+use editor::{EditorDraft, EditorTypography};
 
 use super::{Client, Message, review::DiffLayout};
 
@@ -21,6 +23,7 @@ pub(super) struct Preferences {
     pub(super) collapse_review_sidebar: bool,
     pub(super) diff_layout: DiffLayout,
     pub(super) wrap_lines: bool,
+    pub(super) editor: EditorTypography,
 }
 
 impl Default for Preferences {
@@ -35,6 +38,7 @@ impl Default for Preferences {
             collapse_review_sidebar: true,
             diff_layout: DiffLayout::Split,
             wrap_lines: false,
+            editor: EditorTypography::default(),
         }
     }
 }
@@ -72,6 +76,7 @@ impl Preferences {
                 .find(|layout| value["diff_layout"].as_str() == Some(layout.id()))
                 .unwrap_or(defaults.diff_layout),
             wrap_lines: value["wrap_lines"].as_bool().unwrap_or(defaults.wrap_lines),
+            editor: EditorTypography::read(&value["editor_typography"]),
         }
     }
 
@@ -86,6 +91,7 @@ impl Preferences {
             "collapse_review_sidebar": self.collapse_review_sidebar,
             "diff_layout": self.diff_layout.id(),
             "wrap_lines": self.wrap_lines,
+            "editor_typography": self.editor.json(),
         })
     }
 
@@ -116,6 +122,7 @@ pub(super) struct PreferenceDraft {
     pub(super) options: Preferences,
     pub(super) branch: LocalizedInput,
     pub(super) count: Entity<InputState>,
+    editor: EditorDraft,
     pub(super) error: Option<Message>,
 }
 
@@ -135,6 +142,7 @@ impl Client {
         let count = cx.new(|cx| {
             InputState::new(window, cx).default_value(options.initial_commits.to_string())
         });
+        let editor = EditorDraft::new(&options, window, cx);
         self.manager.mode = None;
         self.branch_dialog.open = false;
         self.preferences = Some(PreferenceDraft {
@@ -142,6 +150,7 @@ impl Client {
             options,
             branch,
             count,
+            editor,
             error: None,
         });
         self.focus.focus(window, cx);
@@ -185,6 +194,15 @@ impl Client {
             options.initial_commits = count;
         }
         options.default_branch = draft.branch.read(cx).value().trim().to_owned();
+        match draft.editor.typography(cx) {
+            Ok(typography) => options.editor = typography,
+            Err(message) => {
+                draft.page = PreferencePage::Editor;
+                draft.error = Some(Message::Key(message));
+                cx.notify();
+                return;
+            }
+        }
         let previous = &self.saved.preferences;
         let limit = options.history_limit();
         let history_changed = previous.history_limit() != limit;
@@ -225,6 +243,7 @@ impl Client {
         self.saved.preferences.language.apply();
         if let Some(draft) = &self.preferences {
             draft.branch.localize(window, cx);
+            draft.editor.localize(window, cx);
         }
         self.manager.localize(window, cx);
         self.branch_dialog.localize(window, cx);

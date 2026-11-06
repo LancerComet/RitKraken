@@ -1,0 +1,69 @@
+--- a/diff/mod.rs
++++ b/diff/mod.rs
+@@ -39,5 +39,5 @@
+     v_flex,
+ };
+-use crate::{controls::ChangeControls, split::SplitLayout};
++use crate::{DiffTypography, controls::ChangeControls, split::SplitLayout};
+ use actions::*;
+ use conflict::ConflictPart;
+@@ -225,4 +225,5 @@
+     state: Entity<DiffState>,
+     style: StyleRefinement,
++    typography: DiffTypography,
+     line_number: bool,
+     syntax_highlight: bool,
+@@ -258,4 +259,5 @@
+             state: state.clone(),
+             style: StyleRefinement::default(),
++            typography: DiffTypography::default(),
+             line_number: true,
+             syntax_highlight: true,
+@@ -319,4 +321,10 @@
+         self
+     }
++    /// Overrides typography in the code area.
++    pub fn typography(mut self, typography: DiffTypography) -> Self {
++        self.typography = typography;
++        self
++    }
++
+     /// Supplies annotations with stable identities and targets.
+     ///
+@@ -523,7 +531,5 @@
+     state.ensure_presentation(cx);
+     let rem = window.rem_size();
+-    let font_size = rem * (f32::from(cx.theme().mono_font_size) / 16.);
+-    let font_family = cx.theme().mono_font_family.clone();
+-    let row_height = font_size * 1.6;
++    let (font_family, font_size, row_height) = props.typography.resolve(window, cx);
+     let digits = state
+         .files()
+@@ -587,4 +593,5 @@
+         split,
+         horizontal_scroll: horizontal.clone(),
++        font_family,
+         font_size,
+         row_height,
+@@ -854,4 +861,5 @@
+     split: Option<SplitLayout>,
+     horizontal_scroll: gpui::ScrollHandle,
++    font_family: SharedString,
+     font_size: Pixels,
+     row_height: Pixels,
+@@ -1867,5 +1875,5 @@
+             }
+         })
+-        .font_family(cx.theme().mono_font_family.clone())
++        .font_family(code.font_family.clone())
+         .text_size(code.font_size)
+         .line_height(code.row_height)
+--- a/diff/state.rs
++++ b/diff/state.rs
+@@ -1130,5 +1130,5 @@
+     /// Returns whether content width must be measured again.
+     pub(crate) fn update_layout(&mut self, key: LayoutKey, row_height: Pixels) -> bool {
+-        if self.layout.as_ref() == Some(&key) {
++        if self.layout.as_ref() == Some(&key) && self.row_height == Some(row_height) {
+             return false;
+         }

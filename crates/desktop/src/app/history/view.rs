@@ -13,11 +13,11 @@ use super::{
 use crate::app::{
     Client, NextRow, PreviousRow, RepoTab,
     changes::SummaryStyle,
-    widgets::{HEADER, HOVER, LINE, MUTED, SELECT, TEAL, WHITE, heading},
+    widgets::{HEADER, HOVER, LINE, MUTED, SELECT, TEAL, WHITE},
 };
 use crate::i18n::tr;
 
-const HEADER_HEIGHT: Pixels = px(22.);
+const HEADER_HEIGHT: Pixels = px(30.);
 const REF_WIDTH: Pixels = px(156.);
 const MIN_MESSAGE_WIDTH: Pixels = px(160.);
 const AUTHOR_WIDTH: Pixels = px(111.);
@@ -79,11 +79,14 @@ impl Client {
             .h(HEADER_HEIGHT)
             .flex_shrink_0()
             .bg(rgb(HEADER))
+            .text_size(px(12.))
+            .font_weight(FontWeight::NORMAL)
+            .text_color(rgb(MUTED))
             .border_b_1()
             .border_color(rgb(LINE))
             .child(column("app.history.ref", REF_WIDTH).flex_shrink_0())
             .child(column("app.history.graph", graph_width).flex_shrink_0())
-            .child(message_column(heading(tr!("app.history.message"))))
+            .child(message_column(div()).child(tr!("app.history.message")))
             .child(column("app.history.author", AUTHOR_WIDTH))
             .child(column("app.history.date_time", DATE_WIDTH))
             .child(column("app.history.sha", SHA_WIDTH));
@@ -134,13 +137,14 @@ impl Client {
 }
 
 fn column(key: &'static str, width: Pixels) -> Div {
-    heading(tr!(key))
+    div()
         .w(width)
         .min_w_0()
         .truncate()
         .pl(px(6.))
         .border_r_1()
         .border_color(rgb(LINE))
+        .child(tr!(key))
 }
 
 fn history_row(

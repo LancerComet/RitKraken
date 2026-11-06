@@ -3,3 +3,4 @@
 /crates/diff/split-viewport.patch text eol=lf
 /crates/diff/change-controls.patch text eol=lf
 /crates/diff/edge-whitespace.patch text eol=lf
+/crates/diff/editor-typography.patch text eol=lf
