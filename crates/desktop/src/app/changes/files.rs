@@ -73,15 +73,9 @@ impl Client {
         let list = uniform_list((label, id), rows.len(), move |range, _, _| {
             range
                 .map(|index| match &rows[index] {
-                    FileRow::Folder { name, depth } => div()
-                        .w_full()
-                        .h(px(26.))
-                        .flex()
-                        .items_center()
-                        .pl(px(8. + *depth as f32 * 13.))
-                        .gap(px(5.))
+                    FileRow::Folder { name, depth } => file_row(*depth)
                         .text_color(rgb(MUTED))
-                        .child(icon("icons/folder.svg", MUTED))
+                        .child(file_row_icon(Some("icons/folder.svg"), MUTED))
                         .child(div().truncate().child(name.clone()))
                         .into_any_element(),
                     FileRow::File {
@@ -106,19 +100,12 @@ impl Client {
                             change: change.clone(),
                         };
                         let active = selected.as_ref() == Some(&file);
-                        let (mark, color) = change_mark(change.code);
+                        let mark = change_mark(change.code);
                         let open_view = view.clone();
                         let stage_view = view.clone();
                         let stage_change = change.clone();
-                        div()
+                        file_row(*depth)
                             .id(("file-row", index))
-                            .w_full()
-                            .h(px(26.))
-                            .flex()
-                            .items_center()
-                            .gap(px(6.))
-                            .pl(px(8. + *depth as f32 * 13.))
-                            .pr(px(5.))
                             .cursor_pointer()
                             .bg(rgb(if active { SELECT } else { PAPER }))
                             .hover(|style| style.bg(rgb(HOVER)))
@@ -127,13 +114,7 @@ impl Client {
                                     this.open_diff(id, file.clone(), window, cx)
                                 });
                             })
-                            .child(
-                                div()
-                                    .text_color(rgb(color))
-                                    .w(px(10.))
-                                    .flex_shrink_0()
-                                    .child(mark),
-                            )
+                            .child(file_row_icon(mark.icon_path, mark.color))
                             .child(div().flex_1().min_w_0().truncate().child(path))
                             .when_some(action, |row, action| {
                                 row.child(
@@ -168,10 +149,30 @@ impl Client {
         div()
             .flex_1()
             .min_h_0()
+            .mx(px(10.))
             .relative()
             .child(list)
             .vertical_scrollbar(scroll)
     }
+}
+
+fn file_row(depth: usize) -> Div {
+    div()
+        .w_full()
+        .h(px(32.))
+        .flex()
+        .items_center()
+        .pl(px(10. + depth as f32 * 13.))
+        .pr(px(10.))
+        .gap(px(5.))
+        .text_size(px(14.))
+}
+
+fn file_row_icon(path: Option<&'static str>, color: u32) -> Div {
+    div()
+        .size(px(12.))
+        .flex_shrink_0()
+        .when_some(path, |slot, path| slot.child(icon(path, color).size_full()))
 }
 
 enum FileRow {

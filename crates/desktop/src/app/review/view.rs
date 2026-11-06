@@ -64,7 +64,7 @@ impl Client {
             Scope::Index => "app.review.index",
             Scope::Commit { .. } => "app.review.commit",
         });
-        let (marker, color) = change_mark(review.file.change.code);
+        let mark = change_mark(review.file.change.code);
         let stage_action = StageAction::for_scope(&review.file.scope);
         let active_layout = (!review.show_source).then_some(tab.review.layout);
         let can_navigate = !review.show_source && review.viewer.is_some();
@@ -114,7 +114,7 @@ impl Client {
                     .border_b_1()
                     .border_color(rgb(LINE))
                     .bg(rgb(PAPER))
-                    .child(div().text_color(rgb(color)).child(marker))
+                    .child(div().text_color(rgb(mark.color)).child(mark.glyph))
                     .child(
                         div()
                             .flex_1()

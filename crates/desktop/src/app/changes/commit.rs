@@ -291,12 +291,12 @@ fn change_summary(changes: &[Change]) -> Div {
                 ])
                 .filter(|(count, _)| *count > 0)
                 .map(|(count, (code, key))| {
-                    let (mark, color) = change_mark(code);
+                    let mark = change_mark(code);
                     div()
                         .flex()
                         .items_center()
                         .gap(px(3.))
-                        .child(div().text_color(rgb(color)).child(mark))
+                        .child(div().text_color(rgb(mark.color)).child(mark.glyph))
                         .child(tr!(key, count = count))
                 }),
         )

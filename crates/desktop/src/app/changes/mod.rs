@@ -252,13 +252,24 @@ pub(super) fn distinct_file_count(status: &git::Status) -> usize {
         .len()
 }
 
-pub(super) fn change_mark(code: u8) -> (&'static str, u32) {
-    match code {
-        b' ' => ("", MUTED),
-        b'A' | b'?' => ("+", 0x2f964e),
-        b'D' => ("−", RED),
-        b'R' | b'C' => ("↪", 0x7453af),
-        b'U' => ("!", RED),
-        _ => ("✎", 0xc88732),
+pub(super) struct ChangeMark {
+    pub(super) glyph: &'static str,
+    pub(super) icon_path: Option<&'static str>,
+    pub(super) color: u32,
+}
+
+pub(super) fn change_mark(code: u8) -> ChangeMark {
+    let (glyph, icon_path, color) = match code {
+        b' ' => ("", None, MUTED),
+        b'A' | b'?' => ("+", Some("icons/plus.svg"), 0x2f964e),
+        b'D' => ("−", Some("icons/minus.svg"), RED),
+        b'R' | b'C' => ("↪", Some("icons/corner-up-right.svg"), 0x7453af),
+        b'U' => ("!", Some("icons/circle-alert.svg"), RED),
+        _ => ("✎", Some("icons/pencil.svg"), 0xc88732),
+    };
+    ChangeMark {
+        glyph,
+        icon_path,
+        color,
     }
 }
