@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::git::{Commit, Reference, Snapshot};
+use ritkraken_git::{Commit, Reference, Snapshot};
 
 pub const COLORS: &[u32] = &[
     0x1597b0, 0x2f78e4, 0x9c55cc, 0x31a66d, 0xe19036, 0xcf5578, 0x6573cb, 0x208e8a,

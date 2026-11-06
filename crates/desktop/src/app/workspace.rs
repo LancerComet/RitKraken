@@ -1,0 +1,80 @@
+use gpui_kit::{
+    component::resizable::{h_resizable, resizable_panel},
+    prelude::*,
+    *,
+};
+
+use super::{Client, RepoTab};
+
+pub(super) struct WorkspacePanes {
+    workspace: Entity<gpui_kit::base::ResizableState>,
+    navigation: Entity<gpui_kit::base::ResizableState>,
+}
+
+impl WorkspacePanes {
+    pub(super) fn new(cx: &mut Context<Client>) -> Self {
+        Self {
+            workspace: cx.new(|_| gpui_kit::base::ResizableState::default()),
+            navigation: cx.new(|_| gpui_kit::base::ResizableState::default()),
+        }
+    }
+}
+
+impl Client {
+    pub(super) fn workspace(
+        &self,
+        tab: &RepoTab,
+        window: &Window,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
+        let width = window.viewport_size().width;
+        let right = (width * 0.30).clamp(px(296.), px(570.));
+        let left = (width * 0.175).clamp(px(168.), px(320.));
+        let center = if let Some(diff) = &tab.review.active {
+            self.diff_view(tab, diff, cx).into_any_element()
+        } else {
+            self.graph_view(tab, cx).into_any_element()
+        };
+        let collapsed = tab
+            .review
+            .active
+            .as_ref()
+            .map_or(tab.refs.collapsed, |diff| diff.collapsed_sidebar);
+        let navigation = if collapsed {
+            div()
+                .size_full()
+                .flex()
+                .child(self.branch_rail(tab, cx))
+                .child(div().flex_1().min_w_0().h_full().child(center))
+                .into_any_element()
+        } else {
+            h_resizable("navigation-panes")
+                .with_state(&self.panes.navigation)
+                .child(
+                    resizable_panel()
+                        .size(left)
+                        .size_range(px(140.)..px(490.))
+                        .child(self.sidebar(tab, cx)),
+                )
+                .child(
+                    resizable_panel()
+                        .size_range(px(280.)..px(4000.))
+                        .child(center),
+                )
+                .into_any_element()
+        };
+        h_resizable("workspace-panes")
+            .with_state(&self.panes.workspace)
+            .child(
+                resizable_panel()
+                    .size_range(px(420.)..px(4000.))
+                    .child(navigation),
+            )
+            .child(
+                resizable_panel()
+                    .size(right)
+                    .size_range(px(272.)..px(1000.))
+                    .child(self.right_panel(tab, window, cx)),
+            )
+    }
+}

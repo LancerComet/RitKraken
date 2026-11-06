@@ -1,0 +1,15 @@
+mod command;
+mod diff;
+mod error;
+mod history;
+mod protocol;
+mod remotes;
+mod repository;
+mod worktree;
+
+pub use diff::{FileTarget, PATCH_VIEW_LIMIT, Patch, Scope};
+pub use error::{Error, Result};
+pub use history::{Commit, CommitDetail, RefKind, Reference, Snapshot, short_id};
+pub use remotes::Upstream;
+pub use repository::Repo;
+pub use worktree::{Change, Status};

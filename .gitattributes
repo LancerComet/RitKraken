@@ -1,0 +1,2 @@
+/build-macos.sh text eol=lf
+/build-windows.cmd text eol=crlf

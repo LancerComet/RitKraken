@@ -1,0 +1,247 @@
+mod commit;
+mod files;
+mod worktree;
+
+use std::collections::HashSet;
+
+use gpui_kit::{
+    component::{
+        input::{InputEvent, InputState, TextareaState},
+        scroll::ScrollableElement,
+    },
+    prelude::*,
+    *,
+};
+use ritkraken_git::{self as git, Change, CommitDetail, Scope};
+
+use super::{
+    Client, Load, RepoOperation, RepoTab,
+    widgets::{LINE, MUTED, PAPER, RED, Tone, error_text},
+};
+
+#[derive(Clone, Copy)]
+pub(super) enum StageAction {
+    Stage,
+    Unstage,
+}
+
+impl StageAction {
+    pub(super) fn for_scope(scope: &Scope) -> Option<Self> {
+        match scope {
+            Scope::Worktree => Some(Self::Stage),
+            Scope::Index => Some(Self::Unstage),
+            Scope::Commit { .. } => None,
+        }
+    }
+
+    pub(super) fn verb(self) -> &'static str {
+        match self {
+            Self::Stage => "Stage",
+            Self::Unstage => "Unstage",
+        }
+    }
+
+    pub(super) fn tone(self) -> Tone {
+        match self {
+            Self::Stage => Tone::Green,
+            Self::Unstage => Tone::Red,
+        }
+    }
+}
+
+pub(super) struct ChangesState {
+    pub(super) detail: Load<CommitDetail>,
+    show_all_files: bool,
+    commit_files: Option<Load<Vec<Change>>>,
+    pub(super) request: u64,
+    scroll: [UniformListScrollHandle; 3],
+    pub(super) summary: Entity<InputState>,
+    pub(super) description: Entity<TextareaState>,
+    tree: bool,
+    message_panes: Entity<gpui_kit::base::ResizableState>,
+    _summary: Subscription,
+}
+
+impl ChangesState {
+    pub(super) fn new(window: &mut Window, cx: &mut Context<Client>) -> Self {
+        let summary = cx.new(|cx| InputState::new(window, cx).placeholder("Summary"));
+        let description = cx.new(|cx| {
+            TextareaState::new(window, cx)
+                .rows(3)
+                .placeholder("Description")
+        });
+        let subscription = cx.subscribe_in(
+            &summary,
+            window,
+            |this, _, event: &InputEvent, window, cx| match event {
+                InputEvent::Change => cx.notify(),
+                InputEvent::PressEnter {
+                    secondary: true, ..
+                } => this.submit(window, cx),
+                _ => {}
+            },
+        );
+        Self {
+            detail: Load::Pending,
+            show_all_files: false,
+            commit_files: None,
+            request: 0,
+            scroll: std::array::from_fn(|_| UniformListScrollHandle::default()),
+            summary,
+            description,
+            tree: false,
+            message_panes: cx.new(|_| gpui_kit::base::ResizableState::default()),
+            _summary: subscription,
+        }
+    }
+
+    pub(super) fn select_commit(&mut self) -> u64 {
+        self.detail = Load::Pending;
+        self.show_all_files = false;
+        self.commit_files = None;
+        self.scroll[2] = UniformListScrollHandle::default();
+        self.request += 1;
+        self.request
+    }
+}
+
+impl RepoTab {
+    fn commit_enabled(&self, cx: &App) -> bool {
+        self.history.selected.is_none()
+            && !self.busy
+            && !self.history.data.snapshot.status.staged.is_empty()
+            && !self.changes.summary.read(cx).value().trim().is_empty()
+    }
+}
+
+impl Client {
+    pub(super) fn changes_for_request(
+        &mut self,
+        id: u64,
+        request: u64,
+    ) -> Option<&mut ChangesState> {
+        let changes = &mut self.tab_mut(id)?.changes;
+        (changes.request == request).then_some(changes)
+    }
+
+    pub(super) fn show_committed_files(
+        &mut self,
+        id: u64,
+        show: bool,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(tab) = self.tab_mut(id) else { return };
+        tab.changes.show_all_files = show;
+        tab.changes.scroll[2] = UniformListScrollHandle::default();
+        cx.notify();
+        if !show
+            || matches!(
+                tab.changes.commit_files,
+                Some(Load::Pending | Load::Ready(_))
+            )
+        {
+            return;
+        }
+        let (Some(oid), Load::Ready(detail)) = (tab.history.selected.clone(), &tab.changes.detail)
+        else {
+            return;
+        };
+        let changes = detail.changes.clone();
+        let repo = tab.repo.clone();
+        let request = tab.changes.request;
+        tab.changes.commit_files = Some(Load::Pending);
+        Self::spawn_background(
+            window,
+            cx,
+            move || {
+                let changed: std::collections::HashMap<_, _> = changes
+                    .into_iter()
+                    .map(|change| (change.path.clone(), change))
+                    .collect();
+                repo.committed_files(&oid).map(|files| {
+                    files
+                        .into_iter()
+                        .map(|file| changed.get(&file.path).cloned().unwrap_or(file))
+                        .collect()
+                })
+            },
+            move |this, result, _, cx| {
+                if let Some(changes) = this.changes_for_request(id, request) {
+                    changes.commit_files = Some(result.into());
+                    cx.notify();
+                }
+            },
+        );
+    }
+
+    pub(super) fn submit(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.manager.mode.is_some() || self.preferences.is_some() || self.branch_dialog.open {
+            return;
+        }
+        if let Some(tab) = self.current().filter(|tab| tab.commit_enabled(cx)) {
+            let edit = RepoOperation::Commit(
+                tab.changes.summary.read(cx).value().to_string(),
+                tab.changes.description.read(cx).value().to_string(),
+            );
+            self.update_repo(tab.id, Some(edit), window, cx);
+        }
+    }
+
+    pub(super) fn right_panel(
+        &self,
+        tab: &RepoTab,
+        window: &Window,
+        cx: &mut Context<Self>,
+    ) -> Div {
+        let panel = if tab.history.selected.is_none() {
+            self.wip_panel(tab, cx)
+        } else {
+            self.commit_panel(tab, window, cx)
+        };
+        div()
+            .size_full()
+            .flex()
+            .flex_col()
+            .border_l_1()
+            .border_color(rgb(LINE))
+            .bg(rgb(PAPER))
+            .when_some(
+                tab.notice.as_ref().filter(|(error, _)| *error),
+                |element, (_, message)| {
+                    element.child(
+                        div()
+                            .max_h(px(82.))
+                            .child(error_text(message))
+                            .overflow_y_scrollbar(),
+                    )
+                },
+            )
+            .child(panel)
+    }
+}
+
+pub(super) fn change_count(tab: &RepoTab) -> usize {
+    distinct_file_count(&tab.history.data.snapshot.status)
+}
+
+pub(super) fn distinct_file_count(status: &git::Status) -> usize {
+    status
+        .staged
+        .iter()
+        .chain(&status.unstaged)
+        .map(|change| &change.path)
+        .collect::<HashSet<_>>()
+        .len()
+}
+
+pub(super) fn change_mark(code: u8) -> (&'static str, u32) {
+    match code {
+        b' ' => ("", MUTED),
+        b'A' | b'?' => ("+", 0x2f964e),
+        b'D' => ("−", RED),
+        b'R' | b'C' => ("↪", 0x7453af),
+        b'U' => ("!", RED),
+        _ => ("✎", 0xc88732),
+    }
+}
