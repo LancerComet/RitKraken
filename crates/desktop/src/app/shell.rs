@@ -1,4 +1,4 @@
-use gpui_kit::{prelude::*, *};
+use gpui_kit::{base::TextSelection, prelude::*, *};
 
 use crate::i18n::tr;
 
@@ -47,6 +47,7 @@ impl Render for Client {
             .bg(rgb(WHITE))
             .text_color(rgb(TEXT))
             .text_size(px(12.))
+            .child(finish_released_text_selection())
             .child(self.tab_bar(cx))
             .when(self.preferences.is_none(), |element| {
                 element.child(self.toolbar(tab, cx))
@@ -69,6 +70,26 @@ impl Render for Client {
                 element.child(self.branch_view(cx))
             })
     }
+}
+
+fn finish_released_text_selection() -> Canvas<()> {
+    canvas(
+        |_, _, _| (),
+        |_, _, window, _| {
+            window.on_mouse_event(|event: &MouseMoveEvent, phase, window, cx| {
+                // Native resizing can consume the button-up. End the drag before
+                // GPUI's selection layer handles the next move in the bubble phase.
+                if phase.capture()
+                    && event.pressed_button != Some(MouseButton::Left)
+                    && TextSelection::touch_selection(window, cx).is_none()
+                {
+                    TextSelection::end(window, cx);
+                }
+            });
+        },
+    )
+    .absolute()
+    .size(px(0.))
 }
 
 impl Client {
