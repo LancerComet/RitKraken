@@ -22,6 +22,7 @@
     },
     "commit": {
       "added": "追加 %{count} 件",
+      "conflicted": "競合 %{count} 件",
       "authored": "作成日時 %{date}",
       "copy_sha": "SHA をコピー",
       "deleted": "削除 %{count} 件",
@@ -73,7 +74,6 @@
     },
     "history": {
       "author": "作成者",
-      "changes": "変更 (%{count})",
       "date_time": "日時",
       "graph": "グラフ",
       "message": "コミットメッセージ",

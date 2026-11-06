@@ -8,6 +8,7 @@ pub struct Commit {
     pub id: String,
     pub parents: Vec<String>,
     pub author: String,
+    pub author_email: String,
     pub date: String,
     pub subject: String,
 }
@@ -72,7 +73,7 @@ impl Repo {
             "--topo-order",
             "--date=format-local:%Y/%m/%d @ %H:%M",
             "--encoding=UTF-8",
-            "--format=%H%x00%P%x00%an%x00%ad%x00%s",
+            "--format=%H%x00%P%x00%an%x00%ae%x00%ad%x00%s",
             "-z",
         ];
         let limit = history_limit.map(|limit| format!("--max-count={}", limit.saturating_add(1)));
@@ -199,7 +200,7 @@ pub fn short_id(id: &str) -> &str {
 fn parse_log(bytes: &[u8]) -> Vec<Commit> {
     let fields: Vec<&[u8]> = bytes.split(|byte| *byte == 0).collect();
     fields
-        .chunks_exact(5)
+        .chunks_exact(6)
         .filter(|fields| !fields[0].is_empty())
         .map(|fields| Commit {
             id: text(fields[0]),
@@ -208,8 +209,9 @@ fn parse_log(bytes: &[u8]) -> Vec<Commit> {
                 .map(str::to_owned)
                 .collect(),
             author: text(fields[2]),
-            date: text(fields[3]),
-            subject: text(fields[4]),
+            author_email: text(fields[3]),
+            date: text(fields[4]),
+            subject: text(fields[5]),
         })
         .collect()
 }

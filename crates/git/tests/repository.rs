@@ -60,6 +60,10 @@ fn partial_stage_preserves_other_edits_and_refuses_a_stale_patch() {
     let snapshot = repo.snapshot(None).unwrap();
     assert_eq!(snapshot.commits[0].subject, "Initial commit");
     assert_eq!(snapshot.commits[0].author, "RitKraken Test");
+    assert_eq!(
+        snapshot.commits[0].author_email,
+        "ritkraken-test@example.invalid"
+    );
     assert_eq!(snapshot.refs.len(), 1);
     let target = FileTarget {
         scope: Scope::Worktree,

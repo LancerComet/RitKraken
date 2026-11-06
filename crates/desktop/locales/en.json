@@ -23,6 +23,7 @@
     "commit": {
       "added": "%{count} added",
       "authored": "Authored %{date}",
+      "conflicted": "%{count} conflicted",
       "copy_sha": "Copy SHA",
       "deleted": "%{count} deleted",
       "loading": "Loading commit…",
@@ -73,7 +74,6 @@
     },
     "history": {
       "author": "AUTHOR",
-      "changes": "Changes (%{count})",
       "date_time": "DATE / TIME",
       "graph": "GRAPH",
       "message": "COMMIT MESSAGE",

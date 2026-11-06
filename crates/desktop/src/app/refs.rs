@@ -20,26 +20,23 @@ use super::{
     },
 };
 
-const REF_GROUPS: [(RefKind, &str, &str, &str); 3] = [
-    (
-        RefKind::Local,
-        "app.refs.local",
-        "app.refs.local_branches",
-        "icons/laptop.svg",
-    ),
+const REF_GROUPS: [(RefKind, &str, &str); 3] = [
+    (RefKind::Local, "app.refs.local", "app.refs.local_branches"),
     (
         RefKind::Remote,
         "app.refs.remote",
         "app.refs.remote_branches",
-        "icons/cloud.svg",
     ),
-    (
-        RefKind::Tag,
-        "app.refs.tags",
-        "app.refs.tags",
-        "icons/tag.svg",
-    ),
+    (RefKind::Tag, "app.refs.tags", "app.refs.tags"),
 ];
+
+pub(super) fn ref_icon(kind: RefKind) -> &'static str {
+    match kind {
+        RefKind::Local => "icons/laptop.svg",
+        RefKind::Remote => "icons/cloud.svg",
+        RefKind::Tag => "icons/tag.svg",
+    }
+}
 
 pub(super) struct ReferenceState {
     pub(super) filter: LocalizedInput,
@@ -109,7 +106,7 @@ impl Client {
                 .h(px(30.))
                 .child(icon("icons/chevron-right.svg", TEXT)),
             )
-            .children(REF_GROUPS.into_iter().map(|(kind, _, title, glyph)| {
+            .children(REF_GROUPS.into_iter().map(|(kind, _, title)| {
                 let count = tab.history.data.snapshot.refs_of_kind(kind).count();
                 div()
                     .id(title)
@@ -125,7 +122,7 @@ impl Client {
                     .on_click(cx.listener(move |this, _, _, cx| {
                         this.set_sidebar(id, false, Some(kind), cx)
                     }))
-                    .child(icon(glyph, MUTED))
+                    .child(icon(ref_icon(kind), MUTED))
                     .child(
                         div()
                             .text_size(px(10.))
@@ -209,9 +206,11 @@ impl Client {
                         .flex()
                         .flex_col()
                         .size_full()
-                        .children(REF_GROUPS.into_iter().map(|(kind, title, _, _)| {
-                            self.ref_group(tab, kind, title, &filter, cx)
-                        }))
+                        .children(
+                            REF_GROUPS.into_iter().map(|(kind, title, _)| {
+                                self.ref_group(tab, kind, title, &filter, cx)
+                            }),
+                        )
                         .overflow_y_scrollbar(),
                 ),
             )

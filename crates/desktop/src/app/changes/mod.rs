@@ -1,8 +1,7 @@
 mod commit;
 mod files;
+mod summary;
 mod worktree;
-
-use std::collections::HashSet;
 
 use gpui_kit::{
     component::{
@@ -12,14 +11,16 @@ use gpui_kit::{
     prelude::*,
     *,
 };
-use ritkraken_git::{self as git, Change, CommitDetail, Scope};
+use ritkraken_git::{Change, CommitDetail, Scope};
 
 use crate::i18n::{LocalizedInput, tr};
 
 use super::{
     Client, Load, RepoOperation, RepoTab,
-    widgets::{LINE, MUTED, PAPER, RED, Tone, error_text},
+    widgets::{LINE, PAPER, Tone, error_text},
 };
+
+pub(super) use summary::{ChangeSummary, SummaryStyle, change_mark};
 
 #[derive(Clone, Copy)]
 pub(super) enum StageAction {
@@ -239,37 +240,5 @@ impl Client {
 }
 
 pub(super) fn change_count(tab: &RepoTab) -> usize {
-    distinct_file_count(&tab.history.data.snapshot.status)
-}
-
-pub(super) fn distinct_file_count(status: &git::Status) -> usize {
-    status
-        .staged
-        .iter()
-        .chain(&status.unstaged)
-        .map(|change| &change.path)
-        .collect::<HashSet<_>>()
-        .len()
-}
-
-pub(super) struct ChangeMark {
-    pub(super) glyph: &'static str,
-    pub(super) icon_path: Option<&'static str>,
-    pub(super) color: u32,
-}
-
-pub(super) fn change_mark(code: u8) -> ChangeMark {
-    let (glyph, icon_path, color) = match code {
-        b' ' => ("", None, MUTED),
-        b'A' | b'?' => ("+", Some("icons/plus.svg"), 0x2f964e),
-        b'D' => ("−", Some("icons/minus.svg"), RED),
-        b'R' | b'C' => ("↪", Some("icons/corner-up-right.svg"), 0x7453af),
-        b'U' => ("!", Some("icons/circle-alert.svg"), RED),
-        _ => ("✎", Some("icons/pencil.svg"), 0xc88732),
-    };
-    ChangeMark {
-        glyph,
-        icon_path,
-        color,
-    }
+    tab.history.data.worktree_summary.total()
 }

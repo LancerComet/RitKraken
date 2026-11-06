@@ -1,17 +1,52 @@
+mod graph;
+mod labels;
 mod layout;
 mod view;
 
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use gpui_kit::*;
-use ritkraken_git::Repo;
+use ritkraken_git::{Repo, Snapshot};
 
-use super::{Client, Load, Message};
-pub(super) use layout::History;
+use super::{Client, Load, Message, changes::ChangeSummary};
+use labels::{RefBadge, group_refs};
+use layout::GraphLayout;
+
+pub(super) struct History {
+    pub snapshot: Snapshot,
+    pub position: HashMap<String, usize>,
+    pub(super) worktree_summary: ChangeSummary,
+    graph: GraphLayout,
+    labels: HashMap<String, Vec<RefBadge>>,
+}
 
 impl History {
     pub(super) fn load(repo: &Repo, limit: Option<usize>) -> ritkraken_git::Result<Arc<Self>> {
-        Ok(Arc::new(Self::new(repo.snapshot(limit)?)))
+        let snapshot = repo.snapshot(limit)?;
+        let graph = GraphLayout::new(&snapshot.commits);
+        let worktree_summary = ChangeSummary::new(snapshot.status.distinct_changes());
+        let position = snapshot
+            .commits
+            .iter()
+            .enumerate()
+            .map(|(index, commit)| (commit.id.clone(), index))
+            .collect();
+        let labels = group_refs(&snapshot);
+        Ok(Arc::new(Self {
+            snapshot,
+            position,
+            worktree_summary,
+            graph,
+            labels,
+        }))
+    }
+
+    fn labels_for(&self, id: &str) -> &[RefBadge] {
+        self.labels.get(id).map_or(&[], Vec::as_slice)
+    }
+
+    fn head_index(&self) -> Option<usize> {
+        self.position.get(self.snapshot.head.as_deref()?).copied()
     }
 }
 
@@ -20,6 +55,7 @@ pub(super) struct HistoryState {
     pub(super) selected: Option<String>,
     pub(super) limit: Option<usize>,
     pub(super) scroll: UniformListScrollHandle,
+    horizontal_scroll: ScrollHandle,
     pub(super) focus: FocusHandle,
 }
 
@@ -30,6 +66,7 @@ impl HistoryState {
             data,
             limit,
             scroll: UniformListScrollHandle::default(),
+            horizontal_scroll: ScrollHandle::new(),
             focus: cx.focus_handle(),
         }
     }

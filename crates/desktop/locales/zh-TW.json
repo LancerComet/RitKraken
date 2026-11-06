@@ -22,6 +22,7 @@
     },
     "commit": {
       "added": "新增 %{count} 個",
+      "conflicted": "衝突 %{count} 個",
       "authored": "撰寫於 %{date}",
       "copy_sha": "複製 SHA",
       "deleted": "刪除 %{count} 個",
@@ -73,7 +74,6 @@
     },
     "history": {
       "author": "作者",
-      "changes": "變更（%{count}）",
       "date_time": "日期 / 時間",
       "graph": "提交圖",
       "message": "提交訊息",

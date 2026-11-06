@@ -7,13 +7,14 @@ use gpui_kit::{
     prelude::*,
     *,
 };
-use ritkraken_git::{self as git, Change, Scope};
+use ritkraken_git::{self as git, Scope};
 
 use crate::i18n::tr;
 
-use super::{change_count, change_mark};
+use super::{ChangeSummary, SummaryStyle, change_count};
 use crate::app::{
     Client, Load, RepoTab,
+    avatar::AuthorAvatar,
     widgets::{LINE, MUTED, Tone, button, error_text, note},
 };
 
@@ -69,11 +70,6 @@ impl Client {
                 } else {
                     self.file_list(tab, &detail.changes, scope, cx)
                 };
-                let author_initial = commit
-                    .author
-                    .chars()
-                    .find(|character| !character.is_whitespace())
-                    .unwrap_or('?');
                 let metadata = div()
                     .size_full()
                     .flex()
@@ -92,18 +88,7 @@ impl Client {
                                     .flex()
                                     .items_center()
                                     .gap(px(7.))
-                                    .child(
-                                        div()
-                                            .size(px(31.))
-                                            .flex_shrink_0()
-                                            .rounded(px(3.))
-                                            .bg(rgb(0xe1e8f2))
-                                            .text_color(rgb(0x365479))
-                                            .flex()
-                                            .items_center()
-                                            .justify_center()
-                                            .child(author_initial.to_string()),
-                                    )
+                                    .child(AuthorAvatar::new(commit, px(31.), None))
                                     .child(
                                         div()
                                             .min_w_0()
@@ -150,7 +135,7 @@ impl Client {
                                 )
                             }),
                     )
-                    .child(change_summary(&detail.changes))
+                    .child(ChangeSummary::new(&detail.changes).view(SummaryStyle::Labeled))
                     .child(
                         div()
                             .flex()
@@ -260,44 +245,4 @@ impl Client {
             )
             .child(detail)
     }
-}
-
-fn change_summary(changes: &[Change]) -> Div {
-    let mut counts = [0; 4];
-    for change in changes {
-        counts[match change.code {
-            b'A' => 0,
-            b'D' => 1,
-            b'R' | b'C' => 2,
-            _ => 3,
-        }] += 1;
-    }
-    div()
-        .flex()
-        .items_center()
-        .gap(px(9.))
-        .h(px(32.))
-        .flex_shrink_0()
-        .px(px(10.))
-        .text_size(px(11.))
-        .children(
-            counts
-                .into_iter()
-                .zip([
-                    (b'A', "app.commit.added"),
-                    (b'D', "app.commit.deleted"),
-                    (b'R', "app.commit.renamed"),
-                    (b'M', "app.commit.modified"),
-                ])
-                .filter(|(count, _)| *count > 0)
-                .map(|(count, (code, key))| {
-                    let mark = change_mark(code);
-                    div()
-                        .flex()
-                        .items_center()
-                        .gap(px(3.))
-                        .child(div().text_color(rgb(mark.color)).child(mark.glyph))
-                        .child(tr!(key, count = count))
-                }),
-        )
 }

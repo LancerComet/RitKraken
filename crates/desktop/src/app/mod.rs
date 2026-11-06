@@ -1,3 +1,4 @@
+mod avatar;
 mod changes;
 mod history;
 mod message;

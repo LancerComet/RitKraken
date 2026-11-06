@@ -23,6 +23,7 @@
     "commit": {
       "added": "新增 %{count} 个",
       "authored": "编写于 %{date}",
+      "conflicted": "冲突 %{count} 个",
       "copy_sha": "复制 SHA",
       "deleted": "删除 %{count} 个",
       "loading": "正在加载提交…",
@@ -73,7 +74,6 @@
     },
     "history": {
       "author": "作者",
-      "changes": "更改（%{count}）",
       "date_time": "日期 / 时间",
       "graph": "提交图",
       "message": "提交信息",

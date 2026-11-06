@@ -1,149 +1,160 @@
-use std::collections::HashMap;
+use std::{
+    collections::{BTreeSet, HashMap},
+    ops::Range,
+};
 
-use ritkraken_git::{Commit, Reference, Snapshot};
+use ritkraken_git::Commit;
 
-pub const COLORS: &[u32] = &[
-    0x1597b0, 0x2f78e4, 0x9c55cc, 0x31a66d, 0xe19036, 0xcf5578, 0x6573cb, 0x208e8a,
+const COLORS: &[u32] = &[
+    0x079dbb, 0x1676e8, 0x8e24c7, 0xb823b0, 0xd42677, 0xdc3c37, 0xc17a17, 0x188c64, 0x6075cd,
 ];
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct Rail {
+pub(super) struct Rail {
     pub lane: usize,
     pub color: u32,
 }
 
 #[derive(Debug)]
-pub struct Row {
+pub(super) struct Row {
     pub node: Rail,
-    pub incoming: bool,
-    pub through: Vec<Rail>,
-    pub parents: Vec<Rail>,
+    pub incoming: Vec<Rail>,
+    pub outgoing: Vec<Rail>,
 }
 
 #[derive(Debug)]
-pub struct History {
-    pub snapshot: Snapshot,
+pub(super) struct GraphLayout {
     pub rows: Vec<Row>,
-    pub position: HashMap<String, usize>,
-    pub labels: HashMap<String, Vec<usize>>,
-    pub width: usize,
+    // Each lane stores sorted, disjoint spans for the rows between its endpoints.
+    lanes: Vec<Vec<Span>>,
 }
 
-impl History {
-    pub fn new(snapshot: Snapshot) -> Self {
-        let (rows, width) = layout(&snapshot.commits);
-        let position = snapshot
-            .commits
-            .iter()
-            .enumerate()
-            .map(|(index, commit)| (commit.id.clone(), index))
-            .collect();
-        let mut labels: HashMap<String, Vec<usize>> = HashMap::new();
-        for (index, reference) in snapshot.refs.iter().enumerate() {
-            labels.entry(reference.id.clone()).or_default().push(index);
+impl GraphLayout {
+    pub(super) fn new(commits: &[Commit]) -> Self {
+        let mut lanes = Lanes::default();
+        let mut pending: HashMap<&str, Vec<Track>> = HashMap::new();
+        let mut rows = Vec::with_capacity(commits.len());
+
+        for (index, commit) in commits.iter().enumerate() {
+            let mut incoming: Vec<_> = pending
+                .remove(commit.id.as_str())
+                .into_iter()
+                .flatten()
+                .map(|track| {
+                    lanes.record(track, index);
+                    track.rail
+                })
+                .collect();
+            incoming.sort_unstable_by_key(|rail| rail.lane);
+            let node = incoming
+                .first()
+                .copied()
+                .unwrap_or_else(|| lanes.reserve(0));
+
+            let outgoing: Vec<_> = commit
+                .parents
+                .iter()
+                .enumerate()
+                .map(|(parent_index, parent)| {
+                    let rail = if parent_index == 0 {
+                        node
+                    } else {
+                        lanes.reserve(node.lane + 1)
+                    };
+                    pending
+                        .entry(parent)
+                        .or_default()
+                        .push(Track { rail, start: index });
+                    rail
+                })
+                .collect();
+
+            // Keep incoming branch lanes reserved through this row's junction.
+            lanes
+                .free
+                .extend(incoming.iter().skip(1).map(|rail| rail.lane));
+            if outgoing.is_empty() {
+                lanes.free.insert(node.lane);
+            }
+            rows.push(Row {
+                node,
+                incoming,
+                outgoing,
+            });
+        }
+
+        for track in pending.into_values().flatten() {
+            lanes.record(track, commits.len());
         }
         Self {
-            snapshot,
             rows,
-            position,
-            labels,
-            width,
+            lanes: lanes.spans,
         }
     }
 
-    pub fn labels_for(&self, id: &str) -> impl Iterator<Item = &Reference> {
-        self.labels
-            .get(id)
-            .into_iter()
-            .flatten()
-            .map(|index| &self.snapshot.refs[*index])
+    pub(super) fn lane_count(&self) -> usize {
+        self.lanes.len()
+    }
+
+    pub(super) fn through(
+        &self,
+        row: usize,
+        lanes: Range<usize>,
+    ) -> impl Iterator<Item = Rail> + '_ {
+        self.lanes[lanes.clone()]
+            .iter()
+            .zip(lanes)
+            .filter_map(move |(spans, lane)| {
+                let span = spans.get(spans.partition_point(|span| span.rows.end <= row))?;
+                span.rows.contains(&row).then_some(Rail {
+                    lane,
+                    color: span.color,
+                })
+            })
     }
 }
 
 #[derive(Clone, Copy)]
-struct Lane<'a> {
-    id: &'a str,
+struct Track {
+    rail: Rail,
+    start: usize,
+}
+
+#[derive(Debug)]
+struct Span {
+    rows: Range<usize>,
     color: u32,
 }
 
-fn layout(commits: &[Commit]) -> (Vec<Row>, usize) {
-    let mut lanes: Vec<Option<Lane<'_>>> = Vec::new();
-    let mut color_index = 0;
-    let mut next_color = || {
-        let color = COLORS[color_index % COLORS.len()];
-        color_index += 1;
-        color
-    };
-    let mut width = 1;
-    let mut rows = Vec::with_capacity(commits.len());
-    for commit in commits {
-        let incoming_lane = find(&lanes, &commit.id);
-        let lane = incoming_lane.unwrap_or_else(|| free(&mut lanes, 0));
-        let color = lanes[lane]
-            .take()
-            .map_or_else(&mut next_color, |old| old.color);
-        let node = Rail { lane, color };
-        let through = lanes
-            .iter()
-            .enumerate()
-            .filter_map(|(lane, waiting)| {
-                waiting.map(|waiting| Rail {
-                    lane,
-                    color: waiting.color,
-                })
-            })
-            .collect();
-        let mut parents = Vec::with_capacity(commit.parents.len());
-        for (index, parent) in commit.parents.iter().enumerate() {
-            let rail = if let Some(lane) = find(&lanes, parent) {
-                Rail {
-                    lane,
-                    color: lanes[lane].expect("active lane").color,
-                }
-            } else {
-                let parent_lane = if index == 0 {
-                    lane
-                } else {
-                    free(&mut lanes, lane + 1)
-                };
-                let parent_color = if index == 0 { color } else { next_color() };
-                lanes[parent_lane] = Some(Lane {
-                    id: parent,
-                    color: parent_color,
-                });
-                Rail {
-                    lane: parent_lane,
-                    color: parent_color,
-                }
-            };
-            parents.push(rail);
-        }
-        width = width.max(lanes.len());
-        while matches!(lanes.last(), Some(None)) {
-            lanes.pop();
-        }
-        rows.push(Row {
-            node,
-            incoming: incoming_lane.is_some(),
-            through,
-            parents,
-        });
+#[derive(Default)]
+struct Lanes {
+    spans: Vec<Vec<Span>>,
+    free: BTreeSet<usize>,
+    next_color: usize,
+}
+
+impl Lanes {
+    fn reserve(&mut self, start: usize) -> Rail {
+        let lane = if let Some(lane) = self.free.range(start..).next().copied() {
+            self.free.remove(&lane);
+            lane
+        } else {
+            self.spans.push(Vec::new());
+            self.spans.len() - 1
+        };
+        let color = COLORS[self.next_color];
+        self.next_color = (self.next_color + 1) % COLORS.len();
+        Rail { lane, color }
     }
-    (rows, width)
-}
 
-fn find(lanes: &[Option<Lane<'_>>], id: &str) -> Option<usize> {
-    lanes
-        .iter()
-        .position(|waiting| waiting.is_some_and(|waiting| waiting.id == id))
-}
-
-fn free(lanes: &mut Vec<Option<Lane<'_>>>, start: usize) -> usize {
-    if let Some(offset) = lanes[start..].iter().position(Option::is_none) {
-        start + offset
-    } else {
-        lanes.push(None);
-        lanes.len() - 1
+    fn record(&mut self, track: Track, end: usize) {
+        let rows = track.start + 1..end;
+        if !rows.is_empty() {
+            self.spans[track.rail.lane].push(Span {
+                rows,
+                color: track.rail.color,
+            });
+        }
     }
 }
 
@@ -151,27 +162,78 @@ fn free(lanes: &mut Vec<Option<Lane<'_>>>, start: usize) -> usize {
 mod tests {
     use super::*;
 
-    #[test]
-    fn merge_parent_rejoins_the_existing_lane() {
-        let commit = |id: &str, parents: &[&str]| Commit {
+    fn commit(id: &str, parents: &[&str]) -> Commit {
+        Commit {
             id: id.into(),
             parents: parents.iter().map(|parent| (*parent).into()).collect(),
             author: String::new(),
+            author_email: String::new(),
             date: String::new(),
             subject: String::new(),
-        };
-        let (rows, width) = layout(&[
+        }
+    }
+
+    #[test]
+    fn sibling_branches_stay_separate_until_their_common_parent() {
+        let mut commits: Vec<_> = (0..6)
+            .map(|index| commit(&format!("tip-{index}"), &["base"]))
+            .collect();
+        commits.push(commit("base", &[]));
+        let graph = GraphLayout::new(&commits);
+        let tips: Vec<_> = graph.rows[..6].iter().map(|row| row.node).collect();
+
+        assert_eq!(graph.lane_count(), 6);
+        for (index, &tip) in tips.iter().enumerate() {
+            assert_eq!(tip.lane, index);
+            assert_eq!(tip.color, COLORS[index]);
+            assert_eq!(graph.rows[index].outgoing, [tip]);
+            assert_eq!(
+                graph.through(index, 0..6).collect::<Vec<_>>(),
+                tips[..index]
+            );
+        }
+        assert_eq!(graph.rows[6].node, tips[0]);
+        assert_eq!(graph.rows[6].incoming, tips);
+        assert!(graph.through(6, 0..6).next().is_none());
+    }
+
+    #[test]
+    fn merge_edges_reach_their_own_parent_rows() {
+        let graph = GraphLayout::new(&[
             commit("merge", &["main", "topic"]),
             commit("main", &["root"]),
             commit("topic", &["root"]),
             commit("root", &[]),
+            commit("unrelated", &[]),
         ]);
 
-        assert_eq!(width, 2);
-        assert_eq!(rows[0].parents[0], rows[1].node);
-        assert_eq!(rows[0].parents[1], rows[2].node);
-        assert_eq!(rows[1].parents[0], rows[3].node);
-        assert_eq!(rows[2].parents[0], rows[3].node);
-        assert_eq!(rows[2].through, vec![rows[3].node]);
+        let rows = &graph.rows;
+        assert_eq!(graph.lane_count(), 2);
+        assert_eq!(rows[0].outgoing, [rows[1].node, rows[2].node]);
+        assert_eq!(graph.through(1, 0..2).collect::<Vec<_>>(), [rows[2].node]);
+        assert_eq!(graph.through(2, 0..2).collect::<Vec<_>>(), [rows[1].node]);
+        assert_eq!(rows[3].incoming, [rows[1].node, rows[2].node]);
+        assert_eq!(rows[4].node.lane, 0);
+        assert!(rows[4].incoming.is_empty());
+    }
+
+    #[test]
+    fn loading_older_rows_preserves_the_existing_tracks() {
+        let commits = [
+            commit("one", &["base"]),
+            commit("two", &["base"]),
+            commit("base", &[]),
+        ];
+        let partial = GraphLayout::new(&commits[..2]);
+        let full = GraphLayout::new(&commits);
+
+        for index in 0..partial.rows.len() {
+            assert_eq!(partial.rows[index].node, full.rows[index].node);
+            assert_eq!(partial.rows[index].outgoing, full.rows[index].outgoing);
+            assert_eq!(
+                partial.through(index, 0..2).collect::<Vec<_>>(),
+                full.through(index, 0..2).collect::<Vec<_>>()
+            );
+        }
     }
 }

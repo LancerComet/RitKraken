@@ -1,4 +1,4 @@
-use std::{path::PathBuf, process::Command};
+use std::{collections::HashSet, path::PathBuf, process::Command};
 
 use crate::{Repo, Result, RuleError, command::run_write, protocol::path_from_bytes};
 
@@ -18,6 +18,15 @@ pub struct Status {
 impl Status {
     pub fn is_empty(&self) -> bool {
         self.unstaged.is_empty() && self.staged.is_empty()
+    }
+
+    /// Yields one change per path, preferring its staged classification.
+    pub fn distinct_changes(&self) -> impl Iterator<Item = &Change> {
+        let mut seen = HashSet::new();
+        self.staged
+            .iter()
+            .chain(&self.unstaged)
+            .filter(move |change| seen.insert(change.path.as_path()))
     }
 }
 
