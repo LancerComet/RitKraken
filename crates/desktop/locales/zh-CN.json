@@ -111,7 +111,7 @@
       "initial_commits": "提交图初始提交数",
       "initial_commits_hint": "最少 500 条。这是首次加载到提交图的提交数量。",
       "language": "语言",
-      "language_hint": "退出偏好设置后应用所选界面语言。",
+      "language_hint": "选择语言后立即应用并保存。",
       "lazy_history": "按需加载历史提交",
       "lazy_history_hint": "滚动到已加载历史的末尾时，继续加载更早的提交。",
       "remember_tabs": "记住标签页",

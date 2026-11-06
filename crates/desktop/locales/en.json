@@ -111,7 +111,7 @@
       "initial_commits": "Initial Commits in Graph",
       "initial_commits_hint": "Minimum 500. This is the first batch loaded into the Commit Graph.",
       "language": "Language",
-      "language_hint": "The interface language updates when you exit Preferences.",
+      "language_hint": "The selected language takes effect immediately and is saved.",
       "lazy_history": "Lazy Load Commits in Graph",
       "lazy_history_hint": "Loads older commits when you reach the end of the visible history.",
       "remember_tabs": "Remember tabs",

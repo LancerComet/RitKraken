@@ -248,13 +248,9 @@ fn language_picker(selected: Language, cx: &Context<Client>) -> impl IntoElement
                 menu.item(
                     PopupMenuItem::new(language.native_name())
                         .checked(language == selected)
-                        .on_click(move |_, _, cx| {
-                            let _ = view.update(cx, |this, cx| {
-                                if let Some(preferences) = this.preferences.as_mut() {
-                                    preferences.options.language = language;
-                                    cx.notify();
-                                }
-                            });
+                        .on_click(move |_, window, cx| {
+                            let _ = view
+                                .update(cx, |this, cx| this.choose_language(language, window, cx));
                         }),
                 )
             })

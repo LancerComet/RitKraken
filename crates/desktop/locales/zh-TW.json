@@ -111,7 +111,7 @@
       "initial_commits": "提交圖初始提交數",
       "initial_commits_hint": "最少 500 筆。這是首次載入提交圖的提交數量。",
       "language": "語言",
-      "language_hint": "離開偏好設定後套用所選介面語言。",
+      "language_hint": "選擇語言後立即套用並儲存。",
       "lazy_history": "按需載入歷史提交",
       "lazy_history_hint": "捲動到已載入歷史的末端時，繼續載入更早的提交。",
       "remember_tabs": "記住分頁",

@@ -4,7 +4,7 @@ use std::ops::RangeInclusive;
 
 use gpui_kit::{component::input::InputState, *};
 
-use crate::i18n::{Language, tr};
+use crate::i18n::{Language, LocalizedInput};
 
 use super::{Client, Message, review::DiffLayout};
 
@@ -114,7 +114,7 @@ impl PreferencePage {
 pub(super) struct PreferenceDraft {
     pub(super) page: PreferencePage,
     pub(super) options: Preferences,
-    pub(super) branch: Entity<InputState>,
+    pub(super) branch: LocalizedInput,
     pub(super) count: Entity<InputState>,
     pub(super) error: Option<Message>,
 }
@@ -129,10 +129,8 @@ impl Client {
             return;
         }
         let options = self.saved.preferences.clone();
-        let branch = cx.new(|cx| {
-            InputState::new(window, cx)
-                .placeholder(tr!("app.preferences.branch_placeholder"))
-                .default_value(options.default_branch.clone())
+        let branch = LocalizedInput::new("app.preferences.branch_placeholder", cx, |cx| {
+            InputState::new(window, cx).default_value(options.default_branch.clone())
         });
         let count = cx.new(|cx| {
             InputState::new(window, cx).default_value(options.initial_commits.to_string())
@@ -147,6 +145,20 @@ impl Client {
             error: None,
         });
         self.focus.focus(window, cx);
+        cx.notify();
+    }
+
+    fn choose_language(&mut self, language: Language, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(draft) = self.preferences.as_mut() else {
+            return;
+        };
+        if self.saved.preferences.language == language {
+            return;
+        }
+        draft.options.language = language;
+        self.saved.preferences.language = language;
+        self.localize(window, cx);
+        self.saved.save();
         cx.notify();
     }
 
@@ -174,7 +186,6 @@ impl Client {
         }
         options.default_branch = draft.branch.read(cx).value().trim().to_owned();
         let previous = &self.saved.preferences;
-        let language_changed = previous.language != options.language;
         let limit = options.history_limit();
         let history_changed = previous.history_limit() != limit;
         let layout_changed = previous.diff_layout != options.diff_layout;
@@ -200,9 +211,6 @@ impl Client {
         }
         self.saved.preferences = options;
         self.preferences = None;
-        if language_changed {
-            self.localize(window, cx);
-        }
         self.persist_session();
         self.focus.focus(window, cx);
         if history_changed {
@@ -215,6 +223,9 @@ impl Client {
 
     fn localize(&self, window: &mut Window, cx: &mut Context<Self>) {
         self.saved.preferences.language.apply();
+        if let Some(draft) = &self.preferences {
+            draft.branch.localize(window, cx);
+        }
         self.manager.localize(window, cx);
         self.branch_dialog.localize(window, cx);
         for tab in &self.session.tabs {

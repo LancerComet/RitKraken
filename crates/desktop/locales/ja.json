@@ -111,7 +111,7 @@
       "initial_commits": "コミットグラフの初期件数",
       "initial_commits_hint": "最小値は 500 です。コミットグラフに最初に読み込む件数を指定します。",
       "language": "言語",
-      "language_hint": "設定を閉じると表示言語が切り替わります。",
+      "language_hint": "言語を選ぶとすぐに適用され、保存されます。",
       "lazy_history": "古いコミットを必要に応じて読み込む",
       "lazy_history_hint": "表示中の履歴の末尾に達すると、古いコミットを読み込みます。",
       "remember_tabs": "タブを記憶する",
