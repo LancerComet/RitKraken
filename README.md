@@ -7,7 +7,7 @@ Rust 桌面 Git 客户端。界面以 GitKraken Desktop 9.11.0 的三栏布局�
 打开构建后的 RitKraken，在 **Repository Management** 选择 **Open a Repository**，也可以在底部输入仓库路径。顶部标签页可在多个仓库间切换。
 
 1. 点提交图里的 `// WIP` 查看工作区，或点历史提交查看说明和文件。
-2. 点右栏的文件打开文件页。分支栏会收成图标栏，关闭文件时恢复。在 **File View** 查看对应版本，在 **Diff View** 切换 **Hunk**、**Inline** 或 **Split**，用箭头跳到上一个或下一个改动。
+2. 点右栏的文件打开文件页。分支栏会收成图标栏，关闭文件时恢复。在 **File View** 查看对应版本，在 **Diff View** 切换 **Hunk**、**Inline** 或 **Split**，用箭头跳到上一个或下一个改动。**Split** 默认平分可见区域，拖动中线可以调整比例。
 3. 用 **Stage** 暂存整文件，或用 **Stage hunk** 暂存一个区块。已暂存区块可在 **Staged Files** 中打开并取消暂存。
 4. 填写 **Summary** 并提交。选择 **View changes** 回到剩余工作区改动。
 
@@ -26,7 +26,7 @@ Rust 桌面 Git 客户端。界面以 GitKraken Desktop 9.11.0 的三栏布局�
 | Windows | `.\build-windows.cmd` | `target/windows/<Rust 目标>/release/ritkraken.exe` |
 | macOS | `bash ./build-macos.sh` | `target/macos/<Rust 目标>/release/RitKraken.app` |
 
-使用 Rust 1.92 或更新版本，并安装本机 Git。[GPUI Kit 平台要求](https://gpui-kit.com/docs/installation/)
+使用 Rust 1.92 或更新版本，并将本机 Git 加入 PATH。[GPUI Kit 平台要求](https://gpui-kit.com/docs/installation/)
 
 - Windows 需要 MSVC Rust 工具链、Visual Studio 的 C++ Build Tools 和 Windows SDK。脚本会复用项目内已有的 `.build/rustup` 和 `.build/cargo`，也可通过 `RUSTUP_HOME` 和 `CARGO_HOME` 指定。
 - macOS 需要 macOS 15 或更新版本及 Xcode Command Line Tools，可用 `xcode-select --install` 安装。生成的 `.app` 使用 ad hoc 签名，可在构建机上打开。
@@ -43,6 +43,7 @@ python tools/check_project.py
 ## 代码组织
 
 - `crates/git` 提供仓库、历史、工作区、diff 和远端操作。这个包独立于 GPUI，集成测试使用临时仓库和本地 bare 远端。
+- `crates/diff` 复用锁定版本的 GPUI Diff 渲染器，并扩展 Split View 的窗格布局。Cargo 在构建目录应用 `split-viewport.patch`。升级 GPUI Kit 时需要一起核对补丁和分割布局。[GPUI Kit 源码与许可证](https://github.com/longbridge/gpui-kit)
 - `crates/desktop` 负责窗口与交互。仓库管理、引用、提交图、暂存与提交详情、文件审阅、工具栏和设置各自维护功能代码。`shell.rs` 组合应用外壳，`session.rs` 管理标签，`operations.rs` 调度后台 Git 操作。
 
 项目文件的硬上限是 1000 行。`tools/check_project.py` 检查已跟踪和未被 Git 忽略的文件。依赖变更后，可运行 `python tools/check_project.py --compact-lock <Cargo生成的锁文件>` 保存紧凑的锁文件，然后用 `--locked` 验证构建。

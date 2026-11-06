@@ -70,6 +70,7 @@ impl Render for Client {
 
 impl Client {
     fn tab_bar(&self, cx: &mut Context<Self>) -> Div {
+        let action_gap = px(6.);
         div()
             .flex()
             .items_center()
@@ -92,20 +93,13 @@ impl Client {
                             .bg(rgb(0x245962)),
                     ),
             )
-            .child(button(
-                "open-repos",
-                "Open",
-                Tone::Dark,
-                true,
-                cx.listener(|this, _, window, cx| {
-                    this.open_manager(window, cx);
-                }),
-            ))
+            .child(Self::repository_manager_button("open-repos", "Open", cx).mr(action_gap))
             .child(
                 div().flex_1().min_w_0().h_full().child(
                     div()
                         .id("repo-tabs")
                         .flex()
+                        .items_center()
                         .h_full()
                         .overflow_x_scroll()
                         .children(self.session.tabs.iter().map(|tab| {
@@ -142,15 +136,12 @@ impl Client {
                                     }),
                                 ))
                         }))
-                        .child(button(
-                            "new-tab",
-                            "+",
-                            Tone::Dark,
-                            true,
-                            cx.listener(|this, _, window, cx| {
-                                this.open_manager(window, cx);
-                            }),
-                        )),
+                        .child(
+                            Self::repository_manager_button("new-tab", "+", cx)
+                                .when(!self.session.tabs.is_empty(), |button| {
+                                    button.ml(action_gap)
+                                }),
+                        ),
                 ),
             )
             .child(
@@ -173,6 +164,22 @@ impl Client {
                     .text_color(rgb(0xaab5d2))
                     .child("RitKraken"),
             )
+    }
+
+    fn repository_manager_button(
+        id: &'static str,
+        label: &'static str,
+        cx: &Context<Self>,
+    ) -> Stateful<Div> {
+        button(
+            id,
+            label,
+            Tone::Dark,
+            true,
+            cx.listener(|this, _, window, cx| this.open_manager(window, cx)),
+        )
+        .h(px(24.))
+        .flex_shrink_0()
     }
 
     fn toolbar(&self, tab: Option<&RepoTab>, cx: &mut Context<Self>) -> Div {

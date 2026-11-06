@@ -1,0 +1,317 @@
+--- a/diff/mod.rs
++++ b/diff/mod.rs
+@@ -39,4 +39,5 @@
+     v_flex,
+ };
++use crate::split::SplitLayout;
+ use actions::*;
+ use conflict::ConflictPart;
+@@ -49,5 +50,5 @@
+ mod actions {
+     gpui::actions!(
+-        diff,
++        ritkraken_diff,
+         [
+             ScrollUp,
+@@ -67,14 +68,14 @@
+ pub(crate) fn init(cx: &mut App) {
+     cx.bind_keys([
+-        KeyBinding::new("up", ScrollUp, Some("Diff")),
+-        KeyBinding::new("down", ScrollDown, Some("Diff")),
+-        KeyBinding::new("left", ScrollLeft, Some("Diff")),
+-        KeyBinding::new("right", ScrollRight, Some("Diff")),
+-        KeyBinding::new("pageup", PageUp, Some("Diff")),
+-        KeyBinding::new("pagedown", PageDown, Some("Diff")),
+-        KeyBinding::new("home", First, Some("Diff")),
+-        KeyBinding::new("end", Last, Some("Diff")),
+-        KeyBinding::new("shift-up", ExtendUp, Some("Diff")),
+-        KeyBinding::new("shift-down", ExtendDown, Some("Diff")),
++        KeyBinding::new("up", ScrollUp, Some("RitKrakenDiff")),
++        KeyBinding::new("down", ScrollDown, Some("RitKrakenDiff")),
++        KeyBinding::new("left", ScrollLeft, Some("RitKrakenDiff")),
++        KeyBinding::new("right", ScrollRight, Some("RitKrakenDiff")),
++        KeyBinding::new("pageup", PageUp, Some("RitKrakenDiff")),
++        KeyBinding::new("pagedown", PageDown, Some("RitKrakenDiff")),
++        KeyBinding::new("home", First, Some("RitKrakenDiff")),
++        KeyBinding::new("end", Last, Some("RitKrakenDiff")),
++        KeyBinding::new("shift-up", ExtendUp, Some("RitKrakenDiff")),
++        KeyBinding::new("shift-down", ExtendDown, Some("RitKrakenDiff")),
+         KeyBinding::new(
+             if cx.platform_info().is_mac() {
+@@ -84,5 +85,5 @@
+             },
+             Copy,
+-            Some("Diff"),
++            Some("RitKrakenDiff"),
+         ),
+         KeyBinding::new(
+@@ -93,5 +94,5 @@
+             },
+             SelectAll,
+-            Some("Diff"),
++            Some("RitKrakenDiff"),
+         ),
+     ]);
+@@ -526,4 +527,11 @@
+     let mode = state.mode();
+     let soft_wrap = props.soft_wrap;
++    let split = (mode == DiffMode::Split
++        && state.files().iter().any(|file| {
++            !file.is_single_column()
++                && (!file.lines(DiffSide::Original).is_empty()
++                    || !file.lines(DiffSide::Modified).is_empty())
++        }))
++    .then(|| state.split_layout());
+     let marker_lane = !props.gutter_markers.is_empty() && props.gutter_marker_content.is_some();
+     let lane_width = if marker_lane { row_height } else { px(0.) };
+@@ -536,4 +544,5 @@
+         marker_lane,
+         soft_wrap,
++        split.filter(|_| soft_wrap),
+     );
+     if state.update_layout(layout, row_height) {
+@@ -556,16 +565,13 @@
+     }
+     state.sync_annotations(&props.annotations.items);
+-    let content_width = state.content_width().max(state.viewport().width);
+-    let column_width = if mode == DiffMode::Split {
+-        content_width / 2.
+-    } else {
+-        content_width
+-    };
++    let viewport_width = state.viewport().width;
++    let content_width = state.content_width().max(viewport_width);
++    let horizontal = state.horizontal_scroll().clone();
+     let code = Rc::new(CodePresentation {
+         files: state.files().to_vec(),
+         presentations: state.presentations().to_vec(),
+         mode,
+-        content_width,
+-        column_width,
++        split,
++        horizontal_scroll: horizontal.clone(),
+         font_size,
+         row_height,
+@@ -599,5 +605,4 @@
+     let rows = state.rows().clone();
+     let scrollbar = state.list().clone();
+-    let horizontal = state.horizontal_scroll().clone();
+     let has_rows = !rows.is_empty();
+     let label = match state.files() {
+@@ -611,4 +616,16 @@
+         .min_w_0()
+         .flex_1()
++        // Track horizontal overflow before painting the fixed split panes.
++        .when_some(split, |this, split| {
++            this.child(
++                div()
++                    .id("diff-split-scroll-extent")
++                    .absolute()
++                    .inset_0()
++                    .overflow_x_hidden()
++                    .track_scroll(&horizontal)
++                    .child(div().w(split.scroll_extent(viewport_width, state.content_width()))),
++            )
++        })
+         .child(SelectionLayer::new(
+             div()
+@@ -618,5 +635,5 @@
+                 // single-axis wheel remapping. The sibling mask owns X input.
+                 .when(!soft_wrap, |this| this.overflow_x_hidden())
+-                .track_scroll(&horizontal)
++                .when(split.is_none(), |this| this.track_scroll(&horizontal))
+                 .child(gpui_base::ScrollBounce::new(
+                     "diff-bounce",
+@@ -630,5 +647,11 @@
+                             .into_any_element()
+                     })
+-                    .w(content_width)
++                    .map(|this| {
++                        if split.is_some() {
++                            this.w_full()
++                        } else {
++                            this.w(content_width)
++                        }
++                    })
+                     .h_full(),
+                 ))
+@@ -644,4 +667,5 @@
+             )
+         })
++        .when_some(split, |this, split| this.child(split.divider(cx)))
+         .when(has_rows, |this| {
+             this.child(
+@@ -782,5 +806,5 @@
+         .test_support()
+         .track_focus(&state.focus_handle(cx))
+-        .key_context("Diff")
++        .key_context("RitKrakenDiff")
+         .role(gpui::accesskit::Role::Document)
+         .aria_label(label);
+@@ -813,6 +837,6 @@
+     presentations: Vec<Option<Arc<FilePresentation>>>,
+     mode: DiffMode,
+-    content_width: Pixels,
+-    column_width: Pixels,
++    split: Option<SplitLayout>,
++    horizontal_scroll: gpui::ScrollHandle,
+     font_size: Pixels,
+     row_height: Pixels,
+@@ -1440,10 +1464,7 @@
+ ) -> AnyElement {
+     let cell = v_flex()
+-        .w(code.column_width)
++        .w(code.split.expect("split row has a split layout").width(side))
+         .min_w_0()
+         .flex_shrink_0()
+-        .when(side == DiffSide::Original, |this| {
+-            this.border_r_1().border_color(cx.theme().border)
+-        })
+         .when(ix.is_none(), |this| {
+             this.bg(cx.theme().muted.opacity(0.3))
+@@ -1516,9 +1537,5 @@
+     };
+     v_flex()
+-        .w(if single_column {
+-            code.content_width
+-        } else {
+-            code.column_width
+-        })
++        .w_full()
+         .id((
+             if side == DiffSide::Original {
+@@ -1706,5 +1723,10 @@
+                 this.w_full()
+             } else {
+-                this.flex().flex_row().flex_shrink_0()
++                this.flex()
++                    .flex_row()
++                    .flex_shrink_0()
++                    .when(code.split.is_some(), |this| {
++                        this.relative().left(code.horizontal_scroll.offset().x)
++                    })
+             }
+         })
+@@ -1842,4 +1864,6 @@
+                     if code.soft_wrap {
+                         this.flex_1().min_w_0()
++                    } else if code.split.is_some() {
++                        this.flex_1().min_w_0().overflow_hidden()
+                     } else {
+                         this.flex_shrink_0()
+--- a/diff/state.rs
++++ b/diff/state.rs
+@@ -13,4 +13,6 @@
+ };
+ use gpui_base::{TextSelection, TextSelectionContentKey, TextSelectionEvent, TextSelectionHandle};
++
++use crate::split::SplitLayout;
+
+ use super::{
+@@ -105,4 +107,5 @@
+     marker_lane: bool,
+     soft_wrap: bool,
++    split: Option<SplitLayout>,
+ }
+
+@@ -116,4 +119,5 @@
+         marker_lane: bool,
+         soft_wrap: bool,
++        split: Option<SplitLayout>,
+     ) -> Self {
+         Self {
+@@ -125,4 +129,5 @@
+             marker_lane,
+             soft_wrap,
++            split,
+         }
+     }
+@@ -234,4 +239,5 @@
+     presentations: Vec<Option<Arc<FilePresentation>>>,
+     viewport: Size<Pixels>,
++    split: SplitLayout,
+     layout: Option<LayoutKey>,
+     content_width: Pixels,
+@@ -368,4 +374,5 @@
+             syntax_highlighter: None,
+             viewport: Size::default(),
++            split: SplitLayout::default(),
+             layout: None,
+             content_width: px(0.),
+@@ -587,4 +594,17 @@
+         self.viewport
+     }
++    pub(crate) fn split_layout(&self) -> SplitLayout {
++        self.split.constrained(self.viewport.width)
++    }
++
++    pub(crate) fn resize_split(&mut self, x: Pixels, cx: &mut Context<Self>) {
++        if let Some(split) = SplitLayout::from_pointer(x, self.list.viewport_bounds())
++            && self.split != split
++        {
++            self.split = split;
++            cx.notify();
++        }
++    }
++
+     /// The width rows need to show their longest line.
+     pub(crate) fn content_width(&self) -> Pixels {
+--- a/diff/selection.rs
++++ b/diff/selection.rs
+@@ -31,4 +31,5 @@
+     layout: TextLayout,
+     bounds: Bounds<Pixels>,
++    visible_bounds: Bounds<Pixels>,
+     document: DiffFile,
+ }
+@@ -98,24 +99,19 @@
+
+     fn run_at(&self, point: Point<Pixels>, side: Option<DiffSide>) -> Option<&CodeRun> {
++        let visible = self.runs.iter().filter(|run| {
++            run.visible_bounds.size.width > px(0.) && run.visible_bounds.size.height > px(0.)
++        });
++        let distance = |run: &CodeRun| distance_to_bounds(point, run.visible_bounds);
+         let side = side.or_else(|| {
+-            self.runs
+-                .iter()
+-                .min_by(|a, b| {
+-                    distance_to_bounds(point, a.bounds)
+-                        .total_cmp(&distance_to_bounds(point, b.bounds))
+-                })
++            visible
++                .clone()
++                .min_by(|a, b| distance(a).total_cmp(&distance(b)))
+                 .map(|run| run.side)
+         })?;
+-        self.runs
+-            .iter()
+-            .filter(|run| run.side == side)
+-            .min_by(|a, b| {
+-                line_distance(point, a.bounds)
+-                    .cmp(&line_distance(point, b.bounds))
+-                    .then_with(|| {
+-                        distance_to_bounds(point, a.bounds)
+-                            .total_cmp(&distance_to_bounds(point, b.bounds))
+-                    })
+-            })
++        visible.filter(|run| run.side == side).min_by(|a, b| {
++            line_distance(point, a.bounds)
++                .cmp(&line_distance(point, b.bounds))
++                .then_with(|| distance(a).total_cmp(&distance(b)))
++        })
+     }
+ }
+@@ -319,4 +315,5 @@
+             layout: text.layout().clone(),
+             bounds,
++            visible_bounds: bounds.intersect(&window.content_mask().bounds),
+             document: self.document.clone(),
+         });
+@@ -490,5 +487,6 @@
+             .runs
+             .iter()
+-            .map(|run| run.bounds)
++            .map(|run| run.visible_bounds)
++            .filter(|bounds| bounds.size.width > px(0.) && bounds.size.height > px(0.))
+             .collect();
+         self.selection.register(

@@ -1,6 +1,5 @@
-use gpui_kit::component::diff::{Diff, DiffHunkSeparator};
-
 use gpui_kit::{prelude::*, *};
+use ritkraken_diff::{Diff, DiffHunkSeparator};
 use ritkraken_git::Scope;
 
 use super::{DiffLayout, FileReview};

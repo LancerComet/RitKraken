@@ -12,6 +12,7 @@ fn main() {
         .with_assets(gpui_kit::assets::AllAssets)
         .run(move |cx| {
             gpui_kit::init(cx);
+            ritkraken_diff::init(cx);
             app::bind_keys(cx);
             let bounds = Bounds::centered(None, size(px(1480.), px(920.)), cx);
             let options = WindowOptions {

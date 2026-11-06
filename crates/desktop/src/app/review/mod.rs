@@ -1,10 +1,9 @@
 mod view;
 
-use gpui_kit::component::diff::{DiffFile, DiffLinePosition, DiffMode, DiffSide, DiffState};
-
 use std::sync::Arc;
 
 use gpui_kit::*;
+use ritkraken_diff::{DiffFile, DiffLinePosition, DiffMode, DiffSide, DiffState};
 use ritkraken_git::{self as git, FileTarget, PATCH_VIEW_LIMIT, Patch, Repo};
 
 use super::{Client, Load, preferences::Preferences};
