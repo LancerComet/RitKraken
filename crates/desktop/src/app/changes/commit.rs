@@ -90,6 +90,7 @@ impl Client {
                                 div().flex_shrink_0().child(
                                     gpui_kit::component::checkbox::Checkbox::new(("all-files", id))
                                         .small()
+                                        .text_size(px(13.))
                                         .checked(tab.changes.show_all_files)
                                         .label(tr!("app.commit.view_all_files"))
                                         .on_click(cx.listener(

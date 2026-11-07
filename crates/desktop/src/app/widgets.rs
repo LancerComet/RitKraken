@@ -1,5 +1,6 @@
 pub(super) mod menu;
 pub(super) mod table;
+pub(super) mod tooltip;
 
 use gpui_kit::{prelude::*, *};
 

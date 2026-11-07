@@ -19,7 +19,7 @@ fn main() {
             i18n::init();
             gpui_kit::init(cx);
             ritkraken_diff::init(cx);
-            app::bind_keys(cx);
+            app::init(cx);
             let bounds = Bounds::centered(None, size(px(1480.), px(920.)), cx);
             let options = WindowOptions {
                 window_bounds: Some(WindowBounds::Windowed(bounds)),

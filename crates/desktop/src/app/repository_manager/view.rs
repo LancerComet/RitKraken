@@ -12,7 +12,7 @@ use crate::app::{
     Client,
     widgets::{
         HEADER, LINE, MUTED, PAPER, TEAL, Tone, WHITE, button, button_content, error_text, heading,
-        modal_backdrop,
+        icon, modal_backdrop,
     },
 };
 
@@ -117,7 +117,7 @@ impl Client {
                         .border_color(rgb(LINE))
                         .child(
                             div()
-                                .text_size(px(16.))
+                                .text_size(px(14.))
                                 .font_weight(FontWeight::MEDIUM)
                                 .child(tr!("app.repositories.manager")),
                         )
@@ -151,30 +151,47 @@ impl Client {
                                 .border_color(rgb(LINE))
                                 .children(
                                     [
-                                        (ManagerMode::Open, "app.common.open"),
-                                        (ManagerMode::Clone, "app.repositories.clone"),
-                                        (ManagerMode::Init, "app.repositories.init_tab"),
+                                        (
+                                            ManagerMode::Open,
+                                            "app.common.open",
+                                            "icons/folder-open.svg",
+                                        ),
+                                        (
+                                            ManagerMode::Clone,
+                                            "app.repositories.clone",
+                                            "icons/download.svg",
+                                        ),
+                                        (
+                                            ManagerMode::Init,
+                                            "app.repositories.init_tab",
+                                            "icons/folder-plus.svg",
+                                        ),
                                     ]
                                     .into_iter()
-                                    .map(|(target, key)| {
-                                        button(
-                                            key,
-                                            tr!(key),
-                                            Tone::Plain.selected_when(mode == target),
-                                            !self.session.opening,
-                                            cx.listener(move |this, _, _, cx| {
-                                                this.manager.mode = Some(target);
-                                                this.manager.error = None;
-                                                cx.notify();
-                                            }),
-                                        )
-                                        .w_full()
-                                        .justify_start()
-                                        .h(px(47.))
-                                        .pl(px(15.))
-                                        .rounded(px(0.))
-                                        .text_size(px(18.))
-                                    }),
+                                    .map(
+                                        |(target, key, glyph)| {
+                                            let tone = Tone::Plain.selected_when(mode == target);
+                                            button_content(
+                                                key,
+                                                icon(glyph, tone.foreground()).size(px(16.)),
+                                                tone,
+                                                !self.session.opening,
+                                                cx.listener(move |this, _, _, cx| {
+                                                    this.manager.mode = Some(target);
+                                                    this.manager.error = None;
+                                                    cx.notify();
+                                                }),
+                                            )
+                                            .child(div().truncate().child(tr!(key)))
+                                            .gap(px(8.))
+                                            .w_full()
+                                            .justify_start()
+                                            .h(px(47.))
+                                            .pl(px(15.))
+                                            .rounded(px(0.))
+                                            .text_size(px(14.))
+                                        },
+                                    ),
                                 ),
                         )
                         .when(open, |body| {

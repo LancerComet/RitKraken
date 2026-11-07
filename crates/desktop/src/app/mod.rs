@@ -41,7 +41,12 @@ actions!(
     ]
 );
 
-pub fn bind_keys(cx: &mut App) {
+pub fn init(cx: &mut App) {
+    widgets::tooltip::init(cx);
+    bind_keys(cx);
+}
+
+fn bind_keys(cx: &mut App) {
     let (open, submit, preferences) = if cfg!(target_os = "macos") {
         ("cmd-o", "cmd-enter", "cmd-,")
     } else {

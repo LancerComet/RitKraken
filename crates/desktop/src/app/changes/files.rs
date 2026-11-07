@@ -1,6 +1,13 @@
-use std::{collections::HashSet, path::PathBuf};
+use std::{
+    collections::HashSet,
+    path::{Path, PathBuf},
+};
 
-use gpui_kit::{component::scroll::ScrollableElement, prelude::*, *};
+use gpui_kit::{
+    component::{scroll::ScrollableElement, tooltip::Tooltip},
+    prelude::*,
+    *,
+};
 use ritkraken_git::{Change, FileTarget, Scope};
 
 use crate::i18n::tr;
@@ -75,27 +82,30 @@ impl Client {
         let list = uniform_list((label, id), rows.len(), move |range, _, _| {
             range
                 .map(|index| match &rows[index] {
-                    FileRow::Folder { name, depth } => file_row(*depth)
+                    FileRow::Folder { path, depth } => file_row(*depth)
+                        .id(("folder", index))
                         .text_color(rgb(MUTED))
                         .child(file_row_icon(Some("icons/folder.svg"), MUTED))
-                        .child(div().truncate().child(name.clone()))
+                        .child(path_label(
+                            path_name(path),
+                            path.to_string_lossy().into_owned(),
+                        ))
                         .into_any_element(),
                     FileRow::File {
                         index: file_index,
                         depth,
                     } => {
                         let change = &files[*file_index];
+                        let full_path = match &change.previous {
+                            Some(previous) => {
+                                format!("{} → {}", previous.display(), change.path.display())
+                            }
+                            None => change.path.to_string_lossy().into_owned(),
+                        };
                         let path = if tree {
-                            change
-                                .path
-                                .file_name()
-                                .unwrap_or(change.path.as_os_str())
-                                .to_string_lossy()
-                                .into_owned()
-                        } else if let Some(previous) = &change.previous {
-                            format!("{} → {}", previous.display(), change.path.display())
+                            path_name(&change.path)
                         } else {
-                            change.path.to_string_lossy().into_owned()
+                            full_path.clone()
                         };
                         let file = FileTarget {
                             scope: scope.clone(),
@@ -125,7 +135,7 @@ impl Client {
                                 });
                             })
                             .child(file_row_icon(mark.icon_path, mark.color))
-                            .child(div().flex_1().min_w_0().truncate().child(path))
+                            .child(path_label(path, full_path))
                             .when_some(action, |row, action| {
                                 row.child(
                                     button(
@@ -186,8 +196,25 @@ fn file_row_icon(path: Option<&'static str>, color: u32) -> Div {
         .when_some(path, |slot, path| slot.child(icon(path, color).size_full()))
 }
 
+fn path_label(label: String, full_path: String) -> Stateful<Div> {
+    div()
+        .id("file-path")
+        .flex_1()
+        .min_w_0()
+        .truncate()
+        .child(label)
+        .tooltip(move |window, cx| Tooltip::new(full_path.clone()).build(window, cx))
+}
+
+fn path_name(path: &Path) -> String {
+    path.file_name()
+        .unwrap_or(path.as_os_str())
+        .to_string_lossy()
+        .into_owned()
+}
+
 enum FileRow {
-    Folder { name: String, depth: usize },
+    Folder { path: PathBuf, depth: usize },
     File { index: usize, depth: usize },
 }
 
@@ -207,7 +234,7 @@ fn file_rows(files: &[Change], tree: bool) -> Vec<FileRow> {
                     folder.push(part.as_os_str());
                     if folders.insert(folder.clone()) {
                         rows.push(FileRow::Folder {
-                            name: part.as_os_str().to_string_lossy().into_owned(),
+                            path: folder.clone(),
                             depth,
                         });
                     }
