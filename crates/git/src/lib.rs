@@ -1,3 +1,6 @@
+#[cfg(test)]
+extern crate self as ritkraken_git;
+
 mod command;
 mod diff;
 mod error;
@@ -5,6 +8,7 @@ mod history;
 mod protocol;
 mod remotes;
 mod repository;
+mod watch;
 mod worktree;
 
 pub use diff::{
@@ -18,4 +22,5 @@ pub use history::{
 };
 pub use remotes::Upstream;
 pub use repository::Repo;
+pub use watch::RepoWatch;
 pub use worktree::{Change, DiscardFile, IgnoreRule, Status};

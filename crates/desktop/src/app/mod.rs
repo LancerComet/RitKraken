@@ -12,6 +12,7 @@ mod settings;
 mod shell;
 mod system;
 mod toolbar;
+mod watch;
 mod widgets;
 mod workspace;
 
@@ -88,6 +89,7 @@ pub struct Client {
     panes: WorkspacePanes,
     focus: FocusHandle,
     _activation: Subscription,
+    repo_watch: Option<watch::ActiveWatch>,
 }
 
 impl Client {
@@ -115,6 +117,7 @@ impl Client {
             panes: WorkspacePanes::new(cx),
             focus,
             _activation: activation,
+            repo_watch: None,
         };
         if let Some(path) = path {
             app.open_repo(OpenRepo::Open(path), window, cx);

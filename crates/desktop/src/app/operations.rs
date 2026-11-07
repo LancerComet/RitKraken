@@ -110,11 +110,35 @@ impl Client {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        self.start_repo_update(id, edit, limit, true, window, cx);
+    }
+
+    pub(super) fn refresh_watched_repo(
+        &mut self,
+        id: u64,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(tab) = self.tab(id) else { return };
+        self.start_repo_update(id, None, tab.history.limit, false, window, cx);
+    }
+
+    fn start_repo_update(
+        &mut self,
+        id: u64,
+        edit: Option<RepoOperation>,
+        limit: Option<usize>,
+        clear_notice: bool,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         let Some(tab) = self.tab_mut(id).filter(|tab| !tab.busy) else {
             return;
         };
         tab.busy = true;
-        tab.notice = None;
+        if clear_notice {
+            tab.notice = None;
+        }
         let repo = tab.repo.clone();
         Self::spawn_background(
             window,

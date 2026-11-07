@@ -77,6 +77,7 @@ impl Client {
                         let id = this.insert_tab(repo, history, limit, Some(id), window, cx);
                         if this.session.active == Some(id) {
                             this.select_initial_commit(id, window, cx);
+                            this.watch_current_repo(window, cx);
                         }
                         this.persist_session();
                     }

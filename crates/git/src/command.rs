@@ -75,6 +75,10 @@ pub(crate) fn run_write(command: &mut Command) -> Result<()> {
 }
 
 pub(crate) fn run_with_input(command: &mut Command, parts: &[&[u8]]) -> Result<Vec<u8>> {
+    checked(output_with_input(command, parts)?)
+}
+
+pub(crate) fn output_with_input(command: &mut Command, parts: &[&[u8]]) -> Result<Output> {
     let mut child = command
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -82,10 +86,17 @@ pub(crate) fn run_with_input(command: &mut Command, parts: &[&[u8]]) -> Result<V
         .spawn()
         .map_err(process_error)?;
     let mut input = child.stdin.take().expect("piped stdin");
-    let written = parts.iter().try_for_each(|part| input.write_all(part));
-    drop(input);
-    let output = checked(child.wait_with_output().map_err(process_error)?)?;
-    written.map_err(process_error)?;
+    // Drain stdout while sending stdin: commands such as check-ignore can
+    // produce output before consuming all input, filling both OS pipes.
+    let (output, written) = std::thread::scope(|scope| {
+        let writer = scope.spawn(move || parts.iter().try_for_each(|part| input.write_all(part)));
+        let output = child.wait_with_output();
+        (output, writer.join().expect("Git stdin writer"))
+    });
+    let output = output.map_err(process_error)?;
+    if output.status.success() {
+        written.map_err(process_error)?;
+    }
     Ok(output)
 }
 

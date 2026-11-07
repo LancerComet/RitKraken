@@ -4,6 +4,7 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+notify = "=8.2.1"
 similar = "2.7"
 tempfile = "3"
 thiserror = "2"

@@ -124,6 +124,7 @@ impl Client {
         self.focus.focus(window, cx);
         self.load_saved_tab(id, window, cx);
         self.select_initial_commit(id, window, cx);
+        self.watch_current_repo(window, cx);
         self.persist_session();
         cx.notify();
     }
@@ -160,6 +161,7 @@ impl Client {
                 return;
             }
             self.session.active = None;
+            self.watch_current_repo(window, cx);
             self.focus.focus(window, cx);
         }
         self.persist_session();
