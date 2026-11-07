@@ -10,6 +10,7 @@ mod review;
 mod session;
 mod settings;
 mod shell;
+mod system;
 mod toolbar;
 mod widgets;
 mod workspace;
@@ -128,11 +129,11 @@ impl Client {
         self.session.entry_mut(id)?.ready_mut()
     }
 
-    fn spawn_background<T: Send + 'static>(
+    fn spawn_background<T: Send + 'static, V: 'static>(
         window: &Window,
-        cx: &Context<Self>,
+        cx: &Context<V>,
         work: impl FnOnce() -> T + Send + 'static,
-        finish: impl FnOnce(&mut Self, T, &mut Window, &mut Context<Self>) + 'static,
+        finish: impl FnOnce(&mut V, T, &mut Window, &mut Context<V>) + 'static,
     ) {
         let executor = cx.background_executor().clone();
         cx.spawn_in(window, async move |view, cx| {

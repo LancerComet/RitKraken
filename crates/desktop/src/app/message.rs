@@ -52,6 +52,13 @@ fn git_error(error: &Error) -> String {
 
 fn rule_error(rule: &RuleError) -> String {
     let key = match rule {
+        RuleError::StaleFile => "app.file_menu.stale_file",
+        RuleError::InvalidFilePath => "app.file_menu.invalid_path",
+        RuleError::InvalidIgnorePattern => "app.file_menu.invalid_ignore_pattern",
+        RuleError::InvalidIgnoreFile => "app.file_menu.invalid_ignore_file",
+        RuleError::ReadOnlyFile => "app.file_menu.read_only",
+        RuleError::BlamePreviewLimit => "app.file_menu.blame_limit",
+        RuleError::StashListChanged => "app.file_menu.stash_list_changed",
         RuleError::DeletedFile => "app.error.deleted_file",
         RuleError::NoFileContents => "app.error.no_file_contents",
         RuleError::FilePreviewLimit => "app.error.file_preview_limit",

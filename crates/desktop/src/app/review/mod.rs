@@ -142,7 +142,10 @@ fn load_full_diff(
     Some(vec![full.with_hunk_headings_from(compact)?])
 }
 
-fn parse_patch(bytes: &[u8], ignore_edge_whitespace: bool) -> Result<Vec<DiffFile>, Message> {
+pub(in crate::app) fn parse_patch(
+    bytes: &[u8],
+    ignore_edge_whitespace: bool,
+) -> Result<Vec<DiffFile>, Message> {
     if bytes.len() > PATCH_VIEW_LIMIT {
         return Err(Message::Key("app.error.diff_preview_limit"));
     }

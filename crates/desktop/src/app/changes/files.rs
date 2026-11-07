@@ -5,10 +5,10 @@ use ritkraken_git::{Change, FileTarget, Scope};
 
 use crate::i18n::tr;
 
-use super::{StageAction, StageTarget, change_mark};
+use super::{StageAction, StageTarget, change_mark, menu::FileMenu};
 use crate::app::{
     Client, RepoOperation, RepoTab,
-    widgets::{HOVER, MUTED, PAPER, SELECT, Tone, button, icon, note},
+    widgets::{HOVER, MUTED, PAPER, SELECT, Tone, button, icon, menu::ContextMenuExt, note},
 };
 
 pub(super) const FILE_ROW_HEIGHT: Pixels = px(32.);
@@ -106,8 +106,16 @@ impl Client {
                         let open_view = view.clone();
                         let stage_view = view.clone();
                         let stage_change = change.clone();
+                        let menu = FileMenu {
+                            id,
+                            file: file.clone(),
+                            view: view.clone(),
+                        };
                         file_row(*depth)
-                            .id(("file-row", index))
+                            .id(SharedString::from(format!(
+                                "{label}-{id}-{}",
+                                hex::encode(change.path.as_os_str().as_encoded_bytes())
+                            )))
                             .cursor_pointer()
                             .bg(rgb(if active { SELECT } else { PAPER }))
                             .hover(|style| style.bg(rgb(HOVER)))
@@ -141,7 +149,16 @@ impl Client {
                                     .text_color(rgb(action.tone().foreground())),
                                 )
                             })
-                            .into_any_element()
+                            .map(|row| {
+                                if action.is_some() {
+                                    row.context_menu(move |popup, window, cx| {
+                                        menu.build(popup, window, cx)
+                                    })
+                                    .into_any_element()
+                                } else {
+                                    row.into_any_element()
+                                }
+                            })
                     }
                 })
                 .collect::<Vec<_>>()

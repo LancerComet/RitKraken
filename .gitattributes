@@ -4,3 +4,4 @@
 /crates/diff/change-controls.patch text eol=lf
 /crates/diff/edge-whitespace.patch text eol=lf
 /crates/diff/editor-typography.patch text eol=lf
+/crates/desktop/src/app/widgets/menu-style.patch text eol=lf

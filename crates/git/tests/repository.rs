@@ -1,45 +1,12 @@
-use std::{fs, path::Path, process::Command};
+mod support;
+
+use std::{fs, path::Path};
+
+use support::{command, fixture, git_output};
 
 use ritkraken_git::{
     CommitPerson, FileTarget, PATCH_VIEW_LIMIT, PatchSelection, PatchSide, Repo, Scope, Upstream,
 };
-
-fn command(directory: Option<&Path>) -> Command {
-    let mut git = Command::new("git");
-    if let Some(directory) = directory {
-        git.arg("-C").arg(directory);
-    }
-    git
-}
-
-fn git_output(command: &mut Command) -> Vec<u8> {
-    let output = command.output().expect("run Git for the test fixture");
-    assert!(
-        output.status.success(),
-        "{command:?} failed: {}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    output.stdout
-}
-
-fn fixture() -> (tempfile::TempDir, Repo) {
-    let directory = tempfile::Builder::new()
-        .prefix("ritkraken-git-")
-        .tempdir()
-        .unwrap();
-    let repo = Repo::init(directory.path(), Some("main")).unwrap();
-    for (key, value) in [
-        ("user.name", "RitKraken Test"),
-        ("user.email", "ritkraken-test@example.invalid"),
-        ("core.autocrlf", "false"),
-        ("core.hooksPath", ".git/disabled-hooks"),
-        ("commit.gpgsign", "false"),
-        ("protocol.file.allow", "always"),
-    ] {
-        git_output(command(Some(repo.root())).args(["config", "--local", key, value]));
-    }
-    (directory, repo)
-}
 
 #[test]
 fn partial_stage_preserves_other_edits_and_refuses_a_stale_patch() {

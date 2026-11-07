@@ -39,7 +39,7 @@ pub struct Patch {
 }
 
 pub const PATCH_VIEW_LIMIT: usize = 8 * 1024 * 1024;
-const PATCH_OPTIONS: &[&str] = &[
+pub(crate) const PATCH_OPTIONS: &[&str] = &[
     "--no-color",
     "--no-ext-diff",
     "--no-textconv",
@@ -53,22 +53,30 @@ const PATCH_OPTIONS: &[&str] = &[
 
 impl Repo {
     pub fn patch(&self, file: &FileTarget) -> Result<Patch> {
-        let (mut git, is_untracked) = self.patch_command(file, "--unified=3");
+        self.patch_bytes(file, &[])
+            .map(|bytes| Patch::new(bytes, file))
+    }
+
+    pub fn export_patch(&self, file: &FileTarget) -> Result<Vec<u8>> {
+        self.patch_bytes(file, &["--binary"])
+    }
+
+    fn patch_bytes(&self, file: &FileTarget, options: &[&str]) -> Result<Vec<u8>> {
+        let (mut git, is_untracked) = self.patch_command(file, "--unified=3", options);
         let output = read_output(&mut git)?;
-        let bytes = if untracked_diff_found_changes(output.status, is_untracked) {
-            output.stdout
+        if untracked_diff_found_changes(output.status, is_untracked) {
+            Ok(output.stdout)
         } else {
-            checked(output)?
-        };
-        Ok(Patch::new(bytes, file))
+            checked(output)
+        }
     }
 
     pub fn full_patch(&self, file: &FileTarget) -> Result<Option<Vec<u8>>> {
-        let (mut git, is_untracked) = self.patch_command(file, "--unified=1000000");
+        let (mut git, is_untracked) = self.patch_command(file, "--unified=1000000", &[]);
         read_preview(&mut git, is_untracked)
     }
 
-    fn patch_command(&self, file: &FileTarget, context: &str) -> (Command, bool) {
+    fn patch_command(&self, file: &FileTarget, context: &str, options: &[&str]) -> (Command, bool) {
         let mut git = self.git_with_literal_paths();
         let is_untracked = matches!(file.scope, Scope::Worktree) && file.change.code == b'?';
         match &file.scope {
@@ -82,7 +90,7 @@ impl Repo {
         if is_untracked {
             git.arg("--no-index");
         }
-        git.args(PATCH_OPTIONS).arg(context);
+        git.args(PATCH_OPTIONS).arg(context).args(options);
         match &file.scope {
             Scope::Index => {
                 git.arg("--cached");

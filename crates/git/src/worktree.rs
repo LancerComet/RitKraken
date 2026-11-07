@@ -1,6 +1,13 @@
+mod files;
+mod ignore;
+mod stash;
+
 use std::{collections::HashSet, path::PathBuf, process::Command};
 
 use crate::{Repo, Result, RuleError, command::run_write, protocol::path_from_bytes};
+
+pub use files::DiscardFile;
+pub use ignore::IgnoreRule;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Change {
@@ -79,13 +86,18 @@ impl Repo {
     }
 
     pub fn pop_stash(&self) -> Result<()> {
+        if self.pop_file_stash()? {
+            return Ok(());
+        }
         run_write(self.git().args(["stash", "pop", "--index"]))
     }
 }
 
 pub(crate) fn append_paths(command: &mut Command, change: &Change) {
     command.arg(&change.path);
-    if let Some(previous) = &change.previous {
+    if let Some(previous) = &change.previous
+        && change.code != b'C'
+    {
         command.arg(previous);
     }
 }

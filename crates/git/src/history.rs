@@ -1,4 +1,5 @@
 mod detail;
+mod file;
 
 use std::thread;
 
@@ -8,8 +9,10 @@ use crate::{
 };
 
 pub use detail::{CommitDetail, CommitPerson};
+pub use file::{BlameLine, FileCommit, FileHistory};
 
 const COMMIT_DATE_FORMAT: &str = "--date=format-local:%Y/%m/%d @ %H:%M";
+const COMMIT_LOG_FORMAT: &str = "--format=%H%x00%P%x00%an%x00%ae%x00%ad%x00%s";
 
 #[derive(Clone, Debug)]
 pub struct Commit {
@@ -99,7 +102,7 @@ impl Repo {
             "--topo-order",
             COMMIT_DATE_FORMAT,
             "--encoding=UTF-8",
-            "--format=%H%x00%P%x00%an%x00%ae%x00%ad%x00%s",
+            COMMIT_LOG_FORMAT,
             "-z",
         ];
         let limit = history_limit.map(|limit| format!("--max-count={}", limit.saturating_add(1)));
@@ -187,16 +190,20 @@ fn parse_log(bytes: &[u8]) -> Vec<Commit> {
     fields
         .chunks_exact(6)
         .filter(|fields| !fields[0].is_empty())
-        .map(|fields| Commit {
-            id: text(fields[0]),
-            parents: String::from_utf8_lossy(fields[1])
-                .split_ascii_whitespace()
-                .map(str::to_owned)
-                .collect(),
-            author: text(fields[2]),
-            author_email: text(fields[3]),
-            date: text(fields[4]),
-            subject: text(fields[5]),
-        })
+        .map(commit_from_fields)
         .collect()
+}
+
+fn commit_from_fields(fields: &[&[u8]]) -> Commit {
+    Commit {
+        id: text(fields[0]),
+        parents: String::from_utf8_lossy(fields[1])
+            .split_ascii_whitespace()
+            .map(str::to_owned)
+            .collect(),
+        author: text(fields[2]),
+        author_email: text(fields[3]),
+        date: text(fields[4]),
+        subject: text(fields[5]),
+    }
 }

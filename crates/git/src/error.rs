@@ -22,6 +22,20 @@ pub enum Error {
 
 #[derive(Debug, thiserror::Error)]
 pub enum RuleError {
+    #[error("This file changed on disk. Review it again before continuing.")]
+    StaleFile,
+    #[error("This operation requires a repository-relative file path.")]
+    InvalidFilePath,
+    #[error("This file name cannot be represented by a Git ignore rule.")]
+    InvalidIgnorePattern,
+    #[error("The repository's .gitignore must be a regular file.")]
+    InvalidIgnoreFile,
+    #[error("Committed files are read-only.")]
+    ReadOnlyFile,
+    #[error("Blame previews are limited to 100,000 lines.")]
+    BlamePreviewLimit,
+    #[error("The file was restored, but the stash list changed. The stash was kept.")]
+    StashListChanged,
     #[error("This file was deleted in the selected version.")]
     DeletedFile,
     #[error("This entry does not have text file contents.")]

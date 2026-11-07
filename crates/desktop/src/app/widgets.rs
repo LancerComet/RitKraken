@@ -1,3 +1,5 @@
+pub(super) mod menu;
+
 use gpui_kit::{prelude::*, *};
 
 use super::Message;

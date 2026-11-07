@@ -1,6 +1,8 @@
 mod commit;
 mod commit_people;
 mod files;
+mod inspect;
+mod menu;
 mod summary;
 mod worktree;
 

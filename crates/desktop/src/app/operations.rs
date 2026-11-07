@@ -13,6 +13,9 @@ use super::{
 pub(super) enum RepoOperation {
     StageFiles(StageAction, Option<Change>),
     StagePatch(FileTarget, Arc<Patch>, PatchSelection),
+    DiscardFile(Arc<git::DiscardFile>),
+    IgnoreFile(Change, git::IgnoreRule, bool),
+    StashFile(Change),
     Commit(String, String),
     Switch(String),
     Branch(String),
@@ -32,6 +35,15 @@ impl RepoOperation {
             Self::StageFiles(StageAction::Stage, change) => repo.stage(change.as_ref()),
             Self::StageFiles(StageAction::Unstage, change) => repo.unstage(change.as_ref()),
             Self::StagePatch(file, patch, selection) => repo.apply_partial(file, patch, *selection),
+            Self::DiscardFile(expected) => repo.discard_file(expected),
+            Self::IgnoreFile(change, rule, stop_tracking) => {
+                repo.ignore_file(change, *rule)?;
+                if *stop_tracking {
+                    repo.stop_tracking(change)?;
+                }
+                Ok(())
+            }
+            Self::StashFile(change) => repo.stash_file(change),
             Self::Commit(summary, description) => repo.commit(summary, description),
             Self::Switch(branch) => repo.switch(branch),
             Self::Branch(branch) => repo.create_branch(branch),
@@ -50,6 +62,10 @@ impl RepoOperation {
         match self {
             Self::StageFiles(StageAction::Stage, _) => "app.notice.staged",
             Self::StageFiles(StageAction::Unstage, _) => "app.notice.unstaged",
+            Self::DiscardFile(_) => "app.file_menu.discarded",
+            Self::IgnoreFile(_, _, false) => "app.file_menu.ignored",
+            Self::IgnoreFile(_, _, true) => "app.file_menu.stopped_tracking",
+            Self::StashFile(_) => "app.notice.stashed",
             Self::StagePatch(file, _, selection) => match (file.scope == Scope::Index, selection) {
                 (false, PatchSelection::Hunk(_)) => "app.notice.hunk_staged",
                 (true, PatchSelection::Hunk(_)) => "app.notice.hunk_unstaged",

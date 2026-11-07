@@ -12,7 +12,8 @@ pub struct DiffTypography {
 }
 
 impl DiffTypography {
-    pub(crate) fn resolve(&self, window: &Window, cx: &App) -> (SharedString, Pixels, Pixels) {
+    /// Resolve the effective font, size, and line height for code views.
+    pub fn resolve(&self, window: &Window, cx: &App) -> (SharedString, Pixels, Pixels) {
         let theme = cx.theme();
         let family = self
             .font_family
