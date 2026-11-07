@@ -1,4 +1,5 @@
 pub(super) mod menu;
+pub(super) mod table;
 
 use gpui_kit::{prelude::*, *};
 

@@ -8,8 +8,8 @@ mod repository;
 mod worktree;
 
 pub use diff::{
-    FileTarget, PATCH_VIEW_LIMIT, Patch, PatchSelection, PatchSide, Scope, align_changed_lines,
-    edge_whitespace_key,
+    ExportedFile, FileTarget, PATCH_VIEW_LIMIT, Patch, PatchSelection, PatchSide, Scope,
+    align_changed_lines, edge_whitespace_key,
 };
 pub use error::{Error, Result, RuleError};
 pub use history::{

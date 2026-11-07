@@ -250,6 +250,7 @@
       "loading": "正在加载文件信息…",
       "no_history": "此文件没有已提交的历史。",
       "open": "打开文件",
+      "open_failed": "无法打开此提交中的文件版本。\n%{detail}",
       "patch_saved": "已保存补丁。",
       "read_only": "已提交的文件为只读。",
       "reveal": "在文件夹中显示",

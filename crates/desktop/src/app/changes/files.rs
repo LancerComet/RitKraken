@@ -149,16 +149,8 @@ impl Client {
                                     .text_color(rgb(action.tone().foreground())),
                                 )
                             })
-                            .map(|row| {
-                                if action.is_some() {
-                                    row.context_menu(move |popup, window, cx| {
-                                        menu.build(popup, window, cx)
-                                    })
-                                    .into_any_element()
-                                } else {
-                                    row.into_any_element()
-                                }
-                            })
+                            .context_menu(move |popup, window, cx| menu.build(popup, window, cx))
+                            .into_any_element()
                     }
                 })
                 .collect::<Vec<_>>()

@@ -250,6 +250,7 @@
       "loading": "正在載入檔案資訊…",
       "no_history": "此檔案沒有已提交的歷史。",
       "open": "開啟檔案",
+      "open_failed": "無法開啟此提交中的檔案版本。\n%{detail}",
       "patch_saved": "已儲存修補檔。",
       "read_only": "已提交的檔案為唯讀。",
       "reveal": "在資料夾中顯示",

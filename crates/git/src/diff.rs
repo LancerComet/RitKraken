@@ -1,3 +1,4 @@
+mod export;
 mod hunk;
 mod staging;
 mod whitespace;
@@ -6,6 +7,7 @@ use std::{
     fs,
     io::{self, Read},
     ops::Range,
+    path::Path,
     process::{Command, ExitStatus, Stdio},
 };
 
@@ -14,6 +16,7 @@ use crate::{
     command::{checked, process_error, read_output, without_optional_locks},
     worktree::append_paths,
 };
+pub use export::ExportedFile;
 pub use staging::{PatchSelection, PatchSide};
 pub use whitespace::{align_changed_lines, edge_whitespace_key};
 
@@ -133,12 +136,11 @@ impl Repo {
                     .map_err(Error::from)?
             }
             Scope::Index | Scope::Commit { .. } => {
-                let mut object = std::ffi::OsString::new();
-                if let Scope::Commit { id, .. } = &file.scope {
-                    object.push(id);
-                }
-                object.push(":");
-                object.push(path);
+                let revision = match &file.scope {
+                    Scope::Commit { id, .. } => Some(id.as_str()),
+                    _ => None,
+                };
+                let object = blob_name(revision, path);
                 read_preview(self.git().args(["cat-file", "blob"]).arg(object), false)?
             }
         };
@@ -148,6 +150,13 @@ impl Repo {
         }
         String::from_utf8(bytes).map_err(|_| RuleError::InvalidFileEncoding.into())
     }
+}
+
+fn blob_name(revision: Option<&str>, path: &Path) -> std::ffi::OsString {
+    let mut object = std::ffi::OsString::from(revision.unwrap_or_default());
+    object.push(":");
+    object.push(path);
+    object
 }
 
 fn untracked_diff_found_changes(status: ExitStatus, is_untracked_diff: bool) -> bool {

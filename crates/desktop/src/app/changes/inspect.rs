@@ -1,3 +1,5 @@
+mod history;
+
 use std::sync::Arc;
 
 use gpui_kit::{
@@ -11,8 +13,8 @@ use ritkraken_git::{self as git, BlameLine, FileHistory, FileTarget, Repo, Scope
 use crate::{
     app::{
         Client, Load,
-        review::{DiffLayout, parse_patch},
-        widgets::{HOVER, LINE, MUTED, SELECT, Tone, button, error_text, note},
+        review::parse_patch,
+        widgets::{MUTED, error_text, note, table::ResizableColumns},
     },
     i18n::tr,
 };
@@ -44,6 +46,7 @@ pub(super) struct FileInspection {
     data: Load<InspectionData>,
     typography: DiffTypography,
     scroll: UniformListScrollHandle,
+    history_columns: ResizableColumns,
     limit: usize,
     loading: bool,
     selected: Option<String>,
@@ -69,6 +72,7 @@ impl FileInspection {
                 data: Load::Pending,
                 typography,
                 scroll: UniformListScrollHandle::default(),
+                history_columns: ResizableColumns::new(cx),
                 limit: 500,
                 loading: false,
                 selected: None,
@@ -88,6 +92,8 @@ impl FileInspection {
                 .w((window.viewport_size().width - px(60.)).min(px(1250.)))
                 .child(
                     div()
+                        .w_full()
+                        .min_w_0()
                         .h((window.viewport_size().height - px(150.)).min(px(740.)))
                         .child(inspection.clone()),
                 )
@@ -106,7 +112,7 @@ impl FileInspection {
             cx,
             move || match kind {
                 InspectionKind::History => repo
-                    .file_history(&file.change, limit)
+                    .file_history_at(&file, limit)
                     .map(|history| InspectionData::History(Arc::new(history))),
                 InspectionKind::Blame => repo
                     .blame_file(&file)
@@ -163,112 +169,6 @@ impl FileInspection {
             },
         );
         cx.notify();
-    }
-
-    fn history_view(&self, history: &Arc<FileHistory>, cx: &mut Context<Self>) -> Div {
-        if history.commits.is_empty() {
-            return div().child(note(tr!("app.file_menu.no_history")));
-        }
-        let history = history.clone();
-        let rows = history.clone();
-        let view = cx.weak_entity();
-        let selected = self.selected.clone();
-        let list = uniform_list("file-history", rows.commits.len(), move |range, _, _| {
-            range
-                .map(|index| {
-                    let commit = &rows.commits[index].commit;
-                    let view = view.clone();
-                    div()
-                        .id(("file-history-row", index))
-                        .h(px(32.))
-                        .px(px(10.))
-                        .flex()
-                        .items_center()
-                        .gap(px(12.))
-                        .bg(rgb(if selected.as_deref() == Some(commit.id.as_str()) {
-                            SELECT
-                        } else {
-                            0xffffff
-                        }))
-                        .hover(|style| style.bg(rgb(HOVER)))
-                        .cursor_pointer()
-                        .on_click(move |_, window, cx| {
-                            let _ =
-                                view.update(cx, |this, cx| this.select_revision(index, window, cx));
-                        })
-                        .child(
-                            div()
-                                .w(px(64.))
-                                .flex_shrink_0()
-                                .text_color(rgb(MUTED))
-                                .child(git::short_id(&commit.id).to_owned()),
-                        )
-                        .child(
-                            div()
-                                .flex_1()
-                                .min_w_0()
-                                .truncate()
-                                .child(commit.subject.clone()),
-                        )
-                        .child(
-                            div()
-                                .w(px(135.))
-                                .truncate()
-                                .text_color(rgb(MUTED))
-                                .child(commit.author.clone()),
-                        )
-                        .child(
-                            div()
-                                .w(px(135.))
-                                .truncate()
-                                .text_color(rgb(MUTED))
-                                .child(commit.date.clone()),
-                        )
-                })
-                .collect::<Vec<_>>()
-        })
-        .track_scroll(&self.scroll)
-        .size_full();
-        let preview = match &self.preview {
-            Some(Load::Ready(viewer)) => DiffLayout::Hunk
-                .viewer(viewer, false, self.typography.clone())
-                .into_any_element(),
-            Some(Load::Failed(error)) => error_text(error).into_any_element(),
-            _ => note(tr!("app.review.loading_diff")).into_any_element(),
-        };
-        div()
-            .size_full()
-            .flex()
-            .flex_col()
-            .gap(px(8.))
-            .child(
-                div()
-                    .h(relative(0.4))
-                    .min_h(px(90.))
-                    .relative()
-                    .child(list)
-                    .vertical_scrollbar(&self.scroll),
-            )
-            .when(history.has_more, |body| {
-                body.child(button(
-                    "more-file-history",
-                    tr!("app.file_menu.load_more"),
-                    Tone::Outline,
-                    !self.loading,
-                    cx.listener(|this, _, window, cx| {
-                        this.limit = this.limit.saturating_add(500);
-                        this.load(window, cx);
-                    }),
-                ))
-            })
-            .child(
-                div()
-                    .flex_1()
-                    .min_h_0()
-                    .border_t_1()
-                    .border_color(rgb(LINE))
-                    .child(preview),
-            )
     }
 
     fn blame_view(&self, lines: &Arc<[BlameLine]>, window: &Window, cx: &mut Context<Self>) -> Div {

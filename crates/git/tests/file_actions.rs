@@ -29,6 +29,15 @@ fn target(repo: &Repo, scope: Scope, name: &str) -> FileTarget {
     }
 }
 
+fn head(repo: &Repo) -> String {
+    String::from_utf8(git_output(
+        command(Some(repo.root())).args(["rev-parse", "HEAD"]),
+    ))
+    .unwrap()
+    .trim()
+    .to_owned()
+}
+
 #[test]
 fn discard_refuses_external_edits_and_preserves_the_staged_version() {
     let (_directory, repo) = fixture();
@@ -463,4 +472,103 @@ fn a_conflicting_file_stash_restore_keeps_the_stash_and_newer_edits() {
             .unwrap(),
         "staged\n"
     );
+}
+
+#[test]
+fn historical_file_history_and_blame_use_the_selected_commit_across_a_rename() {
+    let (_directory, repo) = fixture();
+    commit_files(&repo, &[("before.txt", b"original\nsecond\n")]);
+    let initial = head(&repo);
+    git_output(command(Some(repo.root())).args(["mv", "--", "before.txt", "after.txt"]));
+    repo.commit("Rename", "").unwrap();
+    let renamed = head(&repo);
+    fs::write(repo.root().join("after.txt"), b"future commit\n").unwrap();
+    repo.stage(None).unwrap();
+    repo.commit("Future", "").unwrap();
+    fs::write(repo.root().join("after.txt"), b"current working tree\n").unwrap();
+    let file = FileTarget {
+        scope: Scope::Commit {
+            id: renamed,
+            parent: Some(initial),
+        },
+        change: Change {
+            path: "after.txt".into(),
+            previous: Some("before.txt".into()),
+            code: b'R',
+        },
+    };
+    let history = repo.file_history_at(&file, 20).unwrap();
+    assert_eq!(history.commits.len(), 2);
+    assert_eq!(history.commits[0].commit.subject, "Rename");
+    assert_eq!(history.commits[1].change.path, Path::new("before.txt"));
+    let blame = repo.blame_file(&file).unwrap();
+    assert_eq!(blame.len(), 2);
+    assert_eq!(blame[0].text, "original");
+    assert_eq!(blame[1].text, "second");
+    assert!(blame.iter().all(|line| line.author == "RitKraken Test"));
+    let working = target(&repo, Scope::Worktree, "after.txt");
+    assert_eq!(
+        repo.file_history(&working.change, 20)
+            .unwrap()
+            .commits
+            .len(),
+        3
+    );
+}
+
+#[test]
+fn historical_file_export_is_binary_safe_read_only_and_cleans_up() {
+    let (_directory, repo) = fixture();
+    fs::create_dir(repo.root().join("assets")).unwrap();
+    let name = "assets/旧版本 [1].bin";
+    commit_files(&repo, &[(name, &[0, 1, 2, 255])]);
+    let initial = head(&repo);
+    fs::write(repo.root().join(name), [0, 8, 9, 255]).unwrap();
+    repo.stage(None).unwrap();
+    repo.commit("New version", "").unwrap();
+    fs::remove_file(repo.root().join(name)).unwrap();
+    let before = git_output(command(Some(repo.root())).args(["status", "--porcelain=v1", "-z"]));
+    let snapshot = repo.export_commit_file(&initial, Path::new(name)).unwrap();
+    let path = snapshot.path().to_owned();
+    assert_eq!(path.file_name(), Path::new(name).file_name());
+    assert_eq!(fs::read(&path).unwrap(), [0, 1, 2, 255]);
+    assert!(fs::metadata(&path).unwrap().permissions().readonly());
+    assert!(!path.starts_with(repo.root()));
+    assert!(!repo.root().join(name).exists());
+    assert_eq!(
+        git_output(command(Some(repo.root())).args(["status", "--porcelain=v1", "-z"])),
+        before
+    );
+    drop(snapshot);
+    assert!(!path.parent().unwrap().exists());
+}
+
+#[test]
+fn deleted_historical_files_keep_their_history_and_deletion_patch() {
+    let (_directory, repo) = fixture();
+    commit_files(&repo, &[("removed.txt", b"removed content\n")]);
+    let parent = head(&repo);
+    fs::remove_file(repo.root().join("removed.txt")).unwrap();
+    repo.stage(None).unwrap();
+    repo.commit("Remove file", "").unwrap();
+    let file = FileTarget {
+        scope: Scope::Commit {
+            id: head(&repo),
+            parent: Some(parent),
+        },
+        change: Change {
+            path: "removed.txt".into(),
+            previous: None,
+            code: b'D',
+        },
+    };
+    let history = repo.file_history_at(&file, 20).unwrap();
+    assert_eq!(history.commits.len(), 2);
+    assert_eq!(history.commits[0].change.code, b'D');
+    let patch = repo.export_patch(&file).unwrap();
+    assert!(String::from_utf8_lossy(&patch).contains("-removed content"));
+    assert!(matches!(
+        repo.blame_file(&file),
+        Err(Error::Rule(RuleError::DeletedFile))
+    ));
 }

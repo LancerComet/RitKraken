@@ -250,6 +250,7 @@
       "loading": "Loading file information…",
       "no_history": "No committed history for this file.",
       "open": "Open File",
+      "open_failed": "Could not open the file from this commit.\n%{detail}",
       "patch_saved": "Patch saved.",
       "read_only": "Committed files are read-only.",
       "reveal": "Show in folder",

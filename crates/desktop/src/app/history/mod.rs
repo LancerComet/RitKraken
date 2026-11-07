@@ -8,7 +8,7 @@ use std::{collections::HashMap, sync::Arc};
 use gpui_kit::*;
 use ritkraken_git::{Repo, Snapshot};
 
-use super::{Client, Load, Message, changes::ChangeSummary};
+use super::{Client, Load, Message, changes::ChangeSummary, widgets::table::ResizableColumns};
 use labels::{RefBadge, group_refs};
 use layout::GraphLayout;
 
@@ -56,6 +56,7 @@ pub(super) struct HistoryState {
     pub(super) limit: Option<usize>,
     pub(super) scroll: UniformListScrollHandle,
     horizontal_scroll: ScrollHandle,
+    columns: ResizableColumns,
     pub(super) focus: FocusHandle,
 }
 
@@ -67,6 +68,7 @@ impl HistoryState {
             limit,
             scroll: UniformListScrollHandle::default(),
             horizontal_scroll: ScrollHandle::new(),
+            columns: ResizableColumns::new(cx),
             focus: cx.focus_handle(),
         }
     }

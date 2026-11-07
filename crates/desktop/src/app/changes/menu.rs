@@ -51,6 +51,7 @@ impl FileMenu {
         };
         let enabled = !tab.busy;
         let has_head = tab.history.data.snapshot.head.is_some();
+        let committed = matches!(self.file.scope, Scope::Commit { .. });
         let existing = tab.repo.root().join(&self.file.change.path).exists();
         let staged_addition = tab
             .history
@@ -60,7 +61,7 @@ impl FileMenu {
             .staged
             .iter()
             .any(|change| change.path == self.file.change.path && change.code == b'A');
-        let action = StageAction::for_scope(&self.file.scope).expect("worktree file menu");
+        let action = StageAction::for_scope(&self.file.scope);
         let ignore = self.clone();
         let filename = self
             .file
@@ -78,54 +79,71 @@ impl FileMenu {
             .map(|value| value.to_string_lossy().into_owned());
         menu_style(menu, window)
             .min_w(px(230.))
-            .item(self.item(action.label(StageTarget::Row), FileAction::Stage, enabled))
-            .item(self.item(
-                tr!("app.file_menu.discard"),
-                FileAction::Discard,
-                enabled && self.file.change.code != b'U',
-            ))
-            .submenu(
-                tr!("app.file_menu.ignore"),
-                window,
-                cx,
-                move |menu, window, _| {
-                    menu_style(menu, window)
-                        .item(ignore.item(
-                            tr!("app.file_menu.ignore_file", name = filename),
-                            FileAction::Ignore(IgnoreRule::File),
-                            enabled,
-                        ))
-                        .when_some(extension.as_ref(), |menu, extension| {
-                            menu.item(ignore.item(
-                                tr!("app.file_menu.ignore_extension", extension = extension),
-                                FileAction::Ignore(IgnoreRule::Extension),
-                                enabled,
-                            ))
-                        })
-                },
-            )
-            .item(self.item(
-                tr!("app.file_menu.stash"),
-                FileAction::Stash,
-                enabled && has_head && self.file.change.code != b'U',
-            ))
+            .when_some(action, |menu, action| {
+                menu.item(self.item(action.label(StageTarget::Row), FileAction::Stage, enabled))
+                    .item(self.item(
+                        tr!("app.file_menu.discard"),
+                        FileAction::Discard,
+                        enabled && self.file.change.code != b'U',
+                    ))
+                    .submenu(
+                        tr!("app.file_menu.ignore"),
+                        window,
+                        cx,
+                        move |menu, window, _| {
+                            menu_style(menu, window)
+                                .item(ignore.item(
+                                    tr!("app.file_menu.ignore_file", name = filename),
+                                    FileAction::Ignore(IgnoreRule::File),
+                                    enabled,
+                                ))
+                                .when_some(extension.as_ref(), |menu, extension| {
+                                    menu.item(ignore.item(
+                                        tr!(
+                                            "app.file_menu.ignore_extension",
+                                            extension = extension
+                                        ),
+                                        FileAction::Ignore(IgnoreRule::Extension),
+                                        enabled,
+                                    ))
+                                })
+                        },
+                    )
+                    .item(self.item(
+                        tr!("app.file_menu.stash"),
+                        FileAction::Stash,
+                        enabled && has_head && self.file.change.code != b'U',
+                    ))
+            })
             .separator()
             .item(self.item(
                 tr!("app.file_menu.history"),
                 FileAction::Inspect(InspectionKind::History),
-                enabled && has_head,
+                enabled && (committed || has_head),
             ))
             .item(self.item(
                 tr!("app.file_menu.blame"),
                 FileAction::Inspect(InspectionKind::Blame),
                 enabled
-                    && has_head
-                    && existing
-                    && !staged_addition
-                    && !matches!(self.file.change.code, b'?' | b'A' | b'U'),
+                    && if committed {
+                        self.file.change.code != b'D'
+                    } else {
+                        has_head
+                            && existing
+                            && !staged_addition
+                            && !matches!(self.file.change.code, b'?' | b'A' | b'U')
+                    },
             ))
             .separator()
-            .item(self.item(tr!("app.file_menu.open"), FileAction::Open, existing))
+            .item(self.item(
+                tr!("app.file_menu.open"),
+                FileAction::Open,
+                if committed {
+                    self.file.change.code != b'D'
+                } else {
+                    existing
+                },
+            ))
             .item(self.item(tr!("app.file_menu.reveal"), FileAction::Reveal, true))
             .separator()
             .item(self.item(tr!("app.file_menu.copy_path"), FileAction::CopyPath, true))
@@ -166,7 +184,7 @@ impl Client {
         let Some(tab) = self.tab(id) else { return };
         let path = tab.repo.root().join(&file.change.path);
         match action {
-            FileAction::Open => cx.open_with_system(&path),
+            FileAction::Open => self.open_file(id, file, window, cx),
             FileAction::Reveal => self.show_file_in_folder(id, path, window, cx),
             FileAction::CopyPath => cx.write_to_clipboard(ClipboardItem::new_string(
                 path.to_string_lossy().into_owned(),
@@ -333,6 +351,12 @@ impl Client {
                         return;
                     }
                 };
+                let Some(tab) = this.tab_mut(id) else { return };
+                if bytes.is_empty() {
+                    tab.notice = Some((false, Message::Key("app.review.no_text_changes")));
+                    cx.notify();
+                    return;
+                }
                 let name = format!(
                     "{}.patch",
                     file.change

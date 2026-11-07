@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use crate::{
-    Change, FileTarget, Repo, Result, RuleError,
+    Change, FileTarget, Repo, Result, RuleError, Scope,
     command::{run_read, run_with_input},
     protocol::{path_from_bytes, text},
 };
@@ -31,13 +31,28 @@ pub struct BlameLine {
 
 impl Repo {
     pub fn file_history(&self, change: &Change, limit: usize) -> Result<FileHistory> {
-        if self.resolve_ref("HEAD")?.is_none() {
-            return Ok(FileHistory {
-                commits: Vec::new(),
-                has_more: false,
-            });
-        }
-        let path = self.file_history_path(change)?;
+        self.file_history_at(
+            &FileTarget {
+                scope: Scope::Worktree,
+                change: change.clone(),
+            },
+            limit,
+        )
+    }
+
+    pub fn file_history_at(&self, file: &FileTarget, limit: usize) -> Result<FileHistory> {
+        let (revision, path) = match &file.scope {
+            Scope::Commit { id, .. } => (id.as_str(), file.change.path.clone()),
+            Scope::Worktree | Scope::Index => {
+                if self.resolve_ref("HEAD")?.is_none() {
+                    return Ok(FileHistory {
+                        commits: Vec::new(),
+                        has_more: false,
+                    });
+                }
+                ("HEAD", self.file_history_path(&file.change)?)
+            }
+        };
         let bytes = run_read(
             self.git_with_literal_paths()
                 .args([
@@ -51,7 +66,7 @@ impl Repo {
                     "--encoding=UTF-8",
                 ])
                 .arg(format!("--max-count={}", limit.saturating_add(1)))
-                .args(["HEAD", "--"])
+                .args([revision, "--"])
                 .arg(&path),
         )?;
         let mut commits = parse_file_log(&bytes, path);
@@ -65,20 +80,18 @@ impl Repo {
         if contents.lines().count() > 100_000 {
             return Err(RuleError::BlamePreviewLimit.into());
         }
-        let path = self.file_history_path(&file.change)?;
-        let bytes = run_with_input(
-            self.git_with_literal_paths()
-                .args([
-                    "blame",
-                    "--line-porcelain",
-                    "--encoding=UTF-8",
-                    "--contents",
-                    "-",
-                    "--",
-                ])
-                .arg(path),
-            &[contents.as_bytes()],
-        )?;
+        let mut command = self.git_with_literal_paths();
+        command.args(["blame", "--line-porcelain", "--encoding=UTF-8"]);
+        let bytes = match &file.scope {
+            Scope::Commit { id, .. } => run_read(command.arg(id).arg("--").arg(&file.change.path))?,
+            Scope::Worktree | Scope::Index => {
+                let path = self.file_history_path(&file.change)?;
+                run_with_input(
+                    command.args(["--contents", "-", "--"]).arg(path),
+                    &[contents.as_bytes()],
+                )?
+            }
+        };
         Ok(parse_blame(&bytes))
     }
 

@@ -35,6 +35,7 @@ impl Client {
                     .justify_between()
                     .gap(px(5.))
                     .child(person_row(
+                        "commit-author-name",
                         &commit.author,
                         &commit.author_email,
                         tr!("app.commit.authored", date = &commit.date),
@@ -67,6 +68,7 @@ impl Client {
             })
             .when(distinct_committer, |element| {
                 element.child(person_row(
+                    "commit-committer-name",
                     &committer.name,
                     &committer.email,
                     tr!("app.commit.committed", date = &detail.committed_date),
@@ -75,7 +77,7 @@ impl Client {
     }
 }
 
-fn person_row(name: &str, email: &str, timestamp: String) -> Div {
+fn person_row(id: &'static str, name: &str, email: &str, timestamp: String) -> Div {
     div()
         .min_w_0()
         .flex()
@@ -87,12 +89,15 @@ fn person_row(name: &str, email: &str, timestamp: String) -> Div {
                 .min_w_0()
                 .flex()
                 .flex_col()
-                .child(
+                .child(with_person_tooltip(
                     div()
+                        .id(id)
                         .truncate()
                         .font_weight(FontWeight::MEDIUM)
                         .child(name.to_owned()),
-                )
+                    name,
+                    email,
+                ))
                 .child(
                     div()
                         .truncate()
@@ -120,17 +125,24 @@ fn co_authors(authors: &[CommitPerson]) -> Div {
         )
         .child(div().flex().min_w_0().flex_wrap().gap(px(4.)).children(
             authors.iter().enumerate().map(|(index, person)| {
-                let label = format!("{} <{}>", person.name, person.email);
-                div()
-                    .id(("co-author", index))
-                    .flex_shrink_0()
-                    .child(PersonAvatar::new(
-                        &person.name,
-                        &person.email,
-                        px(20.),
-                        None,
-                    ))
-                    .tooltip(move |window, cx| Tooltip::new(label.clone()).build(window, cx))
+                with_person_tooltip(
+                    div()
+                        .id(("co-author", index))
+                        .flex_shrink_0()
+                        .child(PersonAvatar::new(
+                            &person.name,
+                            &person.email,
+                            px(20.),
+                            None,
+                        )),
+                    &person.name,
+                    &person.email,
+                )
             }),
         ))
+}
+
+fn with_person_tooltip(element: Stateful<Div>, name: &str, email: &str) -> Stateful<Div> {
+    let label = format!("{name} <{email}>");
+    element.tooltip(move |window, cx| Tooltip::new(label.clone()).build(window, cx))
 }
