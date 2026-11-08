@@ -95,12 +95,17 @@ impl RepositoryManager {
 
 impl Client {
     pub(in crate::app) fn open_manager(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.preferences.is_some() {
+            self.save_preferences(window, cx);
+            if self.preferences.is_some() {
+                return;
+            }
+        }
         self.manager.mode = Some(ManagerMode::Open);
-        self.preferences = None;
         self.manager.list = RepoList::Recent;
         self.branch_dialog.open = false;
         self.manager.error = None;
-        self.focus.focus(window, cx);
+        self.modal_focus.focus(window, cx);
         cx.notify();
     }
 

@@ -6,6 +6,14 @@ pub struct Upstream {
     pub reference: String,
 }
 
+impl Upstream {
+    pub(crate) fn tracking_name(&self) -> Option<String> {
+        self.reference
+            .strip_prefix("refs/heads/")
+            .map(|branch| format!("{}/{branch}", self.remote))
+    }
+}
+
 impl Repo {
     pub fn fetch(&self, remote: Option<&str>) -> Result<()> {
         let mut git = self.git();
@@ -37,8 +45,29 @@ impl Repo {
     }
 
     pub(crate) fn remotes(&self) -> Result<Vec<String>> {
-        self.read(&["remote"])
-            .map(|bytes| text(&bytes).lines().map(str::to_owned).collect())
+        self.remote_summary().map(|(names, _)| names)
+    }
+
+    pub(crate) fn remote_summary(&self) -> Result<(Vec<String>, Option<String>)> {
+        let bytes = self.read(&["remote", "--verbose"])?;
+        let mut remotes = std::collections::BTreeMap::<String, Option<String>>::new();
+        for line in text(&bytes).lines() {
+            let Some((name, value)) = line.split_once('\t') else {
+                continue;
+            };
+            let url = remotes.entry(name.to_owned()).or_default();
+            if url.is_none()
+                && let Some(value) = value.strip_suffix(" (fetch)")
+            {
+                *url = (!value.is_empty()).then(|| value.to_owned());
+            }
+        }
+        let url = remotes
+            .get("origin")
+            .or_else(|| remotes.values().next())
+            .cloned()
+            .flatten();
+        Ok((remotes.into_keys().collect(), url))
     }
 
     fn ensure_remote(&self, remote: &str) -> Result<()> {

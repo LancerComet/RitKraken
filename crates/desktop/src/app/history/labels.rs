@@ -1,18 +1,20 @@
+mod hover;
 mod view;
 
 use std::{collections::HashMap, sync::Arc};
 
-use ritkraken_git::{RefKind, Snapshot};
+use ritkraken_git::{RefKind, Reference, Snapshot};
 
 pub(super) use view::ref_labels;
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub(super) struct RefBadge {
     name: String,
     short_name: Option<String>,
     kind: Option<RefKind>,
+    pub(super) reference: Option<Reference>,
     checked_out: bool,
-    remote_refs: Vec<String>,
+    pub(super) remote_refs: Vec<Reference>,
 }
 
 impl RefBadge {
@@ -28,7 +30,7 @@ impl RefBadge {
 
     fn tooltip(&self) -> String {
         std::iter::once(&self.name)
-            .chain(&self.remote_refs)
+            .chain(self.remote_refs.iter().map(|reference| &reference.name))
             .map(String::as_str)
             .collect::<Vec<_>>()
             .join(" · ")
@@ -44,7 +46,10 @@ pub(super) fn group_refs(snapshot: &Snapshot) -> HashMap<String, Arc<[RefBadge]>
         for reference in snapshot.refs_of_kind(kind) {
             let badges = groups.entry(reference.id.clone()).or_default();
             let short_name = (kind == RefKind::Remote)
-                .then(|| remote_branch_name(&reference.name, &snapshot.remotes))
+                .then(|| {
+                    ritkraken_git::remote_branch(&reference.name, &snapshot.remotes)
+                        .map(|(_, name)| name)
+                })
                 .flatten();
             if kind == RefKind::Local {
                 local_positions.insert(
@@ -54,13 +59,14 @@ pub(super) fn group_refs(snapshot: &Snapshot) -> HashMap<String, Arc<[RefBadge]>
             } else if let Some(name) = short_name
                 && let Some(&position) = local_positions.get(&(reference.id.as_str(), name))
             {
-                badges[position].remote_refs.push(reference.name.clone());
+                badges[position].remote_refs.push(reference.clone());
                 continue;
             }
             badges.push(RefBadge {
                 name: reference.name.clone(),
                 short_name: short_name.map(str::to_owned),
                 kind: Some(kind),
+                reference: Some(reference.clone()),
                 checked_out: head == Some(reference.id.as_str())
                     && snapshot.is_current_branch(reference),
                 remote_refs: Vec::new(),
@@ -77,6 +83,7 @@ pub(super) fn group_refs(snapshot: &Snapshot) -> HashMap<String, Arc<[RefBadge]>
                     name: "HEAD".into(),
                     short_name: None,
                     kind: None,
+                    reference: None,
                     checked_out: true,
                     remote_refs: Vec::new(),
                 },
@@ -91,18 +98,6 @@ pub(super) fn group_refs(snapshot: &Snapshot) -> HashMap<String, Arc<[RefBadge]>
         .collect()
 }
 
-fn remote_branch_name<'a>(name: &'a str, remotes: &[String]) -> Option<&'a str> {
-    remotes
-        .iter()
-        .filter_map(|remote| {
-            let branch = name.strip_prefix(remote)?.strip_prefix('/')?;
-            Some((remote.len(), branch))
-        })
-        .max_by_key(|(length, _)| *length)
-        .map(|(_, branch)| branch)
-        .or_else(|| name.split_once('/').map(|(_, branch)| branch))
-}
-
 #[cfg(test)]
 mod tests {
     use super::group_refs;
@@ -113,11 +108,15 @@ mod tests {
             kind,
             name: name.into(),
             id: id.into(),
+            object_id: id.into(),
+            checked_out: false,
         }
     }
 
     fn snapshot(branch: Option<&str>, refs: Vec<Reference>) -> Snapshot {
         Snapshot {
+            menu_metadata: Default::default(),
+            sequence: None,
             branch: branch.map(str::to_owned),
             head: Some("head".into()),
             status: Default::default(),
@@ -151,7 +150,11 @@ mod tests {
             [RefKind::Local, RefKind::Remote]
         );
         assert_eq!(
-            badges[0].remote_refs,
+            badges[0]
+                .remote_refs
+                .iter()
+                .map(|reference| reference.name.as_str())
+                .collect::<Vec<_>>(),
             ["origin/feature/topic", "fork/review/feature/topic"]
         );
         assert!(!badges[1].checked_out);

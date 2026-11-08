@@ -1,5 +1,6 @@
 mod avatar;
 mod changes;
+mod export;
 mod history;
 mod message;
 mod operations;
@@ -61,6 +62,7 @@ fn bind_keys(cx: &mut App) {
         KeyBinding::new("down", NextRow, Some("CommitGraph")),
         KeyBinding::new("up", PreviousRow, Some("CommitGraph")),
         KeyBinding::new(submit, Submit, Some("RitKraken")),
+        KeyBinding::new(submit, Submit, Some("CommitOperation")),
     ]);
 }
 
@@ -88,6 +90,7 @@ pub struct Client {
     file_opener: system::FileOpener,
     panes: WorkspacePanes,
     focus: FocusHandle,
+    modal_focus: FocusHandle,
     _activation: Subscription,
     repo_watch: Option<watch::ActiveWatch>,
 }
@@ -116,6 +119,7 @@ impl Client {
             file_opener: system::FileOpener::default(),
             panes: WorkspacePanes::new(cx),
             focus,
+            modal_focus: cx.focus_handle(),
             _activation: activation,
             repo_watch: None,
         };
@@ -155,8 +159,7 @@ impl Client {
 
     fn escape(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if self.preferences.is_some() {
-            self.preferences = None;
-            self.focus.focus(window, cx);
+            self.save_preferences(window, cx);
         } else if self.branch_dialog.open {
             self.branch_dialog.open = false;
             self.focus.focus(window, cx);

@@ -153,7 +153,7 @@ impl Client {
             editor,
             error: None,
         });
-        self.focus.focus(window, cx);
+        self.modal_focus.focus(window, cx);
         cx.notify();
     }
 

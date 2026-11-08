@@ -1,20 +1,23 @@
-use std::{cell::Cell, rc::Rc, sync::Arc, time::Duration};
+use std::{sync::Arc, time::Duration};
 
 use gpui_kit::{
-    base::{ElementExt as _, HoverCard},
+    base::{ElementExt as _, Popup},
     component::{scroll::ScrollableElement, tooltip::Tooltip},
     prelude::*,
     *,
 };
 
 use crate::app::{
+    Client,
     refs::ref_icon,
     widgets::{TEXT, WHITE, icon},
 };
 
+use super::super::ref_menu::RefMenu;
 use super::{
     super::graph::{BAND_HEIGHT, CONNECTOR_OPACITY},
     RefBadge,
+    hover::RefHover,
 };
 
 const BADGE_GAP: Pixels = px(3.);
@@ -24,6 +27,8 @@ pub(in crate::app::history) fn ref_labels(
     labels: Option<(&str, &Arc<[RefBadge]>)>,
     color: u32,
     allow_hover: bool,
+    id: u64,
+    owner: WeakEntity<Client>,
 ) -> Div {
     div()
         .min_w_0()
@@ -33,6 +38,7 @@ pub(in crate::app::history) fn ref_labels(
         .gap(BADGE_GAP)
         .overflow_hidden()
         .when_some(labels, |element, (oid, labels)| {
+            let menu = RefMenu::new(id, owner, &labels[0]);
             let first = &labels[0];
             let badges = if labels.len() > 1 && allow_hover {
                 div()
@@ -41,13 +47,15 @@ pub(in crate::app::history) fn ref_labels(
                     .child(RefStack {
                         labels: labels.clone(),
                         color,
+                        menu: menu.clone(),
                     })
                     .into_any_element()
             } else {
                 let primary = ref_badge(first, color, true)
                     .id("commit-ref")
                     .when(allow_hover, |badge| with_tooltip(badge, first));
-                compact_refs(primary, labels.len() - 1, color, false).into_any_element()
+                compact_refs(menu.target(primary, first), labels.len() - 1, color, false)
+                    .into_any_element()
             };
             element.child(badges).child(connector(color).flex_1())
         })
@@ -57,21 +65,21 @@ pub(in crate::app::history) fn ref_labels(
 struct RefStack {
     labels: Arc<[RefBadge]>,
     color: u32,
-}
-
-#[derive(Default)]
-struct StackLayout {
-    expanded: bool,
-    trigger: Rc<Cell<Bounds<Pixels>>>,
-    primary_width: Rc<Cell<Pixels>>,
+    menu: RefMenu,
 }
 
 impl RenderOnce for RefStack {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
-        let layout = window.use_keyed_state("ref-stack-layout", cx, |_, _| StackLayout::default());
+        let layout = window.use_keyed_state("ref-stack-layout", cx, |_, _| RefHover::default());
         let trigger = layout.read(cx).trigger.clone();
         let width = layout.read(cx).primary_width.clone();
         let expanded = layout.read(cx).expanded;
+        let menu = self.menu.on_open_change({
+            let layout = layout.downgrade();
+            move |open, window, cx| {
+                let _ = layout.update(cx, |layout, cx| layout.menu(open, window, cx));
+            }
+        });
         let first = &self.labels[0];
         let count = self.labels.len() - 1;
         let viewport = window.viewport_size();
@@ -92,35 +100,43 @@ impl RenderOnce for RefStack {
                 let width = width.clone();
                 move |bounds, _, _| width.set(bounds.size.width)
             });
-        let trigger_row = compact_refs(primary, count, self.color, expanded)
+        let trigger_row = compact_refs(menu.target(primary, first), count, self.color, expanded)
             .on_prepaint(move |bounds, _, _| trigger.set(bounds));
-        let layout = layout.downgrade();
-        HoverCard::new("ref-stack-hover")
+        let trigger_row =
+            trigger_row.on_hover(window.listener_for(&layout, |layout, hovered, window, cx| {
+                layout.hover(false, *hovered, window, cx);
+            }));
+        Popup::new("ref-stack-hover", trigger_row)
             .min_w_0()
             .anchor(anchor)
-            .open_delay(Duration::from_millis(160))
-            .close_delay(Duration::from_millis(110))
-            .trigger(trigger_row)
-            .on_open_change(move |open, _, cx| {
-                let _ = layout.update(cx, |layout, cx| {
-                    layout.expanded = *open;
-                    cx.notify();
-                });
-            })
-            .content(move |_, window, _| {
+            .when(expanded, |popup| {
                 let max_width = (window.viewport_size().width - POPUP_MARGIN * 2.).min(px(420.));
-                expanded_refs(
-                    &self.labels[1..],
-                    self.color,
-                    width.get().min(max_width),
-                    max_width,
-                    height,
+                popup.content(
+                    expanded_refs(
+                        &self.labels[1..],
+                        self.color,
+                        width.get().min(max_width),
+                        max_width,
+                        height,
+                        &menu,
+                    )
+                    .on_hover(window.listener_for(
+                        &layout,
+                        |layout, hovered, window, cx| {
+                            layout.hover(true, *hovered, window, cx);
+                        },
+                    )),
                 )
             })
     }
 }
 
-fn compact_refs(primary: Stateful<Div>, count: usize, color: u32, expanded: bool) -> Stateful<Div> {
+fn compact_refs(
+    primary: impl IntoElement,
+    count: usize,
+    color: u32,
+    expanded: bool,
+) -> Stateful<Div> {
     div()
         .id("compact-refs")
         .min_w_0()
@@ -159,6 +175,7 @@ fn expanded_refs(
     min_width: Pixels,
     max_width: Pixels,
     height: Pixels,
+    menu: &RefMenu,
 ) -> Stateful<Div> {
     div()
         .id("expanded-refs")
@@ -180,12 +197,13 @@ fn expanded_refs(
                         .flex_shrink_0()
                         .min_w(min_width)
                         .children(labels.iter().enumerate().map(|(index, label)| {
-                            ref_badge(label, color, false)
+                            let badge = ref_badge(label, color, false)
                                 .id(("expanded-ref", index))
                                 .flex_shrink_0()
                                 .when(!label.remote_refs.is_empty(), |badge| {
                                     with_tooltip(badge, label)
-                                })
+                                });
+                            menu.target(badge, label)
                         })),
                 )
                 .overflow_scrollbar(),

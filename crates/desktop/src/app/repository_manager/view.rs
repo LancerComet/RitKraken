@@ -11,8 +11,8 @@ use super::{ICON_SIZE, ManagerMode, OpenRepo, RepoList};
 use crate::app::{
     Client,
     widgets::{
-        HEADER, LINE, MUTED, PAPER, TEAL, Tone, WHITE, button, button_content, error_text, heading,
-        icon, modal_backdrop,
+        HEADER, LINE, MUTED, PAPER, TEAL, Tone, button, button_content, error_text, heading, icon,
+        modal::Modal,
     },
 };
 
@@ -86,120 +86,80 @@ impl Client {
         mode: ManagerMode,
         window: &Window,
         cx: &mut Context<Self>,
-    ) -> Div {
-        let dimensions = window.viewport_size();
-        let width = (dimensions.width - px(44.)).min(px(900.));
-        let height = (dimensions.height - px(62.)).min(px(650.));
-        let title_padding = px(3.);
+    ) -> Modal {
         let open = mode == ManagerMode::Open;
-        modal_backdrop().child(
+        Modal::new(
+            "repository-manager-modal",
+            tr!("app.repositories.manager"),
+            &self.modal_focus,
+            !self.session.opening,
+            cx.listener(|this, _, window, cx| this.escape(window, cx)),
+        )
+        .when_some(self.manager.error.as_ref(), |element, error| {
+            element.child(error_text(error))
+        })
+        .child(
             div()
-                .w(width)
-                .h(height)
+                .flex_1()
+                .min_h_0()
                 .flex()
-                .flex_col()
-                .bg(rgb(WHITE))
-                .rounded(px(4.))
-                .shadow_lg()
-                .border_1()
-                .border_color(rgb(0xaeb4bf))
                 .child(
                     div()
-                        .flex()
-                        .items_center()
-                        .justify_between()
-                        .h(px(39.) + title_padding * 2.)
+                        .w(px(157.))
                         .flex_shrink_0()
-                        .px(px(13.))
-                        .py(title_padding)
+                        .flex()
+                        .flex_col()
                         .bg(rgb(HEADER))
-                        .border_b_1()
+                        .border_r_1()
                         .border_color(rgb(LINE))
-                        .child(
-                            div()
+                        .children(
+                            [
+                                (
+                                    ManagerMode::Open,
+                                    "app.common.open",
+                                    "icons/folder-open.svg",
+                                ),
+                                (
+                                    ManagerMode::Clone,
+                                    "app.repositories.clone",
+                                    "icons/download.svg",
+                                ),
+                                (
+                                    ManagerMode::Init,
+                                    "app.repositories.init_tab",
+                                    "icons/folder-plus.svg",
+                                ),
+                            ]
+                            .into_iter()
+                            .map(|(target, key, glyph)| {
+                                let tone = Tone::Plain.selected_when(mode == target);
+                                button_content(
+                                    key,
+                                    icon(glyph, tone.foreground()).size(px(16.)),
+                                    tone,
+                                    !self.session.opening,
+                                    cx.listener(move |this, _, _, cx| {
+                                        this.manager.mode = Some(target);
+                                        this.manager.error = None;
+                                        cx.notify();
+                                    }),
+                                )
+                                .child(div().truncate().child(tr!(key)))
+                                .gap(px(8.))
+                                .w_full()
+                                .justify_start()
+                                .h(px(47.))
+                                .pl(px(15.))
+                                .rounded(px(0.))
                                 .text_size(px(14.))
-                                .font_weight(FontWeight::MEDIUM)
-                                .child(tr!("app.repositories.manager")),
-                        )
-                        .child(
-                            button(
-                                "close-manager",
-                                "×",
-                                Tone::Plain,
-                                !self.session.opening,
-                                cx.listener(|this, _, window, cx| this.escape(window, cx)),
-                            )
-                            .text_size(ICON_SIZE * 1.5),
+                            }),
                         ),
                 )
-                .when_some(self.manager.error.as_ref(), |element, error| {
-                    element.child(error_text(error))
+                .when(open, |body| {
+                    body.child(self.open_sources(cx))
+                        .child(self.open_list(window, cx))
                 })
-                .child(
-                    div()
-                        .flex_1()
-                        .min_h_0()
-                        .flex()
-                        .child(
-                            div()
-                                .w(px(157.))
-                                .flex_shrink_0()
-                                .flex()
-                                .flex_col()
-                                .bg(rgb(HEADER))
-                                .border_r_1()
-                                .border_color(rgb(LINE))
-                                .children(
-                                    [
-                                        (
-                                            ManagerMode::Open,
-                                            "app.common.open",
-                                            "icons/folder-open.svg",
-                                        ),
-                                        (
-                                            ManagerMode::Clone,
-                                            "app.repositories.clone",
-                                            "icons/download.svg",
-                                        ),
-                                        (
-                                            ManagerMode::Init,
-                                            "app.repositories.init_tab",
-                                            "icons/folder-plus.svg",
-                                        ),
-                                    ]
-                                    .into_iter()
-                                    .map(
-                                        |(target, key, glyph)| {
-                                            let tone = Tone::Plain.selected_when(mode == target);
-                                            button_content(
-                                                key,
-                                                icon(glyph, tone.foreground()).size(px(16.)),
-                                                tone,
-                                                !self.session.opening,
-                                                cx.listener(move |this, _, _, cx| {
-                                                    this.manager.mode = Some(target);
-                                                    this.manager.error = None;
-                                                    cx.notify();
-                                                }),
-                                            )
-                                            .child(div().truncate().child(tr!(key)))
-                                            .gap(px(8.))
-                                            .w_full()
-                                            .justify_start()
-                                            .h(px(47.))
-                                            .pl(px(15.))
-                                            .rounded(px(0.))
-                                            .text_size(px(14.))
-                                        },
-                                    ),
-                                ),
-                        )
-                        .when(open, |body| {
-                            body.child(self.open_sources(cx))
-                                .child(self.open_list(window, cx))
-                        })
-                        .when(!open, |body| body.child(self.repository_form(mode, cx))),
-                ),
+                .when(!open, |body| body.child(self.repository_form(mode, cx))),
         )
     }
 

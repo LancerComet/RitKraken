@@ -171,7 +171,10 @@ fn read_preview_bytes(reader: impl Read) -> io::Result<Option<Vec<u8>>> {
     Ok((bytes.len() <= PATCH_VIEW_LIMIT).then_some(bytes))
 }
 
-fn read_preview(command: &mut Command, is_untracked_diff: bool) -> Result<Option<Vec<u8>>> {
+pub(crate) fn read_preview(
+    command: &mut Command,
+    is_untracked_diff: bool,
+) -> Result<Option<Vec<u8>>> {
     let mut child = without_optional_locks(command)
         .stdout(Stdio::piped())
         .stderr(Stdio::null())

@@ -11,8 +11,8 @@ use crate::{
 pub use detail::{CommitDetail, CommitPerson};
 pub use file::{BlameLine, FileCommit, FileHistory};
 
-const COMMIT_DATE_FORMAT: &str = "--date=format-local:%Y/%m/%d @ %H:%M";
-const COMMIT_LOG_FORMAT: &str = "--format=%H%x00%P%x00%an%x00%ae%x00%ad%x00%s";
+pub(crate) const COMMIT_DATE_FORMAT: &str = "--date=format-local:%Y/%m/%d @ %H:%M";
+pub(crate) const COMMIT_LOG_FORMAT: &str = "--format=%H%x00%P%x00%an%x00%ae%x00%ad%x00%s";
 
 #[derive(Clone, Debug)]
 pub struct Commit {
@@ -31,11 +31,15 @@ pub enum RefKind {
     Tag,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Reference {
     pub kind: RefKind,
     pub name: String,
     pub id: String,
+    /// The actual ref object, before peeling an annotated tag.
+    pub object_id: String,
+    /// Checked out in any worktree, including a linked worktree.
+    pub checked_out: bool,
 }
 
 #[derive(Debug)]
@@ -47,6 +51,8 @@ pub struct Snapshot {
     pub remotes: Vec<String>,
     pub upstream: Option<Upstream>,
     pub has_stash: bool,
+    pub sequence: Option<crate::SequenceKind>,
+    pub menu_metadata: crate::MenuMetadata,
     pub commits: Vec<Commit>,
     pub history_limited: bool,
 }
@@ -71,14 +77,21 @@ impl Repo {
             let status = thread::Builder::new().spawn_scoped(scope, || self.status())?;
             let references = thread::Builder::new().spawn_scoped(scope, || {
                 let branch = self.checked_out_branch()?;
-                let (refs, upstream) = self.references(branch.as_deref())?;
-                Ok::<_, Error>((branch, refs, upstream))
+                let (refs, upstream, reference_version) =
+                    self.reference_state(branch.as_deref())?;
+                let operation = self.operation_state()?;
+                let version = crate::commit_ops::menu::GraphVersion::read(
+                    reference_version,
+                    &operation.directory,
+                )?;
+                Ok::<_, Error>((branch, refs, upstream, operation, version))
             })?;
             let head = self.resolve_ref("HEAD")?;
-            let remotes = self.remotes()?;
+            let (remotes, remote_url) = self.remote_summary()?;
             let has_stash = self.resolve_ref("refs/stash")?.is_some();
             let status = status.join().expect("status reader panicked")?;
-            let (branch, refs, upstream) = references.join().expect("reference reader panicked")?;
+            let (branch, refs, upstream, operation, version) =
+                references.join().expect("reference reader panicked")?;
             let (commits, history_limited) = history.join().expect("history reader panicked")?;
             Ok(Snapshot {
                 branch,
@@ -88,6 +101,12 @@ impl Repo {
                 remotes,
                 upstream,
                 has_stash,
+                sequence: operation.kind,
+                menu_metadata: crate::MenuMetadata {
+                    version,
+                    remote_url,
+                    editing_head: operation.editing_head,
+                },
                 commits,
                 history_limited,
             })
@@ -109,6 +128,9 @@ impl Repo {
         if let Some(limit) = limit.as_deref() {
             args.push(limit);
         }
+        // During detached checkouts and an Edit pause, HEAD can point to a
+        // commit not yet reachable from any named reference.
+        args.extend(["--ignore-missing", "HEAD", "--"]);
         let mut commits = parse_log(&self.read(&args)?);
         let history_limited = history_limit.is_some_and(|limit| commits.len() > limit);
         if let Some(limit) = history_limit {
@@ -134,12 +156,21 @@ impl Repo {
         &self,
         branch: Option<&str>,
     ) -> Result<(Vec<Reference>, Option<Upstream>)> {
+        self.reference_state(branch)
+            .map(|(references, upstream, _)| (references, upstream))
+    }
+
+    fn reference_state(
+        &self,
+        branch: Option<&str>,
+    ) -> Result<(Vec<Reference>, Option<Upstream>, Vec<u8>)> {
         let bytes = self.read(&[
             "for-each-ref",
-            "--format=%(refname)%00%(objectname)%00%(*objectname)%00%(symref)%00%(upstream:remotename)%00%(upstream:remoteref)",
+            "--format=%(refname)%00%(objectname)%00%(*objectname)%00%(symref)%00%(upstream:remotename)%00%(upstream:remoteref)%00%(if)%(worktreepath)%(then)1%(else)0%(end)",
             "refs/heads",
             "refs/remotes",
             "refs/tags",
+            "refs/replace",
         ])?;
         let mut upstream = None;
         let refs = bytes
@@ -159,9 +190,9 @@ impl Repo {
                 } else {
                     (RefKind::Tag, name.strip_prefix("refs/tags/")?)
                 };
+                let remote = fields.next()?;
+                let reference = fields.next()?;
                 if kind == RefKind::Local && Some(name) == branch {
-                    let remote = fields.next()?;
-                    let reference = fields.next()?;
                     if !remote.is_empty() && reference.starts_with(b"refs/heads/") {
                         upstream = Some(Upstream {
                             remote: text(remote),
@@ -174,10 +205,12 @@ impl Repo {
                     kind,
                     name: name.to_owned(),
                     id,
+                    object_id: text(oid),
+                    checked_out: fields.next()? == b"1",
                 })
             })
             .collect();
-        Ok((refs, upstream))
+        Ok((refs, upstream, bytes))
     }
 }
 
@@ -185,7 +218,7 @@ pub fn short_id(id: &str) -> &str {
     id.get(..7).unwrap_or(id)
 }
 
-fn parse_log(bytes: &[u8]) -> Vec<Commit> {
+pub(crate) fn parse_log(bytes: &[u8]) -> Vec<Commit> {
     let fields: Vec<&[u8]> = bytes.split(|byte| *byte == 0).collect();
     fields
         .chunks_exact(6)
@@ -194,7 +227,7 @@ fn parse_log(bytes: &[u8]) -> Vec<Commit> {
         .collect()
 }
 
-fn commit_from_fields(fields: &[&[u8]]) -> Commit {
+pub(crate) fn commit_from_fields(fields: &[&[u8]]) -> Commit {
     Commit {
         id: text(fields[0]),
         parents: String::from_utf8_lossy(fields[1])

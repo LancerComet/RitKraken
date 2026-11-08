@@ -9,10 +9,16 @@ mod upstream {
     include!(concat!(env!("OUT_DIR"), "/file-menu-modules.rs"));
 
     pub(crate) use context_menu::ContextMenuExt;
+    pub(crate) use dropdown_menu::DropdownMenu;
     pub(crate) use popup_menu::{PopupMenu, PopupMenuItem};
 }
 
-pub(in crate::app) use upstream::{ContextMenuExt, PopupMenu, PopupMenuItem};
+pub(in crate::app) use upstream::{ContextMenuExt, DropdownMenu, PopupMenu, PopupMenuItem};
+
+pub(in crate::app) fn menu_style(menu: PopupMenu, window: &Window) -> PopupMenu {
+    menu.text_size(rems(0.875).to_pixels(window.rem_size()) - px(2.))
+        .padding(rems(0.25).to_pixels(window.rem_size()) + px(2.))
+}
 
 // The toolkit's AnyInputState forwarding methods are private. This adapter
 // forwards to the public input states without owning their selection.

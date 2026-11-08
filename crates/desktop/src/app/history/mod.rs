@@ -1,12 +1,14 @@
+mod commit_menu;
 mod graph;
 mod labels;
 mod layout;
+mod ref_menu;
 mod view;
 
 use std::{collections::HashMap, sync::Arc};
 
 use gpui_kit::*;
-use ritkraken_git::{Repo, Snapshot};
+use ritkraken_git::{CommitMenuSnapshot, Repo, Snapshot};
 
 use super::{Client, Load, Message, changes::ChangeSummary, widgets::table::ResizableColumns};
 use labels::{RefBadge, group_refs};
@@ -15,6 +17,7 @@ use layout::GraphLayout;
 pub(super) struct History {
     pub snapshot: Snapshot,
     pub position: HashMap<String, usize>,
+    pub(super) menu: Arc<CommitMenuSnapshot>,
     pub(super) worktree_summary: ChangeSummary,
     graph: GraphLayout,
     labels: HashMap<String, Arc<[RefBadge]>>,
@@ -22,7 +25,16 @@ pub(super) struct History {
 
 impl History {
     pub(super) fn load(repo: &Repo, limit: Option<usize>) -> ritkraken_git::Result<Arc<Self>> {
+        Self::reload(repo, limit, None)
+    }
+
+    pub(super) fn reload(
+        repo: &Repo,
+        limit: Option<usize>,
+        previous_menu: Option<&Arc<CommitMenuSnapshot>>,
+    ) -> ritkraken_git::Result<Arc<Self>> {
         let snapshot = repo.snapshot(limit)?;
+        let menu = repo.commit_menu_snapshot(&snapshot, previous_menu)?;
         let graph = GraphLayout::new(&snapshot.commits);
         let worktree_summary = ChangeSummary::new(snapshot.status.distinct_changes());
         let position = snapshot
@@ -34,6 +46,7 @@ impl History {
         let labels = group_refs(&snapshot);
         Ok(Arc::new(Self {
             snapshot,
+            menu,
             position,
             worktree_summary,
             graph,

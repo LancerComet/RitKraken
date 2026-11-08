@@ -1,3 +1,4 @@
+use std::rc::Rc;
 use std::sync::Arc;
 
 use gpui_kit::{
@@ -7,6 +8,7 @@ use ritkraken_git as git;
 
 use super::{
     History,
+    commit_menu::CommitMenu,
     graph::{BAND_HEIGHT, ROW_HEIGHT, column_width, graph_cell},
     labels::ref_labels,
 };
@@ -15,6 +17,7 @@ use crate::app::{
     changes::SummaryStyle,
     widgets::{
         HOVER, LINE, MUTED, SELECT, TEAL, WHITE,
+        menu::ContextMenuExt as _,
         table::{Column, ColumnWidths, HEADER_HEIGHT},
     },
 };
@@ -88,20 +91,50 @@ impl Client {
                     let element = history_row(
                         &history,
                         index,
-                        row,
                         show_wip,
                         widths,
                         selected == selection,
                         allow_ref_hover,
+                        id,
+                        view.clone(),
                     );
+                    let menu = selection.clone().map(|target| CommitMenu {
+                        id,
+                        target,
+                        owner: view.clone(),
+                    });
+                    let view_for_wip = view.clone();
                     let view = view.clone();
                     let focus = focus.clone();
-                    element.on_click(move |_, window, cx| {
+                    let activate = Rc::new(move |window: &mut Window, cx: &mut App| {
                         let _ = view.update(cx, |this, cx| {
                             focus.focus(window, cx);
-                            this.select(id, selection.clone(), None, window, cx);
+                            if this
+                                .tab(id)
+                                .is_some_and(|tab| tab.history.selected != selection)
+                            {
+                                this.select(id, selection.clone(), None, window, cx);
+                            }
                         });
-                    })
+                    });
+                    let right_click = activate.clone();
+                    let element = element
+                        .on_mouse_down(MouseButton::Right, move |_, window, cx| {
+                            right_click(window, cx)
+                        })
+                        .on_click(move |_, window, cx| activate(window, cx));
+                    if let Some(menu) = menu {
+                        element
+                            .context_menu(move |popup, window, cx| menu.build(popup, window, cx))
+                            .into_any_element()
+                    } else {
+                        let owner = view_for_wip.clone();
+                        element
+                            .context_menu(move |popup, window, cx| {
+                                super::commit_menu::worktree_menu(id, &owner, popup, window, cx)
+                            })
+                            .into_any_element()
+                    }
                 })
                 .collect::<Vec<_>>()
         })
@@ -159,11 +192,12 @@ impl Client {
 fn history_row(
     history: &Arc<History>,
     index: Option<usize>,
-    row: usize,
     show_wip: bool,
     widths: ColumnWidths<6>,
     selected: bool,
     allow_ref_hover: bool,
+    id: u64,
+    owner: WeakEntity<Client>,
 ) -> Stateful<Div> {
     let commit = index.map(|index| &history.snapshot.commits[index]);
     let labels = commit.and_then(|commit| {
@@ -173,7 +207,10 @@ fn history_row(
     });
     let color = index.map_or(TEAL, |index| history.graph.rows[index].node.color);
     let element = div()
-        .id(("commit-row", row))
+        .id(SharedString::from(format!(
+            "commit-row-{}",
+            commit.map_or("wip", |commit| commit.id.as_str())
+        )))
         .w_full()
         .h(ROW_HEIGHT)
         .flex()
@@ -181,7 +218,7 @@ fn history_row(
         .cursor_pointer()
         .bg(rgb(if selected { SELECT } else { WHITE }))
         .hover(|style| style.bg(rgb(if selected { SELECT } else { HOVER })))
-        .child(widths.cell(0, ref_labels(labels, color, allow_ref_hover)))
+        .child(widths.cell(0, ref_labels(labels, color, allow_ref_hover, id, owner)))
         .child(widths.cell(
             1,
             graph_cell(

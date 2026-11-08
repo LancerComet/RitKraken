@@ -60,18 +60,19 @@ impl Default for EditorTypography {
     fn default() -> Self {
         Self {
             font_family: None,
-            font_size: 13,
-            line_height: None,
+            font_size: 12,
+            line_height: Some(18),
         }
     }
 }
 
 impl EditorTypography {
     pub(super) fn read(value: &Value) -> Self {
+        let defaults = Self::default();
         let read_px = |key: &str| value[key].as_u64().and_then(|px| u16::try_from(px).ok());
         let font_size = read_px("font_size")
             .filter(|size| FONT_SIZE.contains(size))
-            .unwrap_or(Self::default().font_size);
+            .unwrap_or(defaults.font_size);
         Self {
             font_family: value["font_family"]
                 .as_str()
@@ -79,7 +80,9 @@ impl EditorTypography {
                 .filter(|family| !family.is_empty())
                 .map(str::to_owned),
             font_size,
-            line_height: read_px("line_height")
+            line_height: value
+                .get("line_height")
+                .map_or(defaults.line_height, |_| read_px("line_height"))
                 .filter(|height| (font_size..=MAX_LINE_HEIGHT).contains(height)),
         }
     }
@@ -270,6 +273,8 @@ impl Client {
         let options = &draft.options;
         let editor = &draft.editor;
         let layouts = div()
+            .w_full()
+            .min_w_0()
             .flex()
             .children(DiffLayout::ALL.into_iter().map(|layout| {
                 layout
@@ -288,6 +293,8 @@ impl Client {
                         }),
                     )
                     .w(px(72.))
+                    .flex_1()
+                    .max_w(px(72.))
             }));
         div()
             .flex()
@@ -314,6 +321,8 @@ impl Client {
                 "app.preferences.editor_font",
                 Select::new(&editor.font)
                     .w(px(290.))
+                    .max_w_full()
+                    .min_w_0()
                     .menu_max_h(px(320.))
                     .search_placeholder(tr!("app.preferences.editor_font_search"))
                     .accessibility_label(tr!("app.preferences.editor_font")),
@@ -323,6 +332,8 @@ impl Client {
                 "app.preferences.editor_font_size",
                 NumberInput::new(&editor.font_size)
                     .w(px(132.))
+                    .max_w_full()
+                    .min_w_0()
                     .suffix(pixel_suffix())
                     .accessibility_label(tr!("app.preferences.editor_font_size")),
                 None,
@@ -331,6 +342,8 @@ impl Client {
                 "app.preferences.editor_line_height",
                 Input::new(&editor.line_height)
                     .w(px(132.))
+                    .max_w_full()
+                    .min_w_0()
                     .suffix(pixel_suffix())
                     .aria_label(tr!("app.preferences.editor_line_height")),
                 Some("app.preferences.editor_line_height_hint"),

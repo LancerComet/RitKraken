@@ -6,7 +6,7 @@ use ritkraken_git::{FileTarget, IgnoreRule, Scope};
 use crate::{
     app::{
         Client, Message, RepoOperation,
-        widgets::menu::{PopupMenu, PopupMenuItem},
+        widgets::menu::{PopupMenu, PopupMenuItem, menu_style},
     },
     i18n::tr,
 };
@@ -165,11 +165,6 @@ impl FileMenu {
                 });
             })
     }
-}
-
-fn menu_style(menu: PopupMenu, window: &Window) -> PopupMenu {
-    menu.text_size(rems(0.875).to_pixels(window.rem_size()) - px(2.))
-        .padding(rems(0.25).to_pixels(window.rem_size()) + px(2.))
 }
 
 impl Client {
@@ -365,34 +360,17 @@ impl Client {
                         .unwrap_or_default()
                         .to_string_lossy()
                 );
-                let prompt = cx.prompt_for_new_path(repo.root(), Some(&name));
-                cx.spawn_in(window, async move |view, cx| {
-                    let result = match prompt.await {
-                        Ok(Ok(Some(path))) => {
-                            cx.background_executor()
-                                .spawn(async move {
-                                    std::fs::write(path, bytes).map_err(|error| {
-                                        Message::detail("app.file_menu.export_failed", error)
-                                    })
-                                })
-                                .await
-                        }
-                        Ok(Err(error)) => {
-                            Err(Message::detail("app.file_menu.export_failed", error))
-                        }
-                        _ => return,
-                    };
-                    let _ = view.update_in(cx, |this, _, cx| {
-                        if let Some(tab) = this.tab_mut(id) {
-                            tab.notice = Some(match result {
-                                Ok(()) => (false, Message::Key("app.file_menu.patch_saved")),
-                                Err(error) => (true, error),
-                            });
-                            cx.notify();
-                        }
-                    });
-                })
-                .detach();
+                let _ = repo;
+                this.save_patch(
+                    id,
+                    name,
+                    move |path| {
+                        std::fs::write(path, bytes)
+                            .map_err(|error| Message::detail("app.file_menu.export_failed", error))
+                    },
+                    window,
+                    cx,
+                );
             },
         );
     }

@@ -12,6 +12,9 @@ use gpui_kit::*;
 rust_i18n::i18n!("locales", fallback = "en");
 
 fn main() {
+    if let Some(result) = ritkraken_git::run_git_editor() {
+        std::process::exit(if result.is_ok() { 0 } else { 1 });
+    }
     let path = std::env::args_os().nth(1).map(PathBuf::from);
     gpui_kit::application()
         .with_assets(gpui_kit::assets::AllAssets)

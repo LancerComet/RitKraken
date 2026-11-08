@@ -14,9 +14,7 @@ use super::{
 impl Render for Client {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let tab = self.session.active_tab();
-        let body = if let Some(preferences) = &self.preferences {
-            self.preferences_view(preferences, cx).into_any_element()
-        } else if let Some(Tab::Ready(tab)) = tab {
+        let body = if let Some(Tab::Ready(tab)) = tab {
             self.workspace(tab, window, cx).into_any_element()
         } else if let Some(Tab::Saved(tab)) = tab {
             self.saved_tab_view(tab, cx).into_any_element()
@@ -51,9 +49,7 @@ impl Render for Client {
             .text_size(px(12.))
             .child(finish_released_text_selection())
             .child(self.tab_bar(cx))
-            .when(self.preferences.is_none(), |element| {
-                element.child(self.toolbar(tab, cx))
-            })
+            .child(self.toolbar(tab, cx))
             .child(
                 div()
                     .relative()
@@ -62,8 +58,9 @@ impl Render for Client {
                     .overflow_hidden()
                     .child(body),
             )
-            .when(self.preferences.is_none(), |element| {
-                element.child(self.status_bar(tab))
+            .child(self.status_bar(tab))
+            .when_some(self.preferences.as_ref(), |element, preferences| {
+                element.child(self.preferences_view(preferences, cx))
             })
             .when_some(self.manager.mode, |element, mode| {
                 element.child(self.manager_view(mode, window, cx))
@@ -278,6 +275,8 @@ impl Client {
                     if *error { RED } else { GREEN },
                     text.lines().next().unwrap_or(&text).to_owned(),
                 )
+            } else if tab.history.data.snapshot.sequence.is_some() {
+                (MUTED, tr!("app.commit_menu.paused"))
             } else {
                 (MUTED, tab.repo.root().to_string_lossy().into_owned())
             }

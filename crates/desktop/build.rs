@@ -10,7 +10,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let generated = output.join("file-menu");
     fs::create_dir_all(&generated)?;
     println!("cargo:rerun-if-changed=../../Cargo.lock");
-    for name in ["context_menu.rs", "popup_menu.rs", "menu_item.rs"] {
+    for name in [
+        "context_menu.rs",
+        "popup_menu.rs",
+        "menu_item.rs",
+        "dropdown_menu.rs",
+    ] {
         let source = upstream.join("src/menu").join(name);
         println!("cargo:rerun-if-changed={}", source.display());
         let source = fs::read_to_string(source)?;
@@ -20,6 +25,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .replace("gpui_kit::component::actions::", "gpui_kit::base::actions::")
             .replace("gpui_base::", "gpui_kit::base::")
             .replace("use gpui_kit::component::menu::menu_item::MenuItemElement;", "use super::menu_item::MenuItemElement;")
+            .replace("use gpui_kit::component::{Selectable, button::Button, menu::PopupMenu, popover::Popover};", "use gpui_kit::component::{Selectable, button::Button, popover::Popover};\nuse super::PopupMenu;")
             .replace("use gpui_kit::component::{input::AnyInputState, menu::PopupMenu, root::WindowState};", "use gpui_kit::component::{input::AnyInputState, WindowExt as _};\nuse super::{MenuInputExt as _, PopupMenu};")
             .replace("WindowState::try_update(window, cx, |state, _, _| state.focused_input.clone())\n                    .flatten()", "window.focused_input(cx)")
             .replace("input.input_bounds(cx)", "input.menu_input_bounds(cx)")
@@ -41,6 +47,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             "#[path = \"file-menu/context_menu.rs\"]\nmod context_menu;\n",
             "#[path = \"file-menu/popup_menu.rs\"]\nmod popup_menu;\n",
             "#[path = \"file-menu/menu_item.rs\"]\nmod menu_item;\n",
+            "#[path = \"file-menu/dropdown_menu.rs\"]\nmod dropdown_menu;\n",
         ),
     )?;
     Ok(())

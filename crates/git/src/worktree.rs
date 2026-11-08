@@ -7,6 +7,7 @@ use std::{collections::HashSet, path::PathBuf, process::Command};
 use crate::{Repo, Result, RuleError, command::run_write, protocol::path_from_bytes};
 
 pub use files::DiscardFile;
+pub(crate) use files::WorkspaceVersion;
 pub use ignore::IgnoreRule;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -16,13 +17,20 @@ pub struct Change {
     pub code: u8,
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct Status {
     pub unstaged: Vec<Change>,
     pub staged: Vec<Change>,
 }
 
 impl Status {
+    pub(crate) fn has_conflicts(&self) -> bool {
+        self.staged
+            .iter()
+            .chain(&self.unstaged)
+            .any(|change| change.code == b'U')
+    }
+
     pub fn is_empty(&self) -> bool {
         self.unstaged.is_empty() && self.staged.is_empty()
     }

@@ -1,4 +1,6 @@
 pub(super) mod menu;
+pub(super) mod modal;
+pub(super) mod name_dialog;
 pub(super) mod table;
 pub(super) mod tooltip;
 

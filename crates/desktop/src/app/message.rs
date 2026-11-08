@@ -52,6 +52,20 @@ fn git_error(error: &Error) -> String {
 
 fn rule_error(rule: &RuleError) -> String {
     let key = match rule {
+        RuleError::StaleReference => "app.ref_menu.stale",
+        RuleError::BranchInUse => "app.ref_menu.in_use",
+        RuleError::UnmergedBranch => "app.ref_menu.unmerged",
+        RuleError::RefExists => "app.ref_menu.exists",
+        RuleError::RefUnavailable => "app.ref_menu.unavailable",
+        RuleError::InvalidCommit => "app.commit_menu.invalid_commit",
+        RuleError::StaleCommit => "app.commit_menu.stale",
+        RuleError::CommitUnavailable => "app.commit_menu.unavailable",
+        RuleError::DirtyWorktree => "app.commit_menu.dirty",
+        RuleError::UnresolvedConflicts => "app.commit_menu.conflict",
+        RuleError::SequenceInProgress => "app.commit_menu.in_progress",
+        RuleError::InvalidRefName => "app.commit_menu.invalid_name",
+        RuleError::MainlineRequired => "app.commit_menu.mainline_required",
+        RuleError::InvalidRebasePlan => "app.commit_menu.invalid_plan",
         RuleError::StaleFile => "app.file_menu.stale_file",
         RuleError::InvalidFilePath => "app.file_menu.invalid_path",
         RuleError::InvalidIgnorePattern => "app.file_menu.invalid_ignore_pattern",

@@ -38,3 +38,5 @@ pub fn fixture() -> (tempfile::TempDir, Repo) {
     }
     (directory, repo)
 }
+
+pub mod commits;

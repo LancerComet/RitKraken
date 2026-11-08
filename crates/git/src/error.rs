@@ -22,6 +22,36 @@ pub enum Error {
 
 #[derive(Debug, thiserror::Error)]
 pub enum RuleError {
+    #[error("This reference changed. Reopen its menu before continuing.")]
+    StaleReference,
+    #[error("This branch is checked out in a worktree and cannot be changed here.")]
+    BranchInUse,
+    #[error("This branch has commits not merged into HEAD. Merge it before deleting.")]
+    UnmergedBranch,
+    #[error("A reference with that name already exists.")]
+    RefExists,
+    #[error("This operation is not available for this reference.")]
+    RefUnavailable,
+    #[error("This commit is no longer valid.")]
+    InvalidCommit,
+    #[error("The repository changed. Reopen the commit menu and review the operation.")]
+    StaleCommit,
+    #[error("This operation is not available for the selected commit.")]
+    CommitUnavailable,
+    #[error("Commit or stash your changes before continuing.")]
+    DirtyWorktree,
+    #[error("Resolve and stage the conflicts before continuing.")]
+    UnresolvedConflicts,
+    #[error("Finish or abort the current Git operation first.")]
+    SequenceInProgress,
+    #[error("Enter a valid branch or tag name.")]
+    InvalidRefName,
+    #[error("Choose a mainline parent for this merge commit.")]
+    MainlineRequired,
+    #[error(
+        "The rebase plan is invalid. Each commit must appear once and squash/fixup must follow a kept commit."
+    )]
+    InvalidRebasePlan,
     #[error("This file changed on disk. Review it again before continuing.")]
     StaleFile,
     #[error("This operation requires a repository-relative file path.")]

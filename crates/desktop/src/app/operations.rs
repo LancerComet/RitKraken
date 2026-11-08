@@ -1,3 +1,5 @@
+mod confirm;
+
 use std::sync::Arc;
 
 use gpui_kit::*;
@@ -11,6 +13,8 @@ use super::{
 
 #[derive(Clone)]
 pub(super) enum RepoOperation {
+    Reference(git::RefRequest),
+    CommitGraph(Arc<git::PreparedCommitOperation>),
     StageFiles(StageAction, Option<Change>),
     StagePatch(FileTarget, Arc<Patch>, PatchSelection),
     DiscardFile(Arc<git::DiscardFile>),
@@ -30,8 +34,32 @@ pub(super) enum RepoOperation {
 }
 
 impl RepoOperation {
+    fn resets_selection(&self) -> bool {
+        match self {
+            Self::Reference(request) => matches!(
+                request.operation,
+                git::RefOperation::Checkout | git::RefOperation::Track(_)
+            ),
+            Self::CommitGraph(operation) => !matches!(
+                operation.operation,
+                git::CommitOperation::CreateTag(_)
+                    | git::CommitOperation::CreateBranch {
+                        checkout: false,
+                        ..
+                    }
+            ),
+            Self::Switch(_) | Self::Branch(_) | Self::Stash | Self::Pop => true,
+            _ => false,
+        }
+    }
+
     fn execute(&self, repo: &Repo) -> git::Result<()> {
         match self {
+            Self::Reference(request) => repo.apply_ref_operation(request),
+            Self::CommitGraph(operation) => repo.apply_commit_operation(
+                operation,
+                &git::GitEditor::for_executable(&std::env::current_exe()?),
+            ),
             Self::StageFiles(StageAction::Stage, change) => repo.stage(change.as_ref()),
             Self::StageFiles(StageAction::Unstage, change) => repo.unstage(change.as_ref()),
             Self::StagePatch(file, patch, selection) => repo.apply_partial(file, patch, *selection),
@@ -60,6 +88,8 @@ impl RepoOperation {
 
     fn status_key(&self) -> &'static str {
         match self {
+            Self::Reference(_) => "app.ref_menu.completed",
+            Self::CommitGraph(_) => "app.commit_menu.completed",
             Self::StageFiles(StageAction::Stage, _) => "app.notice.staged",
             Self::StageFiles(StageAction::Unstage, _) => "app.notice.unstaged",
             Self::DiscardFile(_) => "app.file_menu.discarded",
@@ -140,12 +170,14 @@ impl Client {
             tab.notice = None;
         }
         let repo = tab.repo.clone();
+        let previous_menu = tab.history.data.menu.clone();
         Self::spawn_background(
             window,
             cx,
             move || {
                 let result = edit.as_ref().map(|edit| edit.execute(&repo));
-                let history = History::load(&repo, limit).map(|history| (history, limit));
+                let history = History::reload(&repo, limit, Some(&previous_menu))
+                    .map(|history| (history, limit));
                 (result.zip(edit), history)
             },
             move |this, (result, history), window, cx| {
@@ -172,13 +204,7 @@ impl Client {
                 Ok(()) => {
                     tab.notice = Some((false, Message::Key(edit.status_key())));
                     committed = matches!(edit, RepoOperation::Commit(..));
-                    reset_selection = matches!(
-                        edit,
-                        RepoOperation::Switch(_)
-                            | RepoOperation::Branch(_)
-                            | RepoOperation::Stash
-                            | RepoOperation::Pop
-                    );
+                    reset_selection = edit.resets_selection();
                     if committed {
                         tab.changes
                             .summary
@@ -209,6 +235,11 @@ impl Client {
                 cx.notify();
                 return;
             }
+        }
+        if tab.history.data.snapshot.sequence.is_some()
+            && !tab.notice.as_ref().is_some_and(|(error, _)| *error)
+        {
+            tab.notice = Some((false, Message::Key("app.commit_menu.paused")));
         }
         let initial_selection = HistoryState::initial_selection(&tab.history.data);
         let leave_wip = tab.history.selected.is_none() && initial_selection.is_some();

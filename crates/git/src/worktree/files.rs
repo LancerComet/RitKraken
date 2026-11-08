@@ -25,7 +25,38 @@ enum WorktreeVersion {
     Symlink(PathBuf),
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct WorkspaceVersion {
+    status: crate::Status,
+    index: Vec<u8>,
+    worktree: Vec<(PathBuf, WorktreeVersion)>,
+}
+
 impl Repo {
+    pub(crate) fn workspace_version(&self) -> Result<WorkspaceVersion> {
+        let status = self.status()?;
+        let index = self.read(&["ls-files", "--stage", "-z"])?;
+        let mut paths: Vec<_> = status
+            .distinct_changes()
+            .flat_map(|change| std::iter::once(change.path.clone()).chain(change.previous.clone()))
+            .collect();
+        paths.sort();
+        paths.dedup();
+        let mut worktree = Vec::new();
+        for path in paths {
+            // Non-recursive Git operations leave submodule working trees alone.
+            if self.root().join(&path).is_dir() {
+                continue;
+            }
+            worktree.push((path.clone(), self.worktree_version(&path)?));
+        }
+        Ok(WorkspaceVersion {
+            status,
+            index,
+            worktree,
+        })
+    }
+
     pub fn prepare_discard(&self, file: &FileTarget) -> Result<DiscardFile> {
         validate_change(&file.change)?;
         let status = self.status()?;

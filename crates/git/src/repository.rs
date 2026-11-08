@@ -53,7 +53,7 @@ impl Repo {
     }
 
     pub fn create_branch(&self, name: &str) -> Result<()> {
-        run_write(self.git().args(["switch", "-c", name]))
+        self.create_branch_at(name, None, true, None)
     }
 
     pub fn root(&self) -> &Path {

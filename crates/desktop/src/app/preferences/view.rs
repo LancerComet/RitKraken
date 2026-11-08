@@ -6,7 +6,7 @@ use gpui_kit::{
         checkbox::Checkbox,
         input::Input,
         menu::{DropdownMenu as _, PopupMenuItem},
-        scroll::ScrollableElement,
+        scroll::{ScrollableElement, Scrollbar},
     },
     prelude::*,
     *,
@@ -15,7 +15,7 @@ use gpui_kit::{
 use super::{PreferenceDraft, PreferencePage, Preferences};
 use crate::app::{
     Client,
-    widgets::{HEADER, HOVER, LINE, MUTED, PAPER, SELECT, Tone, button, error_text, heading, icon},
+    widgets::{HEADER, HOVER, LINE, MUTED, PAPER, SELECT, error_text, icon, modal::Modal},
 };
 
 impl Client {
@@ -23,102 +23,107 @@ impl Client {
         &self,
         draft: &PreferenceDraft,
         cx: &mut Context<Self>,
-    ) -> Div {
+    ) -> Modal {
         let sidebar_text_size = px(15.);
         let form = match draft.page {
             PreferencePage::General => self.general_preferences(draft, cx),
             PreferencePage::Appearance => self.appearance_preferences(draft, cx),
             PreferencePage::Editor => self.editor_preferences(draft, cx),
         };
-        div()
-            .size_full()
-            .flex()
-            .bg(rgb(PAPER))
-            .child(
-                div()
-                    .w(px(248.))
-                    .flex_shrink_0()
-                    .h_full()
-                    .flex()
-                    .flex_col()
-                    .border_r_1()
-                    .border_color(rgb(LINE))
-                    .bg(rgb(HEADER))
-                    .child(
-                        button(
-                            "exit-preferences",
-                            tr!("app.preferences.exit"),
-                            Tone::Plain,
-                            true,
-                            cx.listener(|this, _, window, cx| this.save_preferences(window, cx)),
-                        )
-                        .justify_start()
-                        .h(px(41.))
-                        .pl(px(14.))
-                        .text_size(sidebar_text_size),
-                    )
-                    .child(
-                        heading(tr!("app.preferences.title"))
-                            .px(px(14.))
-                            .py(px(11.)),
-                    )
-                    .children(
-                        [
-                            (PreferencePage::General, "icons/settings.svg"),
-                            (PreferencePage::Appearance, "icons/panel-left.svg"),
-                            (PreferencePage::Editor, "icons/file-diff.svg"),
-                        ]
-                        .into_iter()
-                        .map(|(page, glyph)| {
-                            let active = draft.page == page;
-                            div()
-                                .id(page.label_key())
-                                .w_full()
-                                .flex()
-                                .items_center()
-                                .gap(px(12.))
-                                .px(px(15.))
-                                .h(px(38.))
-                                .cursor_pointer()
-                                .bg(rgb(if active { SELECT } else { HEADER }))
-                                .hover(|s| s.bg(rgb(HOVER)))
-                                .on_click(cx.listener(move |this, _, _, cx| {
-                                    if let Some(preferences) = this.preferences.as_mut() {
-                                        preferences.page = page;
-                                        cx.notify();
-                                    }
-                                }))
-                                .child(icon(glyph, MUTED))
-                                .child(
-                                    div()
-                                        .text_size(sidebar_text_size)
-                                        .child(tr!(page.label_key())),
-                                )
-                        }),
-                    ),
-            )
-            .child(
-                div().flex_1().min_w_0().h_full().child(
+        Modal::new(
+            "preferences-modal",
+            tr!("app.preferences.title"),
+            &self.modal_focus,
+            true,
+            cx.listener(|this, _, window, cx| this.save_preferences(window, cx)),
+        )
+        .relative_size(size(0.75, 0.8), size(px(1920.), px(1200.)))
+        .child(
+            div()
+                .w_full()
+                .flex_1()
+                .min_h_0()
+                .flex()
+                .bg(rgb(PAPER))
+                .child(
                     div()
-                        .size_full()
+                        .w(px(204.))
+                        .flex_shrink_0()
+                        .h_full()
                         .flex()
                         .flex_col()
-                        .px(px(32.))
-                        .py(px(19.))
-                        .gap(px(14.))
-                        .child(
-                            div()
-                                .text_size(px(23.))
-                                .font_weight(FontWeight::SEMIBOLD)
-                                .child(tr!(draft.page.label_key())),
-                        )
-                        .when_some(draft.error.as_ref(), |body, error| {
-                            body.child(error_text(error))
-                        })
-                        .child(form)
-                        .overflow_y_scrollbar(),
+                        .border_r_1()
+                        .border_color(rgb(LINE))
+                        .bg(rgb(HEADER))
+                        .py(px(8.))
+                        .children(
+                            [
+                                (PreferencePage::General, "icons/settings.svg"),
+                                (PreferencePage::Appearance, "icons/panel-left.svg"),
+                                (PreferencePage::Editor, "icons/file-diff.svg"),
+                            ]
+                            .into_iter()
+                            .map(|(page, glyph)| {
+                                let active = draft.page == page;
+                                div()
+                                    .id(page.label_key())
+                                    .w_full()
+                                    .flex()
+                                    .items_center()
+                                    .gap(px(12.))
+                                    .px(px(15.))
+                                    .h(px(38.))
+                                    .cursor_pointer()
+                                    .bg(rgb(if active { SELECT } else { HEADER }))
+                                    .hover(|s| s.bg(rgb(HOVER)))
+                                    .on_click(cx.listener(move |this, _, _, cx| {
+                                        if let Some(preferences) = this.preferences.as_mut() {
+                                            preferences.page = page;
+                                            cx.notify();
+                                        }
+                                    }))
+                                    .child(icon(glyph, MUTED))
+                                    .child(
+                                        div()
+                                            .text_size(sidebar_text_size)
+                                            .child(tr!(page.label_key())),
+                                    )
+                            }),
+                        ),
+                )
+                .child(
+                    div().flex_1().min_w_0().h_full().child(
+                        div()
+                            .size_full()
+                            .flex()
+                            .flex_col()
+                            .px(px(24.))
+                            .py(px(19.))
+                            .gap(px(14.))
+                            .child(
+                                div()
+                                    .flex_shrink_0()
+                                    .text_size(px(23.))
+                                    .font_weight(FontWeight::SEMIBOLD)
+                                    .child(tr!(draft.page.label_key())),
+                            )
+                            .when_some(draft.error.as_ref(), |body, error| {
+                                body.child(error_text(error).flex_shrink_0())
+                            })
+                            .child(
+                                div()
+                                    .id(SharedString::from(format!(
+                                        "preferences-form-{}",
+                                        draft.page.label_key()
+                                    )))
+                                    .flex_1()
+                                    .min_h_0()
+                                    .child(form.pr(Scrollbar::width() + px(8.)))
+                                    .overflow_y_scrollbar(),
+                            ),
+                    ),
                 ),
-            )
+        )
     }
 
     fn general_preferences(&self, draft: &PreferenceDraft, cx: &mut Context<Self>) -> Div {
@@ -135,7 +140,7 @@ impl Client {
             ))
             .child(preference_row(
                 "app.preferences.default_branch",
-                Input::new(&draft.branch).w(px(255.)),
+                Input::new(&draft.branch).w(px(255.)).max_w_full().min_w_0(),
                 Some("app.preferences.default_branch_hint"),
             ))
             .child(preference_row(
@@ -152,7 +157,11 @@ impl Client {
             ))
             .child(preference_row(
                 "app.preferences.initial_commits",
-                Input::new(&draft.count).w(px(255.)).disabled(!limited),
+                Input::new(&draft.count)
+                    .w(px(255.))
+                    .max_w_full()
+                    .min_w_0()
+                    .disabled(!limited),
                 Some("app.preferences.initial_commits_hint"),
             ))
             .child(preference_row(
@@ -205,6 +214,8 @@ fn language_picker(selected: Language, cx: &Context<Client>) -> impl IntoElement
         .accessibility_label(tr!("app.preferences.language"))
         .child(icon("icons/chevron-down.svg", MUTED).size(px(12.)))
         .w(px(255.))
+        .max_w_full()
+        .min_w_0()
         .dropdown_menu(move |menu, _, _| {
             Language::ALL.into_iter().fold(menu, |menu, language| {
                 let view = view.clone();
@@ -231,7 +242,9 @@ pub(super) fn preference_row(
         .gap(px(24.))
         .child(
             div()
-                .w(px(226.))
+                .w(relative(0.35))
+                .max_w(px(226.))
+                .min_w_0()
                 .flex_shrink_0()
                 .pt(px(6.))
                 .text_right()
