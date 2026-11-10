@@ -1,4 +1,5 @@
 mod editor;
+mod git;
 mod view;
 
 use std::ops::RangeInclusive;
@@ -16,6 +17,7 @@ const INITIAL_COMMIT_RANGE: RangeInclusive<usize> = 500..=100_000;
 pub(super) struct Preferences {
     pub(super) language: Language,
     pub(super) default_branch: String,
+    auto_fetch_minutes: u64,
     pub(super) initial_commits: usize,
     pub(super) show_all_commits: bool,
     pub(super) lazy_history: bool,
@@ -31,6 +33,7 @@ impl Default for Preferences {
         Self {
             language: Language::default(),
             default_branch: "main".into(),
+            auto_fetch_minutes: git::DEFAULT_AUTO_FETCH_MINUTES,
             initial_commits: 2000,
             show_all_commits: false,
             lazy_history: true,
@@ -54,6 +57,10 @@ impl Preferences {
             default_branch: value["default_branch"]
                 .as_str()
                 .map_or(defaults.default_branch, str::to_owned),
+            auto_fetch_minutes: value["auto_fetch_minutes"]
+                .as_u64()
+                .and_then(git::valid_auto_fetch_minutes)
+                .unwrap_or(defaults.auto_fetch_minutes),
             initial_commits: value["initial_commits"]
                 .as_u64()
                 .and_then(|count| usize::try_from(count).ok())
@@ -84,6 +91,7 @@ impl Preferences {
         serde_json::json!({
             "language": self.language.code(),
             "default_branch": self.default_branch,
+            "auto_fetch_minutes": self.auto_fetch_minutes,
             "initial_commits": self.initial_commits,
             "show_all_commits": self.show_all_commits,
             "lazy_history": self.lazy_history,
@@ -103,6 +111,7 @@ impl Preferences {
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) enum PreferencePage {
     General,
+    Git,
     Appearance,
     Editor,
 }
@@ -111,6 +120,7 @@ impl PreferencePage {
     fn label_key(self) -> &'static str {
         match self {
             Self::General => "app.preferences.general",
+            Self::Git => "app.preferences.git",
             Self::Appearance => "app.preferences.appearance",
             Self::Editor => "app.preferences.editor",
         }
@@ -122,6 +132,7 @@ pub(super) struct PreferenceDraft {
     pub(super) options: Preferences,
     pub(super) branch: LocalizedInput,
     pub(super) count: Entity<InputState>,
+    auto_fetch: Entity<InputState>,
     editor: EditorDraft,
     pub(super) error: Option<Message>,
 }
@@ -142,6 +153,7 @@ impl Client {
         let count = cx.new(|cx| {
             InputState::new(window, cx).default_value(options.initial_commits.to_string())
         });
+        let auto_fetch = cx.new(|cx| unsigned_input(Some(options.auto_fetch_minutes), window, cx));
         let editor = EditorDraft::new(&options, window, cx);
         self.manager.mode = None;
         self.branch_dialog.open = false;
@@ -150,6 +162,7 @@ impl Client {
             options,
             branch,
             count,
+            auto_fetch,
             editor,
             error: None,
         });
@@ -193,6 +206,21 @@ impl Client {
             };
             options.initial_commits = count;
         }
+        let Some(auto_fetch_minutes) = draft
+            .auto_fetch
+            .read(cx)
+            .value()
+            .trim()
+            .parse::<u64>()
+            .ok()
+            .and_then(git::valid_auto_fetch_minutes)
+        else {
+            draft.page = PreferencePage::Git;
+            draft.error = Some(Message::Key("app.error.auto_fetch_minutes"));
+            cx.notify();
+            return;
+        };
+        options.auto_fetch_minutes = auto_fetch_minutes;
         options.default_branch = draft.branch.read(cx).value().trim().to_owned();
         match draft.editor.typography(cx) {
             Ok(typography) => options.editor = typography,
@@ -207,6 +235,7 @@ impl Client {
         let limit = options.history_limit();
         let history_changed = previous.history_limit() != limit;
         let layout_changed = previous.diff_layout != options.diff_layout;
+        let auto_fetch_changed = previous.auto_fetch_minutes != options.auto_fetch_minutes;
         if history_changed && self.session.tabs.iter().any(Tab::is_busy) {
             draft.error = Some(Message::Key("app.error.history_busy"));
             cx.notify();
@@ -235,6 +264,9 @@ impl Client {
         self.saved.preferences = options;
         self.preferences = None;
         self.persist_session();
+        if auto_fetch_changed {
+            self.reset_auto_fetch_timer(window, cx);
+        }
         self.focus.focus(window, cx);
         if history_changed {
             for id in tab_ids {
@@ -260,8 +292,20 @@ impl Client {
     }
 }
 
+fn unsigned_input(
+    value: Option<impl ToString>,
+    window: &mut Window,
+    cx: &mut Context<InputState>,
+) -> InputState {
+    InputState::new(window, cx)
+        .default_value(value.map(|number| number.to_string()).unwrap_or_default())
+        .validate(|text, _| text.bytes().all(|byte| byte.is_ascii_digit()))
+}
+
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
     use super::{DiffLayout, Language, Preferences};
 
     #[test]
@@ -279,6 +323,34 @@ mod tests {
             assert_eq!(options.initial_commits, 750);
             assert_eq!(options.json()["language"], language.code());
             assert_eq!(options.json()["diff_layout"], "Inline");
+        }
+    }
+
+    #[test]
+    fn auto_fetch_preference_defaults_and_preserves_disabled_intervals() {
+        let legacy = serde_json::json!({"initial_commits": 750});
+        assert_eq!(
+            Preferences::read(&legacy).auto_fetch_interval(),
+            Some(Duration::from_secs(60))
+        );
+
+        for minutes in [0, 5, 60] {
+            let options = Preferences::read(&serde_json::json!({"auto_fetch_minutes": minutes}));
+            let saved = options.json();
+            assert_eq!(saved["auto_fetch_minutes"], minutes);
+            assert_eq!(
+                Preferences::read(&saved).auto_fetch_interval(),
+                (minutes != 0).then(|| Duration::from_secs(minutes * 60))
+            );
+        }
+
+        for invalid in [
+            serde_json::json!(-1),
+            serde_json::json!(61),
+            serde_json::json!("5"),
+        ] {
+            let options = Preferences::read(&serde_json::json!({"auto_fetch_minutes": invalid}));
+            assert_eq!(options.auto_fetch_interval(), Some(Duration::from_secs(60)));
         }
     }
 }

@@ -1,4 +1,7 @@
-use std::{collections::HashMap, path::PathBuf};
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+};
 
 use gpui_kit::*;
 use ritkraken_git::{ExportedFile, FileTarget, Scope};
@@ -7,6 +10,37 @@ use super::{Client, Message};
 
 #[cfg(windows)]
 mod windows;
+
+#[cfg(windows)]
+pub(super) fn open_text_file(path: &Path) -> Result<(), String> {
+    windows::open_text_file(path).map_err(|error| error.to_string())
+}
+
+#[cfg(not(windows))]
+pub(super) fn open_text_file(path: &Path) -> Result<(), String> {
+    use std::process::Command;
+
+    let mut opener = if cfg!(target_os = "macos") {
+        let mut command = Command::new("/usr/bin/open");
+        command.arg("-t");
+        command
+    } else {
+        Command::new("xdg-open")
+    };
+    let output = opener
+        .arg(path)
+        .output()
+        .map_err(|error| error.to_string())?;
+    if output.status.success() {
+        return Ok(());
+    }
+    let detail = String::from_utf8_lossy(&output.stderr);
+    Err(if detail.trim().is_empty() {
+        output.status.to_string()
+    } else {
+        detail.trim().to_owned()
+    })
+}
 
 #[derive(Default)]
 pub(super) struct FileOpener {

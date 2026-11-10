@@ -93,6 +93,7 @@ pub struct Client {
     modal_focus: FocusHandle,
     _activation: Subscription,
     repo_watch: Option<watch::ActiveWatch>,
+    auto_fetch_task: Option<Task<()>>,
 }
 
 impl Client {
@@ -122,7 +123,9 @@ impl Client {
             modal_focus: cx.focus_handle(),
             _activation: activation,
             repo_watch: None,
+            auto_fetch_task: None,
         };
+        app.reset_auto_fetch_timer(window, cx);
         if let Some(path) = path {
             app.open_repo(OpenRepo::Open(path), window, cx);
         } else if app.saved.preferences.remember_tabs && !app.saved.open_tabs.is_empty() {

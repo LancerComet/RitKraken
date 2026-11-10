@@ -3,6 +3,7 @@ extern crate self as ritkraken_git;
 
 mod command;
 mod commit_ops;
+mod config;
 mod diff;
 mod error;
 mod history;
@@ -19,6 +20,7 @@ pub use commit_ops::{
     PreparedCommitOperation, RebaseAction, RebaseEntry, RebasePlan, ResetMode, SequenceKind,
     run_git_editor,
 };
+pub use config::global_config_path;
 pub use diff::{
     ExportedFile, FileTarget, PATCH_VIEW_LIMIT, Patch, PatchSelection, PatchSide, Scope,
     align_changed_lines, edge_whitespace_key,

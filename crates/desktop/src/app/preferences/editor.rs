@@ -13,14 +13,14 @@ use ritkraken_diff::{DiffFile, DiffState, DiffTypography, font_families};
 use serde_json::Value;
 
 use super::{
-    PreferenceDraft, Preferences,
-    view::{preference_check, preference_row},
+    PreferenceDraft, Preferences, unsigned_input,
+    view::{preference_check, preference_row, unit_suffix},
 };
 use crate::{
     app::{
         Client, Message,
         review::DiffLayout,
-        widgets::{LINE, MUTED, WHITE, heading},
+        widgets::{LINE, WHITE, heading},
     },
     i18n::{LocalizedInput, tr},
 };
@@ -188,13 +188,13 @@ impl EditorDraft {
             .searchable(true)
         });
         let font_size = cx.new(|cx| {
-            pixel_input(Some(options.editor.font_size), window, cx)
+            unsigned_input(Some(options.editor.font_size), window, cx)
                 .min(f64::from(*FONT_SIZE.start()))
                 .max(f64::from(*FONT_SIZE.end()))
         });
         let line_height =
             LocalizedInput::new("app.preferences.editor_line_height_auto", cx, |cx| {
-                pixel_input(options.editor.line_height, window, cx)
+                unsigned_input(options.editor.line_height, window, cx)
             });
         let preview = cx.new(|cx| {
             let files = DiffFile::parse(PREVIEW_PATCH).expect("valid editor preview patch");
@@ -228,20 +228,6 @@ impl EditorDraft {
     pub(super) fn localize(&self, window: &mut Window, cx: &mut Context<Client>) {
         self.line_height.localize(window, cx);
     }
-}
-
-fn pixel_input(
-    value: Option<u16>,
-    window: &mut Window,
-    cx: &mut Context<InputState>,
-) -> InputState {
-    InputState::new(window, cx)
-        .default_value(value.map(|px| px.to_string()).unwrap_or_default())
-        .validate(|text, _| text.bytes().all(|byte| byte.is_ascii_digit()))
-}
-
-fn pixel_suffix() -> Div {
-    div().text_color(rgb(MUTED)).child("px")
 }
 
 impl Client {
@@ -334,7 +320,7 @@ impl Client {
                     .w(px(132.))
                     .max_w_full()
                     .min_w_0()
-                    .suffix(pixel_suffix())
+                    .suffix(unit_suffix("px"))
                     .accessibility_label(tr!("app.preferences.editor_font_size")),
                 None,
             ))
@@ -344,7 +330,7 @@ impl Client {
                     .w(px(132.))
                     .max_w_full()
                     .min_w_0()
-                    .suffix(pixel_suffix())
+                    .suffix(unit_suffix("px"))
                     .aria_label(tr!("app.preferences.editor_line_height")),
                 Some("app.preferences.editor_line_height_hint"),
             ))

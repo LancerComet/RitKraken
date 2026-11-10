@@ -32,19 +32,29 @@ Rust 桌面 Git 客户端。界面以 GitKraken Desktop 9.11.0 的三栏布局�
 | Windows | `.\build-windows.cmd` | `target/windows/<Rust 目标>/release/ritkraken.exe` |
 | macOS | `bash ./build-macos.sh` | `target/macos/<Rust 目标>/release/RitKraken.app` |
 
-使用 Rust 1.92 或更新版本，并将本机 Git 加入 PATH。[GPUI Kit 平台要求](https://gpui-kit.com/docs/installation/)
+重复构建始终复用表中的目录和编译缓存，不按任务另建输出目录或复制可执行文件。Windows 下如果程序占用了构建产物，先关闭该程序，再在原目录重新构建。
+
+使用 Rust 1.92 或更新版本，并将系统安装的 Git 加入 PATH。RitKraken 以 Git 2.37 为兼容基线。[GPUI Kit 平台要求](https://gpui-kit.com/docs/installation/)
 
 - Windows 需要 MSVC Rust 工具链、Visual Studio 的 C++ Build Tools 和 Windows SDK。脚本会复用项目内已有的 `.build/rustup` 和 `.build/cargo`，也可通过 `RUSTUP_HOME` 和 `CARGO_HOME` 指定。
 - macOS 需要 macOS 15 或更新版本及 Xcode Command Line Tools，可用 `xcode-select --install` 安装。生成的 `.app` 使用 ad hoc 签名，可在构建机上打开。
 
 文件行数检查需要 Python 3.11 或更新版本。
 
+Windows x64 的测试复用同一构建目录；Windows ARM64 将目标改为 `aarch64-pc-windows-msvc`。
+
 ```powershell
-cargo test --workspace --release --locked
+cargo test --workspace --release --locked --target x86_64-pc-windows-msvc --target-dir target/windows
 python tools/check_project.py
 ```
 
-也可用 `cargo run --release -- <仓库路径>` 直接打开仓库。文件和 diff 预览上限为 8 MiB。区块和单行暂存适用于普通文本修改，新增、删除、重命名和二进制文件可整文件暂存。
+macOS 的测试使用当前 Rust 工具链目标，并复用 `target/macos`：
+
+```bash
+cargo test --workspace --release --locked --target "$(rustc -vV | sed -n 's/^host: //p')" --target-dir target/macos
+```
+
+也可用 `cargo run --release` 配合上述平台的 `--target`、`--target-dir` 和 `-- <仓库路径>` 直接打开仓库。文件和 diff 预览上限为 8 MiB。区块和单行暂存适用于普通文本修改，新增、删除、重命名和二进制文件可整文件暂存。
 
 ## 代码组织
 

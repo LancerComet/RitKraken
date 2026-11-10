@@ -434,18 +434,24 @@ fn fetch_and_push_keep_the_checkout_and_target_branch_explicit() {
     repo.commit("Next", "").unwrap();
     let local_head = repo.snapshot(None).unwrap().head.unwrap();
     repo.push("main", &destination, false).unwrap();
-    git_output(command(Some(repo.root())).args([
-        "update-ref",
-        "-d",
-        "refs/remotes/origin/published",
-    ]));
-    repo.fetch(Some("origin")).unwrap();
-    let fetched = repo.snapshot(None).unwrap();
-    assert_eq!(fetched.head.as_ref(), Some(&local_head));
-    assert!(
-        fetched
-            .refs
-            .iter()
-            .any(|reference| reference.name == "origin/published" && reference.id == local_head)
-    );
+    for automatic in [false, true] {
+        git_output(command(Some(repo.root())).args([
+            "update-ref",
+            "-d",
+            "refs/remotes/origin/published",
+        ]));
+        if automatic {
+            repo.auto_fetch().unwrap();
+        } else {
+            repo.fetch(Some("origin")).unwrap();
+        }
+        let fetched = repo.snapshot(None).unwrap();
+        assert_eq!(fetched.head.as_ref(), Some(&local_head));
+        assert!(
+            fetched
+                .refs
+                .iter()
+                .any(|reference| reference.name == "origin/published" && reference.id == local_head)
+        );
+    }
 }

@@ -5,21 +5,22 @@ use std::{
 
 use windows::{
     Win32::{
-        Foundation::RPC_E_CHANGED_MODE,
+        Foundation::{ERROR_CANCELLED, RPC_E_CHANGED_MODE},
         System::Com::{COINIT_APARTMENTTHREADED, CoInitializeEx, CoTaskMemFree, CoUninitialize},
-        UI::Shell::{Common::ITEMIDLIST, SHOpenFolderAndSelectItems, SHParseDisplayName},
+        UI::{
+            Shell::{
+                Common::ITEMIDLIST, OAIF_EXEC, OPENASINFO, SEE_MASK_CLASSNAME, SEE_MASK_FLAG_NO_UI,
+                SEE_MASK_NOASYNC, SHELLEXECUTEINFOW, SHOpenFolderAndSelectItems, SHOpenWithDialog,
+                SHParseDisplayName, ShellExecuteExW,
+            },
+            WindowsAndMessaging::SW_SHOWNORMAL,
+        },
     },
-    core::{PCWSTR, Result},
+    core::{HRESULT, HSTRING, PCWSTR, Result, w},
 };
 
 pub(super) fn reveal_file(path: &Path) -> Result<()> {
-    // GPUI's background worker may be uninitialized or already use another
-    // COM apartment. Balance initialization only when this call acquired it.
-    let initialized = unsafe { CoInitializeEx(None, COINIT_APARTMENTTHREADED) };
-    if initialized.is_err() && initialized != RPC_E_CHANGED_MODE {
-        initialized.ok()?;
-    }
-    let _apartment = Apartment(initialized.is_ok());
+    let _apartment = Apartment::enter()?;
     let path = shell_path(path)?;
     let wide: Vec<_> = path.as_os_str().encode_wide().chain(Some(0)).collect();
     let mut item = ItemId(std::ptr::null_mut());
@@ -30,11 +31,51 @@ pub(super) fn reveal_file(path: &Path) -> Result<()> {
     unsafe { SHOpenFolderAndSelectItems(item.0, None, 0) }
 }
 
+pub(super) fn open_text_file(path: &Path) -> Result<()> {
+    let _apartment = Apartment::enter()?;
+    let path = shell_path(path)?;
+    let file = HSTRING::from(path.as_os_str());
+    let file_name = PCWSTR(file.as_ptr());
+    // Treat extensionless config files as text and use the registered text editor.
+    let mut request = SHELLEXECUTEINFOW {
+        cbSize: std::mem::size_of::<SHELLEXECUTEINFOW>() as u32,
+        fMask: SEE_MASK_CLASSNAME | SEE_MASK_FLAG_NO_UI | SEE_MASK_NOASYNC,
+        lpVerb: w!("open"),
+        lpFile: file_name,
+        lpClass: w!(".txt"),
+        nShow: SW_SHOWNORMAL.0,
+        ..Default::default()
+    };
+    if unsafe { ShellExecuteExW(&mut request) }.is_ok() {
+        return Ok(());
+    }
+    let open_with = OPENASINFO {
+        pcszFile: file_name,
+        oaifInFlags: OAIF_EXEC,
+        ..Default::default()
+    };
+    match unsafe { SHOpenWithDialog(None, &open_with) } {
+        Err(error) if error.code() == HRESULT::from_win32(ERROR_CANCELLED.0) => Ok(()),
+        result => result,
+    }
+}
+
 pub(super) fn shell_path(path: &Path) -> std::io::Result<PathBuf> {
     std::path::absolute(path).map(|absolute| absolute.components().collect())
 }
 
 struct Apartment(bool);
+
+impl Apartment {
+    fn enter() -> Result<Self> {
+        // A background worker may already use a different COM apartment.
+        let initialized = unsafe { CoInitializeEx(None, COINIT_APARTMENTTHREADED) };
+        if initialized.is_err() && initialized != RPC_E_CHANGED_MODE {
+            initialized.ok()?;
+        }
+        Ok(Self(initialized.is_ok()))
+    }
+}
 
 impl Drop for Apartment {
     fn drop(&mut self) {

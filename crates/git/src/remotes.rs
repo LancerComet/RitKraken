@@ -16,7 +16,19 @@ impl Upstream {
 
 impl Repo {
     pub fn fetch(&self, remote: Option<&str>) -> Result<()> {
+        self.fetch_remotes(remote, false)
+    }
+
+    pub fn auto_fetch(&self) -> Result<()> {
+        self.fetch_remotes(None, true)
+    }
+
+    fn fetch_remotes(&self, remote: Option<&str>, unattended: bool) -> Result<()> {
         let mut git = self.git();
+        if unattended {
+            git.args(["-c", "credential.interactive=false"])
+                .env("GCM_INTERACTIVE", "0");
+        }
         git.arg("fetch");
         if let Some(remote) = remote {
             self.ensure_remote(remote)?;

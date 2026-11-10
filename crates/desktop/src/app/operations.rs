@@ -1,3 +1,4 @@
+mod auto_fetch;
 mod confirm;
 
 use std::sync::Arc;
@@ -24,6 +25,7 @@ pub(super) enum RepoOperation {
     Switch(String),
     Branch(String),
     Fetch(Option<String>),
+    AutoFetch,
     Push {
         branch: String,
         upstream: git::Upstream,
@@ -76,6 +78,7 @@ impl RepoOperation {
             Self::Switch(branch) => repo.switch(branch),
             Self::Branch(branch) => repo.create_branch(branch),
             Self::Fetch(remote) => repo.fetch(remote.as_deref()),
+            Self::AutoFetch => repo.auto_fetch(),
             Self::Push {
                 branch,
                 upstream,
@@ -105,7 +108,7 @@ impl RepoOperation {
             Self::Commit(..) => "app.notice.committed",
             Self::Switch(_) => "app.notice.switched",
             Self::Branch(_) => "app.notice.branched",
-            Self::Fetch(_) => "app.notice.fetched",
+            Self::Fetch(_) | Self::AutoFetch => "app.notice.fetched",
             Self::Push { .. } => "app.notice.pushed",
             Self::Stash => "app.notice.stashed",
             Self::Pop => "app.notice.popped",
@@ -158,7 +161,7 @@ impl Client {
         id: u64,
         edit: Option<RepoOperation>,
         limit: Option<usize>,
-        clear_notice: bool,
+        report_operation: bool,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
@@ -166,7 +169,7 @@ impl Client {
             return;
         };
         tab.busy = true;
-        if clear_notice {
+        if report_operation {
             tab.notice = None;
         }
         let repo = tab.repo.clone();
@@ -178,7 +181,12 @@ impl Client {
                 let result = edit.as_ref().map(|edit| edit.execute(&repo));
                 let history = History::reload(&repo, limit, Some(&previous_menu))
                     .map(|history| (history, limit));
-                (result.zip(edit), history)
+                let reported = if report_operation {
+                    result.zip(edit)
+                } else {
+                    None
+                };
+                (reported, history)
             },
             move |this, (result, history), window, cx| {
                 this.finish_update(id, result, history, window, cx);

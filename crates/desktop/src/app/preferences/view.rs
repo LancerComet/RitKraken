@@ -12,7 +12,7 @@ use gpui_kit::{
     *,
 };
 
-use super::{PreferenceDraft, PreferencePage, Preferences};
+use super::{PreferenceDraft, PreferencePage, Preferences, git::git_preferences};
 use crate::app::{
     Client,
     widgets::{HEADER, HOVER, LINE, MUTED, PAPER, SELECT, error_text, icon, modal::Modal},
@@ -27,6 +27,7 @@ impl Client {
         let sidebar_text_size = px(15.);
         let form = match draft.page {
             PreferencePage::General => self.general_preferences(draft, cx),
+            PreferencePage::Git => git_preferences(draft, cx),
             PreferencePage::Appearance => self.appearance_preferences(draft, cx),
             PreferencePage::Editor => self.editor_preferences(draft, cx),
         };
@@ -59,6 +60,7 @@ impl Client {
                         .children(
                             [
                                 (PreferencePage::General, "icons/settings.svg"),
+                                (PreferencePage::Git, "icons/git-branch.svg"),
                                 (PreferencePage::Appearance, "icons/panel-left.svg"),
                                 (PreferencePage::Editor, "icons/file-diff.svg"),
                             ]
@@ -229,6 +231,10 @@ fn language_picker(selected: Language, cx: &Context<Client>) -> impl IntoElement
                 )
             })
         })
+}
+
+pub(super) fn unit_suffix(unit: impl Into<SharedString>) -> Div {
+    div().text_color(rgb(MUTED)).child(unit.into())
 }
 
 pub(super) fn preference_row(
