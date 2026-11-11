@@ -1,11 +1,18 @@
+mod composition;
+mod surface;
+
 use gpui_kit::{base::FocusTrapElement as _, component::tooltip::Tooltip, prelude::*, *};
 
-use super::{HEADER, LINE, Tone, WHITE, button, modal_backdrop};
+use super::{HEADER, LINE, Tone, WHITE, button};
 use crate::i18n::tr;
+
+pub(in crate::app) use composition::ModalCompositor;
+pub(in crate::app) use surface::modal_layer;
+pub(in crate::app) const MODAL_CORNER_RADIUS: Pixels = px(4.);
 
 type CloseHandler = Box<dyn Fn(&ClickEvent, &mut Window, &mut App)>;
 
-#[derive(IntoElement)]
+#[derive(gpui_kit::IntoElement)]
 pub(in crate::app) struct Modal {
     id: &'static str,
     title: SharedString,
@@ -90,24 +97,21 @@ impl RenderOnce for Modal {
                 .aria_label(close_label.clone())
                 .tooltip(move |window, cx| Tooltip::new(close_label.clone()).build(window, cx)),
             );
-        modal_backdrop().child(
-            div()
-                .id(self.id)
-                .key_context("Modal")
-                .role(Role::Dialog)
-                .aria_label(self.title)
-                .w(available.width.min(self.maximum_size.width))
-                .h(available.height.min(self.maximum_size.height))
-                .flex()
-                .flex_col()
-                .bg(rgb(WHITE))
-                .rounded(px(4.))
-                .shadow_lg()
-                .border_1()
-                .border_color(rgb(0xaeb4bf))
-                .child(header)
-                .children(self.children)
-                .focus_trap(self.id, &self.focus),
-        )
+        div()
+            .id(self.id)
+            .key_context("Modal")
+            .role(Role::Dialog)
+            .aria_label(self.title)
+            .w(available.width.min(self.maximum_size.width))
+            .h(available.height.min(self.maximum_size.height))
+            .flex()
+            .flex_col()
+            .bg(rgb(WHITE))
+            .rounded(MODAL_CORNER_RADIUS)
+            .border_1()
+            .border_color(rgb(0xaeb4bf))
+            .child(header)
+            .children(self.children)
+            .focus_trap(self.id, &self.focus)
     }
 }

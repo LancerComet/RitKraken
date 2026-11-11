@@ -32,12 +32,7 @@ impl Client {
     }
 
     fn auto_fetch_current(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if self.session.opening
-            || self.preferences.is_some()
-            || self.manager.mode.is_some()
-            || self.branch_dialog.open
-            || window.has_active_dialog(cx)
-        {
+        if self.session.opening || self.modal_is_present() || window.has_active_dialog(cx) {
             return;
         }
         let Some(tab) = self.current() else { return };

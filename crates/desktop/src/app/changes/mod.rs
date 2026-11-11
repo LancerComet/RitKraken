@@ -199,7 +199,7 @@ impl Client {
     }
 
     pub(super) fn submit(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if self.manager.mode.is_some() || self.preferences.is_some() || self.branch_dialog.open {
+        if self.modal_is_present() {
             return;
         }
         if let Some(tab) = self.current().filter(|tab| tab.commit_enabled(cx)) {

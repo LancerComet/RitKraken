@@ -3,6 +3,7 @@ mod changes;
 mod export;
 mod history;
 mod message;
+mod modals;
 mod operations;
 mod preferences;
 mod refs;
@@ -22,12 +23,14 @@ use std::path::PathBuf;
 use gpui_kit::*;
 
 use message::Message;
+use modals::ClosingModal;
 use operations::RepoOperation;
 use preferences::PreferenceDraft;
 use repository_manager::{OpenRepo, RepositoryManager};
 use session::{RepoTab, Session, Tab};
 use settings::SavedRepos;
 use toolbar::BranchDialog;
+use widgets::modal::ModalCompositor;
 use workspace::WorkspacePanes;
 
 actions!(
@@ -87,6 +90,8 @@ pub struct Client {
     saved: SavedRepos,
     preferences: Option<PreferenceDraft>,
     branch_dialog: BranchDialog,
+    closing_modal: Option<ClosingModal>,
+    modal_compositor: ModalCompositor,
     file_opener: system::FileOpener,
     panes: WorkspacePanes,
     focus: FocusHandle,
@@ -103,11 +108,7 @@ impl Client {
         let focus = cx.focus_handle();
         focus.focus(window, cx);
         let activation = cx.observe_window_activation(window, |this, window, cx| {
-            if window.is_window_active()
-                && this.manager.mode.is_none()
-                && this.preferences.is_none()
-                && !this.branch_dialog.open
-            {
+            if window.is_window_active() && !this.modal_is_present() {
                 this.refresh(window, cx);
             }
         });
@@ -117,6 +118,8 @@ impl Client {
             saved,
             preferences: None,
             branch_dialog: BranchDialog::new(window, cx),
+            closing_modal: None,
+            modal_compositor: ModalCompositor::default(),
             file_opener: system::FileOpener::default(),
             panes: WorkspacePanes::new(cx),
             focus,
@@ -163,15 +166,14 @@ impl Client {
     fn escape(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if self.preferences.is_some() {
             self.save_preferences(window, cx);
-        } else if self.branch_dialog.open {
-            self.branch_dialog.open = false;
-            self.focus.focus(window, cx);
-        } else if self.manager.mode.is_some() && !self.session.opening {
-            self.manager.mode = None;
-            self.focus.focus(window, cx);
-        } else if self
-            .current()
-            .is_some_and(|tab| tab.review.active.is_some())
+        } else if self.has_open_modal() {
+            if self.branch_dialog.open || !self.session.opening {
+                self.dismiss_modal(window, cx);
+            }
+        } else if self.closing_modal.is_none()
+            && self
+                .current()
+                .is_some_and(|tab| tab.review.active.is_some())
         {
             self.close_diff(window, cx);
         }

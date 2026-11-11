@@ -105,17 +105,6 @@ pub(super) fn button_content(
         .when(!enabled, |element| element.opacity(0.48))
 }
 
-pub(super) fn modal_backdrop() -> Div {
-    div()
-        .absolute()
-        .inset_0()
-        .occlude()
-        .flex()
-        .items_center()
-        .justify_center()
-        .bg(rgba(0x20253655))
-}
-
 pub(super) fn icon(path: &'static str, color: u32) -> Svg {
     svg()
         .path(path)

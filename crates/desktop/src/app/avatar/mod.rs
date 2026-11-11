@@ -35,7 +35,7 @@ impl AvatarCache {
     }
 }
 
-#[derive(IntoElement)]
+#[derive(gpui_kit::IntoElement)]
 pub(super) struct PersonAvatar {
     key: Option<Key>,
     initial: String,

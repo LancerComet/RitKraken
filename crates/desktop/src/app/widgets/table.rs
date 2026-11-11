@@ -90,7 +90,7 @@ impl<const N: usize> ColumnWidths<N> {
     }
 }
 
-#[derive(IntoElement)]
+#[derive(gpui_kit::IntoElement)]
 struct Header {
     id: ElementId,
     state: Entity<ResizableState>,

@@ -13,6 +13,7 @@ use super::{
 
 impl Render for Client {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let modal = self.render_modal(window, cx);
         let tab = self.session.active_tab();
         let body = if let Some(Tab::Ready(tab)) = tab {
             self.workspace(tab, window, cx).into_any_element()
@@ -30,10 +31,7 @@ impl Render for Client {
                 this.open_preferences(window, cx);
             }))
             .on_action(cx.listener(|this, _: &Refresh, window, cx| {
-                if this.manager.mode.is_none()
-                    && this.preferences.is_none()
-                    && !this.branch_dialog.open
-                {
+                if !this.modal_is_present() {
                     this.refresh(window, cx);
                 }
             }))
@@ -59,14 +57,14 @@ impl Render for Client {
                     .child(body),
             )
             .child(self.status_bar(tab))
-            .when_some(self.preferences.as_ref(), |element, preferences| {
-                element.child(self.preferences_view(preferences, cx))
-            })
-            .when_some(self.manager.mode, |element, mode| {
-                element.child(self.manager_view(mode, window, cx))
-            })
-            .when(self.branch_dialog.open, |element| {
-                element.child(self.branch_view(cx))
+            .children(modal)
+            .when(self.closing_modal.is_some(), |element| {
+                element.capture_key_down(|event, window, cx| {
+                    if event.keystroke.key == "tab" {
+                        window.prevent_default();
+                        cx.stop_propagation();
+                    }
+                })
             })
     }
 }

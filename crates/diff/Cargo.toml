@@ -9,9 +9,9 @@ test = false
 doctest = false
 
 [dependencies]
-gpui = { package = "gpui-pre", version = "=0.3.11" }
-gpui-base = "=0.9.0"
-gpui-component = { version = "=0.9.0", features = ["syntect"] }
+gpui = { package = "gpui-fast", version = "=0.1.13", features = ["windows-manifest-provided-by-host"] }
+gpui-base = { version = "=0.9.0", features = ["gpui-fast"] }
+gpui-component = { version = "=0.9.0", features = ["gpui-fast", "syntect"] }
 ritkraken-git = { path = "../git" }
 ropey = "=2.0.0-beta.1"
 rust-i18n = "4.2"

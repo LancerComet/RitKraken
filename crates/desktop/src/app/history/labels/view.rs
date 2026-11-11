@@ -61,7 +61,7 @@ pub(in crate::app::history) fn ref_labels(
         })
 }
 
-#[derive(IntoElement)]
+#[derive(gpui_kit::IntoElement)]
 struct RefStack {
     labels: Arc<[RefBadge]>,
     color: u32,

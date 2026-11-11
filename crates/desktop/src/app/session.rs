@@ -118,10 +118,7 @@ impl Client {
             return;
         }
         self.session.active = Some(id);
-        self.manager.mode = None;
-        self.preferences = None;
-        self.branch_dialog.open = false;
-        self.focus.focus(window, cx);
+        self.dismiss_modal(window, cx);
         self.load_saved_tab(id, window, cx);
         self.select_initial_commit(id, window, cx);
         self.watch_current_repo(window, cx);

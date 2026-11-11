@@ -262,12 +262,11 @@ impl Client {
             }
         }
         self.saved.preferences = options;
-        self.preferences = None;
+        self.dismiss_modal(window, cx);
         self.persist_session();
         if auto_fetch_changed {
             self.reset_auto_fetch_timer(window, cx);
         }
-        self.focus.focus(window, cx);
         if history_changed {
             for id in tab_ids {
                 self.update_repo_with_limit(id, None, limit, window, cx);
