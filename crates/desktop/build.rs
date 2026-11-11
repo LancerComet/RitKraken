@@ -3,20 +3,16 @@ use std::{env, fs, path::PathBuf};
 #[path = "../../tools/gpui_build.rs"]
 mod gpui_build;
 
+#[cfg(windows)]
+#[path = "build/icon.rs"]
+mod icon;
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("cargo:rerun-if-changed=assets/ritkraken.svg");
-    #[cfg(windows)]
-    {
-        println!("cargo:rerun-if-changed=assets/windows.rc");
-        println!("cargo:rerun-if-changed=assets/ritkraken.ico");
-        embed_resource::compile(
-            "assets/windows.rc",
-            embed_resource::ParamsIncludeDirs(["assets"]),
-        )
-        .manifest_required()?;
-    }
     let manifest = PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").unwrap());
     let output = PathBuf::from(env::var_os("OUT_DIR").unwrap());
+    println!("cargo:rerun-if-changed=assets/ritkraken.svg");
+    #[cfg(windows)]
+    icon::compile(&manifest, &output)?;
     let upstream = gpui_build::component_source(&manifest)?;
     let generated = output.join("file-menu");
     fs::create_dir_all(&generated)?;
