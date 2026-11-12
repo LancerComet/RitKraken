@@ -138,7 +138,10 @@
       "run_git": "Git を実行できませんでした。\n%{detail}",
       "stale_patch": "差分がディスク上で変更されました。更新後の差分を確認してからステージしてください。",
       "unstageable_selection": "選択した変更は個別にステージまたはステージ解除できません。",
-      "upstream_changed": "追跡先が変わりました。現在の追跡先を確認してからプッシュしてください。"
+      "upstream_changed": "追跡先が変わりました。現在の追跡先を確認してからプッシュしてください。",
+      "cleanup_failed": "%{detail}\n自動クリーンアップにも失敗しました：%{cleanup}",
+      "repository_unavailable": "このリポジトリは閉じられています。",
+      "repo_busy": "現在の Git 操作が完了するまでお待ちください。"
     },
     "history": {
       "author": "作成者",
@@ -162,7 +165,8 @@
       "staged": "変更をステージしました",
       "stashed": "変更をスタッシュしました",
       "switched": "ブランチを切り替えました",
-      "unstaged": "変更のステージを解除しました"
+      "unstaged": "変更のステージを解除しました",
+      "remote_added": "リモートを追加しました"
     },
     "preferences": {
       "appearance": "UI カスタマイズ",
@@ -350,6 +354,18 @@
       "track": "追跡ブランチを作成して切り替え…",
       "unavailable": "この参照ではこの操作を利用できません。",
       "unmerged": "HEAD に未マージのコミットがあります。マージしてから削除してください。"
+    },
+    "remotes": {
+      "add": "リモートを追加",
+      "adding": "追加中…",
+      "name": "名前",
+      "pull_url": "プル URL",
+      "push_url": "プッシュ URL",
+      "push_hint": "プッシュ URL が空の場合はプル URL を使用します。",
+      "failed": "リモートを追加できませんでした。\n%{detail}",
+      "invalid_name": "有効なリモート名を入力してください。",
+      "invalid_url": "有効なリモート URL を入力してください。",
+      "pull_required": "プル URL を入力してください。"
     }
   },
   "gpui_component": {

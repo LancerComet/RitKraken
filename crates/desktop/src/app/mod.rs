@@ -7,6 +7,7 @@ mod modals;
 mod operations;
 mod preferences;
 mod refs;
+mod remotes;
 mod repository_manager;
 mod review;
 mod session;
@@ -23,7 +24,7 @@ use std::path::PathBuf;
 use gpui_kit::*;
 
 use message::Message;
-use modals::ClosingModal;
+use modals::{ClosingModal, ContentModal};
 use operations::RepoOperation;
 use preferences::PreferenceDraft;
 use repository_manager::{OpenRepo, RepositoryManager};
@@ -91,6 +92,7 @@ pub struct Client {
     preferences: Option<PreferenceDraft>,
     branch_dialog: BranchDialog,
     closing_modal: Option<ClosingModal>,
+    content_modal: Option<ContentModal>,
     modal_compositor: ModalCompositor,
     file_opener: system::FileOpener,
     panes: WorkspacePanes,
@@ -119,6 +121,7 @@ impl Client {
             preferences: None,
             branch_dialog: BranchDialog::new(window, cx),
             closing_modal: None,
+            content_modal: None,
             modal_compositor: ModalCompositor::default(),
             file_opener: system::FileOpener::default(),
             panes: WorkspacePanes::new(cx),

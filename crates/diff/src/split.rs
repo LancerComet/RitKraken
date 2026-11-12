@@ -43,11 +43,6 @@ impl SplitLayout {
         })
     }
 
-    pub(crate) fn scroll_extent(self, viewport: Pixels, required: Pixels) -> Pixels {
-        let narrowest = viewport * self.original.min(1. - self.original);
-        viewport + (required / 2. - narrowest).max(px(0.))
-    }
-
     pub(crate) fn divider(self, cx: &Context<DiffState>) -> Div {
         div()
             .absolute()

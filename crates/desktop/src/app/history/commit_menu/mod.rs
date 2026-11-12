@@ -3,6 +3,7 @@ mod compare;
 mod dialog;
 mod links;
 mod planner;
+mod references;
 
 use std::sync::Arc;
 

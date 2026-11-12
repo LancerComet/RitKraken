@@ -1,6 +1,7 @@
 import argparse
 import json
 import os
+import re
 from pathlib import Path
 import subprocess
 import tomllib
@@ -73,6 +74,20 @@ def check_files():
     return 0
 
 
+def check_modal_entry_points():
+    forbidden = re.compile(r"\b(?:open_dialog|close_dialog|has_active_dialog)\s*\(")
+    violations = []
+    for path in (ROOT / "crates/desktop/src").rglob("*.rs"):
+        for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            if forbidden.search(line):
+                violations.append(f"{path.relative_to(ROOT)}:{number}: use the shared app modal host")
+    if violations:
+        print("\n".join(violations))
+        return 1
+    print("App dialogs use the shared modal host")
+    return 0
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -82,7 +97,7 @@ def main():
     args = parser.parse_args()
     if args.compact_lock is not None:
         compact_lock(args.compact_lock)
-    return check_files()
+    return max(check_files(), check_modal_entry_points())
 
 
 if __name__ == "__main__":

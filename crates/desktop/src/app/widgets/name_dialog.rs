@@ -2,7 +2,6 @@ use std::rc::Rc;
 
 use gpui_kit::{
     component::{
-        WindowExt,
         checkbox::Checkbox,
         input::{Input, InputEvent, InputState},
     },
@@ -12,7 +11,10 @@ use gpui_kit::{
 
 use super::{Tone, button, note};
 use crate::{
-    app::{Escape, Submit},
+    app::{
+        Client, Escape, Submit,
+        modals::{ContentModal, ModalHandle},
+    },
     i18n::tr,
 };
 
@@ -24,6 +26,7 @@ pub(in crate::app) struct NameDialog {
     checkbox: Option<(String, bool)>,
     hint: Option<String>,
     accept: Accept,
+    modal: ModalHandle,
     _input: Subscription,
 }
 
@@ -34,9 +37,11 @@ impl NameDialog {
         checkbox: Option<(String, bool)>,
         hint: Option<String>,
         window: &mut Window,
-        cx: &mut App,
+        cx: &mut Context<Client>,
         accept: impl Fn(String, bool, &mut Window, &mut App) + 'static,
     ) {
+        let modal = ModalHandle::new(cx);
+        let handle = modal.clone();
         let view = cx.new(|cx| {
             let name = cx.new(|cx| {
                 InputState::new(window, cx)
@@ -49,15 +54,16 @@ impl NameDialog {
                 checkbox,
                 hint,
                 accept: Rc::new(accept),
+                modal: handle,
                 _input: subscription,
             }
         });
-        window.open_dialog(cx, move |dialog, window, _| {
-            dialog
-                .title(div().text_size(px(14.)).child(title.clone()))
-                .w((window.viewport_size().width - px(60.)).min(px(540.)))
-                .child(view.clone())
-        });
+        let focus = view.read(cx).name.read(cx).focus_handle(cx);
+        Client::present_content_modal(
+            ContentModal::new(modal, title, view, size(px(540.), px(650.)), true).focus(focus),
+            window,
+            cx,
+        );
     }
 
     fn submit(&self, window: &mut Window, cx: &mut Context<Self>) {
@@ -66,7 +72,7 @@ impl NameDialog {
             return;
         }
         let checked = self.checkbox.as_ref().is_some_and(|(_, checked)| *checked);
-        window.close_dialog(cx);
+        self.modal.close(window, cx);
         (self.accept)(name, checked, window, cx);
     }
 }
@@ -85,9 +91,9 @@ impl Render for NameDialog {
                 cx.stop_propagation();
                 this.submit(window, cx);
             }))
-            .on_action(cx.listener(|_, _: &Escape, window, cx| {
+            .on_action(cx.listener(|this, _: &Escape, window, cx| {
                 cx.stop_propagation();
-                window.close_dialog(cx);
+                this.modal.close(window, cx);
             }))
             .child(Input::new(&self.name).text_size(px(12.)))
             .when_some(self.checkbox.clone(), |element, (label, checked)| {
@@ -114,7 +120,7 @@ impl Render for NameDialog {
                         tr!("app.common.cancel"),
                         Tone::Outline,
                         true,
-                        |_, window, cx| window.close_dialog(cx),
+                        cx.listener(|this, _, window, cx| this.modal.close(window, cx)),
                     ))
                     .child(button(
                         "apply-reference-name",

@@ -12,6 +12,8 @@ use super::{
     history::{History, HistoryState},
 };
 
+type Completion = Box<dyn FnOnce(&mut Client, bool, &mut Window, &mut Context<Client>)>;
+
 #[derive(Clone)]
 pub(super) enum RepoOperation {
     Reference(git::RefRequest),
@@ -25,6 +27,7 @@ pub(super) enum RepoOperation {
     Switch(String),
     Branch(String),
     Fetch(Option<String>),
+    AddRemote(git::NewRemote),
     AutoFetch,
     Push {
         branch: String,
@@ -78,6 +81,7 @@ impl RepoOperation {
             Self::Switch(branch) => repo.switch(branch),
             Self::Branch(branch) => repo.create_branch(branch),
             Self::Fetch(remote) => repo.fetch(remote.as_deref()),
+            Self::AddRemote(remote) => repo.add_remote(remote),
             Self::AutoFetch => repo.auto_fetch(),
             Self::Push {
                 branch,
@@ -109,6 +113,7 @@ impl RepoOperation {
             Self::Switch(_) => "app.notice.switched",
             Self::Branch(_) => "app.notice.branched",
             Self::Fetch(_) | Self::AutoFetch => "app.notice.fetched",
+            Self::AddRemote(_) => "app.notice.remote_added",
             Self::Push { .. } => "app.notice.pushed",
             Self::Stash => "app.notice.stashed",
             Self::Pop => "app.notice.popped",
@@ -143,7 +148,33 @@ impl Client {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        self.start_repo_update(id, edit, limit, true, window, cx);
+        self.start_repo_update(id, edit, limit, true, None, window, cx);
+    }
+
+    pub(super) fn update_repo_with_completion(
+        &mut self,
+        id: u64,
+        edit: RepoOperation,
+        complete: impl FnOnce(&mut Self, bool, &mut Window, &mut Context<Self>) + 'static,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> std::result::Result<(), Message> {
+        let Some(tab) = self.tab(id) else {
+            return Err(Message::Key("app.error.repository_unavailable"));
+        };
+        if self.start_repo_update(
+            id,
+            Some(edit),
+            tab.history.limit,
+            true,
+            Some(Box::new(complete)),
+            window,
+            cx,
+        ) {
+            Ok(())
+        } else {
+            Err(Message::Key("app.error.repo_busy"))
+        }
     }
 
     pub(super) fn refresh_watched_repo(
@@ -153,7 +184,7 @@ impl Client {
         cx: &mut Context<Self>,
     ) {
         let Some(tab) = self.tab(id) else { return };
-        self.start_repo_update(id, None, tab.history.limit, false, window, cx);
+        self.start_repo_update(id, None, tab.history.limit, false, None, window, cx);
     }
 
     fn start_repo_update(
@@ -162,11 +193,12 @@ impl Client {
         edit: Option<RepoOperation>,
         limit: Option<usize>,
         report_operation: bool,
+        complete: Option<Completion>,
         window: &mut Window,
         cx: &mut Context<Self>,
-    ) {
+    ) -> bool {
         let Some(tab) = self.tab_mut(id).filter(|tab| !tab.busy) else {
-            return;
+            return false;
         };
         tab.busy = true;
         if report_operation {
@@ -189,10 +221,15 @@ impl Client {
                 (reported, history)
             },
             move |this, (result, history), window, cx| {
+                let succeeded = result.as_ref().is_some_and(|(result, _)| result.is_ok());
                 this.finish_update(id, result, history, window, cx);
+                if let Some(complete) = complete {
+                    complete(this, succeeded, window, cx);
+                }
             },
         );
         cx.notify();
+        true
     }
 
     fn finish_update(

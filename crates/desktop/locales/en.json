@@ -138,7 +138,10 @@
       "run_git": "Could not run Git.\n%{detail}",
       "stale_patch": "The diff changed on disk. Review the refreshed diff before staging.",
       "unstageable_selection": "This selection cannot be staged or unstaged separately.",
-      "upstream_changed": "The upstream changed. Review the current upstream before pushing."
+      "upstream_changed": "The upstream changed. Review the current upstream before pushing.",
+      "cleanup_failed": "%{detail}\nAutomatic cleanup also failed: %{cleanup}",
+      "repository_unavailable": "This repository is no longer open.",
+      "repo_busy": "Wait for the current Git operation to finish."
     },
     "history": {
       "author": "AUTHOR",
@@ -162,7 +165,8 @@
       "staged": "Changes staged",
       "stashed": "Changes stashed",
       "switched": "Branch checked out",
-      "unstaged": "Changes unstaged"
+      "unstaged": "Changes unstaged",
+      "remote_added": "Remote added"
     },
     "preferences": {
       "appearance": "UI Customization",
@@ -350,6 +354,18 @@
       "track": "Create and switch to tracking branch…",
       "unavailable": "This operation is not available for this reference.",
       "unmerged": "This branch has commits not merged into HEAD. Merge it before deleting."
+    },
+    "remotes": {
+      "add": "Add Remote",
+      "adding": "Adding…",
+      "name": "Name",
+      "pull_url": "Pull URL",
+      "push_url": "Push URL",
+      "push_hint": "Leave Push URL empty to use Pull URL.",
+      "failed": "Could not add the remote.\n%{detail}",
+      "invalid_name": "Enter a valid remote name.",
+      "invalid_url": "Enter a valid remote URL.",
+      "pull_required": "Enter a pull URL."
     }
   }
 }

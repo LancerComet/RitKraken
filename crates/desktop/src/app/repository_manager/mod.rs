@@ -95,6 +95,9 @@ impl RepositoryManager {
 
 impl Client {
     pub(in crate::app) fn open_manager(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.content_modal.is_some() {
+            return;
+        }
         if self.preferences.is_some() {
             self.save_preferences(window, cx);
             if self.preferences.is_some() {

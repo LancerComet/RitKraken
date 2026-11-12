@@ -1,4 +1,33 @@
-use crate::{Repo, Result, RuleError, command::run_write, protocol::text};
+use crate::{Error, Repo, Result, RuleError, command::run_write, protocol::text};
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct NewRemote {
+    name: String,
+    pull_url: String,
+    push_url: Option<String>,
+}
+
+impl NewRemote {
+    pub fn new(name: &str, pull_url: &str, push_url: Option<&str>) -> Result<Self> {
+        let name = name.trim();
+        let pull_url = pull_url.trim();
+        let push_url = push_url.map(str::trim).filter(|url| !url.is_empty());
+        if name.is_empty() || name.contains('\0') {
+            return Err(RuleError::InvalidRemoteName.into());
+        }
+        if pull_url.is_empty() {
+            return Err(RuleError::EmptyRemoteUrl.into());
+        }
+        if pull_url.contains('\0') || push_url.is_some_and(|url| url.contains('\0')) {
+            return Err(RuleError::InvalidRemoteUrl.into());
+        }
+        Ok(Self {
+            name: name.to_owned(),
+            pull_url: pull_url.to_owned(),
+            push_url: push_url.map(str::to_owned),
+        })
+    }
+}
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Upstream {
@@ -15,6 +44,32 @@ impl Upstream {
 }
 
 impl Repo {
+    pub fn add_remote(&self, remote: &NewRemote) -> Result<()> {
+        run_write(
+            self.git()
+                .args(["remote", "add", "--", &remote.name, &remote.pull_url]),
+        )?;
+        if let Some(push_url) = &remote.push_url
+            && let Err(operation) = run_write(self.git().args([
+                "remote",
+                "set-url",
+                "--push",
+                "--",
+                &remote.name,
+                push_url,
+            ]))
+        {
+            return match run_write(self.git().args(["remote", "remove", "--", &remote.name])) {
+                Ok(()) => Err(operation),
+                Err(cleanup) => Err(Error::CleanupFailed {
+                    operation: Box::new(operation),
+                    cleanup: Box::new(cleanup),
+                }),
+            };
+        }
+        Ok(())
+    }
+
     pub fn fetch(&self, remote: Option<&str>) -> Result<()> {
         self.fetch_remotes(remote, false)
     }

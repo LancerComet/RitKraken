@@ -139,7 +139,7 @@ pub(super) struct PreferenceDraft {
 
 impl Client {
     pub(super) fn open_preferences(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if self.session.opening {
+        if self.session.opening || self.content_modal.is_some() {
             return;
         }
         if self.preferences.is_some() {

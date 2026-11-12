@@ -138,7 +138,10 @@
       "run_git": "无法运行 Git。\n%{detail}",
       "stale_patch": "磁盘上的差异已变化。请查看刷新后的差异，再暂存。",
       "unstageable_selection": "无法单独暂存或取消暂存所选内容。",
-      "upstream_changed": "上游分支已变化。请确认当前上游分支后再推送。"
+      "upstream_changed": "上游分支已变化。请确认当前上游分支后再推送。",
+      "cleanup_failed": "%{detail}\n自动清理也失败了：%{cleanup}",
+      "repository_unavailable": "此仓库已关闭。",
+      "repo_busy": "请等待当前 Git 操作完成。"
     },
     "history": {
       "author": "作者",
@@ -162,7 +165,8 @@
       "staged": "更改已暂存",
       "stashed": "更改已储藏",
       "switched": "分支已切换",
-      "unstaged": "更改已取消暂存"
+      "unstaged": "更改已取消暂存",
+      "remote_added": "远端已添加"
     },
     "preferences": {
       "appearance": "界面自定义",
@@ -350,6 +354,18 @@
       "track": "创建并切换到跟踪分支…",
       "unavailable": "此引用不支持该操作。",
       "unmerged": "此分支包含尚未合并到 HEAD 的提交，请先合并再删除。"
+    },
+    "remotes": {
+      "add": "添加远端",
+      "adding": "正在添加…",
+      "name": "名称",
+      "pull_url": "拉取 URL",
+      "push_url": "推送 URL",
+      "push_hint": "推送 URL 留空时使用拉取 URL。",
+      "failed": "无法添加远端。\n%{detail}",
+      "invalid_name": "请输入有效的远端名称。",
+      "invalid_url": "请输入有效的远端 URL。",
+      "pull_required": "请输入拉取 URL。"
     }
   }
 }

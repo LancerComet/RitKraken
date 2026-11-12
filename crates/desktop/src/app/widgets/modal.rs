@@ -22,6 +22,7 @@ pub(in crate::app) struct Modal {
     children: Vec<AnyElement>,
     viewport_fractions: Option<Size<f32>>,
     maximum_size: Size<Pixels>,
+    fit_content: bool,
 }
 
 impl Modal {
@@ -41,12 +42,19 @@ impl Modal {
             children: Vec::new(),
             viewport_fractions: None,
             maximum_size: size(px(900.), px(650.)),
+            fit_content: false,
         }
     }
 
     pub fn relative_size(mut self, fractions: Size<f32>, maximum: Size<Pixels>) -> Self {
         self.viewport_fractions = Some(fractions);
         self.maximum_size = maximum;
+        self
+    }
+
+    pub fn content_size(mut self, maximum: Size<Pixels>, fit_content: bool) -> Self {
+        self.maximum_size = maximum;
+        self.fit_content = fit_content;
         self
     }
 }
@@ -103,7 +111,12 @@ impl RenderOnce for Modal {
             .role(Role::Dialog)
             .aria_label(self.title)
             .w(available.width.min(self.maximum_size.width))
-            .h(available.height.min(self.maximum_size.height))
+            .when(self.fit_content, |panel| {
+                panel.max_h(available.height.min(self.maximum_size.height))
+            })
+            .when(!self.fit_content, |panel| {
+                panel.h(available.height.min(self.maximum_size.height))
+            })
             .flex()
             .flex_col()
             .bg(rgb(WHITE))

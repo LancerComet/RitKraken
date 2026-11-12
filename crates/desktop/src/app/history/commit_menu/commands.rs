@@ -76,17 +76,25 @@ impl Client {
                 );
             }
             GraphAction::Operation(operation) if !tab.busy && self.session.active == Some(id) => {
-                self.load_graph_operation(id, context, operation, window, cx);
+                if matches!(
+                    operation,
+                    CommitOperation::CreateBranch { .. } | CommitOperation::CreateTag(_)
+                ) {
+                    self.open_reference_dialog(id, context, operation, window, cx);
+                } else {
+                    self.load_graph_operation(id, context, operation, false, window, cx);
+                }
             }
             GraphAction::Operation(_) => {}
         }
     }
 
-    fn load_graph_operation(
+    pub(super) fn load_graph_operation(
         &mut self,
         id: u64,
         expected: Arc<CommitMenuState>,
         mut operation: CommitOperation,
+        reviewed: bool,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
@@ -119,17 +127,19 @@ impl Client {
                     return;
                 }
                 match result {
-                    Ok((context, operation)) => match operation {
-                        CommitOperation::CreateBranch { .. }
-                        | CommitOperation::CreateTag(_)
-                        | CommitOperation::Amend { .. }
-                        | CommitOperation::InteractiveRebase(_) => {
-                            CommitDialog::open(id, tab.repo.clone(), context, operation, window, cx)
-                        }
-                        _ => {
-                            this.prepare_graph_operation(id, context, operation, false, window, cx)
-                        }
-                    },
+                    Ok((context, operation))
+                        if !reviewed
+                            && matches!(
+                                operation,
+                                CommitOperation::Amend { .. }
+                                    | CommitOperation::InteractiveRebase(_)
+                            ) =>
+                    {
+                        CommitDialog::open(id, tab.repo.clone(), context, operation, window, cx)
+                    }
+                    Ok((context, operation)) => {
+                        this.prepare_graph_operation(id, context, operation, reviewed, window, cx)
+                    }
                     Err(error) => tab.notice = Some((true, error.into())),
                 }
                 cx.notify();
@@ -230,7 +240,7 @@ impl Client {
     }
 }
 
-pub(super) fn operation_title(operation: &CommitOperation, context: &CommitContext) -> String {
+pub(super) fn operation_title(operation: &CommitOperation, context: &CommitMenuState) -> String {
     let branch = context.branch.as_deref().unwrap_or("HEAD");
     match operation {
         CommitOperation::CreateBranch { .. } => tr!("app.commit_menu.create_branch"),

@@ -47,6 +47,11 @@ fn git_error(error: &Error) -> String {
         Error::Io(error) => tr!("app.error.io", detail = error),
         Error::InvalidOperation(detail) => tr!("app.error.operation", detail = detail),
         Error::Rule(rule) => rule_error(rule),
+        Error::CleanupFailed { operation, cleanup } => tr!(
+            "app.error.cleanup_failed",
+            detail = git_error(operation),
+            cleanup = git_error(cleanup)
+        ),
     }
 }
 
@@ -83,6 +88,9 @@ fn rule_error(rule: &RuleError) -> String {
         RuleError::BranchChanged => "app.error.branch_changed",
         RuleError::UpstreamChanged => "app.error.upstream_changed",
         RuleError::EmptyCommitSummary => "app.error.commit_summary",
+        RuleError::InvalidRemoteName => "app.remotes.invalid_name",
+        RuleError::EmptyRemoteUrl => "app.remotes.pull_required",
+        RuleError::InvalidRemoteUrl => "app.remotes.invalid_url",
         RuleError::MissingRemote(remote) => {
             return tr!("app.error.missing_remote", remote = remote);
         }

@@ -18,6 +18,11 @@ pub enum Error {
     Rule(#[from] RuleError),
     #[error("{0}")]
     InvalidOperation(String),
+    #[error("{operation}\nAutomatic cleanup also failed: {cleanup}")]
+    CleanupFailed {
+        operation: Box<Error>,
+        cleanup: Box<Error>,
+    },
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -86,6 +91,12 @@ pub enum RuleError {
     UpstreamChanged,
     #[error("Remote {0} is no longer configured.")]
     MissingRemote(String),
+    #[error("Enter a valid remote name.")]
+    InvalidRemoteName,
+    #[error("Enter a pull URL.")]
+    EmptyRemoteUrl,
+    #[error("Enter a valid remote URL.")]
+    InvalidRemoteUrl,
     #[error("Enter a commit summary.")]
     EmptyCommitSummary,
 }

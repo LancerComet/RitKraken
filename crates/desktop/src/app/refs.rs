@@ -5,6 +5,7 @@ use gpui_kit::{
         Sizable,
         input::{Input, InputState},
         scroll::ScrollableElement,
+        tooltip::Tooltip,
     },
     prelude::*,
     *,
@@ -237,6 +238,7 @@ impl Client {
         let mut group = div().flex().flex_col().pb(px(5.)).child(
             div()
                 .id(title)
+                .group("ref-group-heading")
                 .h(px(27.))
                 .px(px(8.))
                 .flex()
@@ -264,9 +266,48 @@ impl Client {
                 )
                 .child(
                     div()
-                        .text_size(px(11.))
-                        .text_color(rgb(0x315aae))
-                        .child(format!("{}/{}", matches.len(), refs.len())),
+                        .relative()
+                        .h(px(21.))
+                        .flex()
+                        .items_center()
+                        .child(
+                            div()
+                                .text_size(px(11.))
+                                .text_color(rgb(0x315aae))
+                                .child(format!("{}/{}", matches.len(), refs.len()))
+                                .when(kind == RefKind::Remote, |count| {
+                                    count
+                                        .group_hover("ref-group-heading", |style| style.invisible())
+                                }),
+                        )
+                        .when(kind == RefKind::Remote, |row| {
+                            row.child(
+                                button(
+                                    "add-remote",
+                                    "",
+                                    Tone::Plain,
+                                    !tab.busy,
+                                    cx.listener(move |this, _, window, cx| {
+                                        cx.stop_propagation();
+                                        this.open_add_remote(tab_id, window, cx);
+                                    }),
+                                )
+                                .absolute()
+                                .right_0()
+                                .top_0()
+                                .w(px(21.))
+                                .h(px(21.))
+                                .px(px(0.))
+                                .child(icon("icons/plus.svg", TEXT).size(px(14.)))
+                                .aria_label(tr!("app.remotes.add"))
+                                .invisible()
+                                .group_hover("ref-group-heading", |style| style.visible())
+                                .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+                                .tooltip(|window, cx| {
+                                    Tooltip::new(tr!("app.remotes.add")).build(window, cx)
+                                }),
+                            )
+                        }),
                 ),
         );
         if !open {
@@ -280,33 +321,14 @@ impl Client {
                 let key = format!("{title}/{}", parts[..=depth].join("/"));
                 let collapsed = tab.refs.closed_folders.contains(&key) && filter.is_empty();
                 if seen.insert(key.clone()) {
-                    group = group.child(
-                        div()
-                            .id(SharedString::from(key.clone()))
-                            .flex()
-                            .items_center()
-                            .gap(px(3.))
-                            .h(px(22.))
-                            .pl(px(10. + 13. * depth as f32))
-                            .min_w_0()
-                            .cursor_pointer()
-                            .hover(|s| s.bg(rgb(HOVER)))
-                            .on_click(cx.listener(move |this, _, _, cx| {
-                                if let Some(tab) = this.tab_mut(tab_id) {
-                                    if !tab.refs.closed_folders.remove(&key) {
-                                        tab.refs.closed_folders.insert(key.clone());
-                                    }
-                                    cx.notify();
-                                }
-                            }))
-                            .child(disclosure_chevron(!collapsed))
-                            .child(
-                                div()
-                                    .text_color(rgb(MUTED))
-                                    .truncate()
-                                    .child(parts[depth].to_owned()),
-                            ),
-                    );
+                    group = group.child(ref_folder(
+                        tab_id,
+                        key,
+                        parts[depth].to_owned(),
+                        depth,
+                        Some(!collapsed),
+                        cx,
+                    ));
                 }
                 if collapsed {
                     hidden = true;
@@ -371,8 +393,62 @@ impl Client {
                     ),
             );
         }
+        if kind == RefKind::Remote {
+            for remote in &snapshot.remotes {
+                let prefix = format!("{remote}/");
+                if remote.to_lowercase().contains(filter)
+                    && !refs
+                        .iter()
+                        .any(|reference| reference.name.starts_with(&prefix))
+                {
+                    group = group.child(ref_folder(
+                        tab_id,
+                        format!("{title}/{remote}"),
+                        remote.clone(),
+                        0,
+                        None,
+                        cx,
+                    ));
+                }
+            }
+        }
         group
     }
+}
+
+fn ref_folder(
+    tab_id: u64,
+    key: String,
+    label: String,
+    depth: usize,
+    expanded: Option<bool>,
+    cx: &mut Context<Client>,
+) -> Stateful<Div> {
+    div()
+        .id(SharedString::from(key.clone()))
+        .flex()
+        .items_center()
+        .gap(px(3.))
+        .h(px(22.))
+        .pl(px(10. + 13. * depth as f32))
+        .min_w_0()
+        .hover(|style| style.bg(rgb(HOVER)))
+        .when(expanded.is_some(), |row| {
+            row.cursor_pointer()
+                .on_click(cx.listener(move |this, _, _, cx| {
+                    if let Some(tab) = this.tab_mut(tab_id) {
+                        if !tab.refs.closed_folders.remove(&key) {
+                            tab.refs.closed_folders.insert(key.clone());
+                        }
+                        cx.notify();
+                    }
+                }))
+        })
+        .child(expanded.map_or_else(
+            || icon("icons/cloud.svg", MUTED).size(px(12.)),
+            disclosure_chevron,
+        ))
+        .child(div().text_color(rgb(MUTED)).truncate().child(label))
 }
 
 fn disclosure_chevron(open: bool) -> Svg {

@@ -2,17 +2,14 @@ mod history;
 
 use std::sync::Arc;
 
-use gpui_kit::{
-    component::{WindowExt, scroll::ScrollableElement},
-    prelude::*,
-    *,
-};
+use gpui_kit::{component::scroll::ScrollableElement, prelude::*, *};
 use ritkraken_diff::{DiffState, DiffTypography};
 use ritkraken_git::{self as git, BlameLine, FileHistory, FileTarget, Repo, Scope};
 
 use crate::{
     app::{
         Client, Load,
+        modals::{ContentModal, ModalHandle},
         review::parse_patch,
         widgets::{MUTED, error_text, note, table::ResizableColumns},
     },
@@ -82,22 +79,17 @@ impl FileInspection {
             state.load(window, cx);
             state
         });
-        window.open_dialog(cx, move |dialog, window, _| {
-            dialog
-                .title(
-                    div()
-                        .text_size(px(15.))
-                        .child(format!("{} · {}", kind.title(), path)),
-                )
-                .w((window.viewport_size().width - px(60.)).min(px(1250.)))
-                .child(
-                    div()
-                        .w_full()
-                        .min_w_0()
-                        .h((window.viewport_size().height - px(150.)).min(px(740.)))
-                        .child(inspection.clone()),
-                )
-        });
+        Client::present_content_modal(
+            ContentModal::new(
+                ModalHandle::new(cx),
+                format!("{} · {}", kind.title(), path),
+                inspection,
+                size(px(1250.), px(817.)),
+                false,
+            ),
+            window,
+            cx,
+        );
     }
 
     fn load(&mut self, window: &Window, cx: &mut Context<Self>) {

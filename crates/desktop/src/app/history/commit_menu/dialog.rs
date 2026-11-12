@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use gpui_kit::{
     component::{
-        WindowExt,
         checkbox::Checkbox,
         input::{InputEvent, Textarea, TextareaState},
     },
@@ -15,7 +14,8 @@ use super::commands::operation_title;
 use crate::{
     app::{
         Client, Escape, Load, Message, Submit,
-        widgets::{LINE, MUTED, Tone, button, error_text, name_dialog::NameDialog},
+        modals::{ContentModal, ModalHandle},
+        widgets::{LINE, MUTED, Tone, button, error_text},
     },
     i18n::tr,
 };
@@ -31,6 +31,7 @@ pub(super) struct CommitDialog {
     pub(super) selected: usize,
     pub(super) scroll: UniformListScrollHandle,
     error: Option<Message>,
+    modal: ModalHandle,
     _message: Subscription,
 }
 
@@ -44,64 +45,10 @@ impl CommitDialog {
         cx: &mut Context<Client>,
     ) {
         let title = operation_title(&operation, &context);
-        if matches!(
-            operation,
-            CommitOperation::CreateBranch { .. } | CommitOperation::CreateTag(_)
-        ) {
-            let (initial, checkbox, hint) = match &operation {
-                CommitOperation::CreateBranch {
-                    name,
-                    checkout,
-                    track,
-                } => (
-                    name.as_str(),
-                    Some((tr!("app.commit_menu.checkout_after_create"), *checkout)),
-                    track
-                        .as_ref()
-                        .map(|track| tr!("app.commit_menu.track", branch = track)),
-                ),
-                CommitOperation::CreateTag(name) => (name.as_str(), None, None),
-                _ => unreachable!(),
-            };
-            let owner = cx.weak_entity();
-            let initial_operation = operation.clone();
-            NameDialog::open(
-                title,
-                initial,
-                checkbox,
-                hint,
-                window,
-                cx,
-                move |name, checked, window, cx| {
-                    let mut operation = initial_operation.clone();
-                    match &mut operation {
-                        CommitOperation::CreateBranch {
-                            name: value,
-                            checkout,
-                            ..
-                        } => {
-                            *value = name;
-                            *checkout = checked;
-                        }
-                        CommitOperation::CreateTag(value) => *value = name,
-                        _ => unreachable!(),
-                    }
-                    let _ = owner.update(cx, |client, cx| {
-                        client.prepare_graph_operation(
-                            id,
-                            context.clone(),
-                            operation,
-                            true,
-                            window,
-                            cx,
-                        )
-                    });
-                },
-            );
-            return;
-        }
         let interactive = matches!(operation, CommitOperation::InteractiveRebase(_));
         let owner = cx.weak_entity();
+        let modal = ModalHandle::new(cx);
+        let handle = modal.clone();
         let view = cx.new(|cx| {
             let message = cx.new(|cx| {
                 TextareaState::new(window, cx)
@@ -129,6 +76,7 @@ impl CommitDialog {
                 selected: 0,
                 scroll: UniformListScrollHandle::default(),
                 error: None,
+                modal: handle,
                 _message: subscription,
             };
             if interactive {
@@ -146,26 +94,19 @@ impl CommitDialog {
             }
             state
         });
-        window.open_dialog(cx, move |dialog, window, _| {
-            dialog
-                .title(div().text_size(px(14.)).child(title.clone()))
-                .w(
-                    (window.viewport_size().width - px(60.)).min(px(if interactive {
-                        1100.
-                    } else {
-                        540.
-                    })),
-                )
-                .child(
-                    div()
-                        .w_full()
-                        .min_w_0()
-                        .when(interactive, |element| {
-                            element.h((window.viewport_size().height - px(160.)).min(px(720.)))
-                        })
-                        .child(view.clone()),
-                )
-        });
+        let focus = view.read(cx).message.read(cx).focus_handle(cx);
+        Client::present_content_modal(
+            ContentModal::new(
+                modal,
+                title,
+                view,
+                size(px(if interactive { 1100. } else { 540. }), px(797.)),
+                !interactive,
+            )
+            .focus(focus),
+            window,
+            cx,
+        );
     }
 
     fn submit(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -194,10 +135,10 @@ impl CommitDialog {
         }
         let context = self.context.clone();
         let id = self.id;
+        self.modal.close(window, cx);
         let _ = self.owner.update(cx, |client, cx| {
             client.prepare_graph_operation(id, context, operation, true, window, cx)
         });
-        window.close_dialog(cx);
     }
 }
 
@@ -241,9 +182,9 @@ impl Render for CommitDialog {
                 cx.stop_propagation();
                 this.submit(window, cx);
             }))
-            .on_action(cx.listener(|_, _: &Escape, window, cx| {
+            .on_action(cx.listener(|this, _: &Escape, window, cx| {
                 cx.stop_propagation();
-                window.close_dialog(cx);
+                this.modal.close(window, cx);
             }))
             .text_size(px(12.))
             .when_some(self.error.as_ref(), |element, error| {
@@ -263,7 +204,7 @@ impl Render for CommitDialog {
                         tr!("app.common.cancel"),
                         Tone::Outline,
                         true,
-                        |_, window, cx| window.close_dialog(cx),
+                        cx.listener(|this, _, window, cx| this.modal.close(window, cx)),
                     ))
                     .child(button(
                         "apply-commit-operation",

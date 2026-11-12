@@ -1,10 +1,11 @@
-use gpui_kit::{component::WindowExt, prelude::*, *};
+use gpui_kit::{prelude::*, *};
 use ritkraken_diff::{DiffState, DiffTypography};
 use ritkraken_git::{CommitMenuState, Repo, short_id};
 
 use crate::{
     app::{
         Client, Load,
+        modals::{ContentModal, ModalHandle},
         preferences::Preferences,
         review::{DiffLayout, parse_patch},
         widgets::{error_text, note},
@@ -63,17 +64,17 @@ impl CommitComparison {
                 wrap_lines,
             }
         });
-        window.open_dialog(cx, move |dialog, window, _| {
-            dialog
-                .title(div().text_size(px(14.)).child(title.clone()))
-                .w((window.viewport_size().width - px(60.)).min(px(1400.)))
-                .child(
-                    div()
-                        .h((window.viewport_size().height - px(150.)).min(px(800.)))
-                        .w_full()
-                        .child(viewer.clone()),
-                )
-        });
+        Client::present_content_modal(
+            ContentModal::new(
+                ModalHandle::new(cx),
+                title,
+                viewer,
+                size(px(1400.), px(877.)),
+                false,
+            ),
+            window,
+            cx,
+        );
     }
 }
 

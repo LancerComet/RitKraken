@@ -138,7 +138,10 @@
       "run_git": "無法執行 Git。\n%{detail}",
       "stale_patch": "磁碟上的差異已變更。請查看更新後的差異，再暫存。",
       "unstageable_selection": "無法單獨暫存或取消暫存所選內容。",
-      "upstream_changed": "上游分支已變更。請確認目前的上游分支後再推送。"
+      "upstream_changed": "上游分支已變更。請確認目前的上游分支後再推送。",
+      "cleanup_failed": "%{detail}\n自動清理也失敗了：%{cleanup}",
+      "repository_unavailable": "此儲存庫已關閉。",
+      "repo_busy": "請等待目前的 Git 操作完成。"
     },
     "history": {
       "author": "作者",
@@ -162,7 +165,8 @@
       "staged": "變更已暫存",
       "stashed": "變更已貯藏",
       "switched": "分支已切換",
-      "unstaged": "變更已取消暫存"
+      "unstaged": "變更已取消暫存",
+      "remote_added": "遠端已新增"
     },
     "preferences": {
       "appearance": "介面自訂",
@@ -350,6 +354,18 @@
       "track": "建立並切換至追蹤分支…",
       "unavailable": "此引用不支援該操作。",
       "unmerged": "此分支包含尚未合併至 HEAD 的提交，請先合併再刪除。"
+    },
+    "remotes": {
+      "add": "新增遠端",
+      "adding": "正在新增…",
+      "name": "名稱",
+      "pull_url": "拉取 URL",
+      "push_url": "推送 URL",
+      "push_hint": "推送 URL 留空時使用拉取 URL。",
+      "failed": "無法新增遠端。\n%{detail}",
+      "invalid_name": "請輸入有效的遠端名稱。",
+      "invalid_url": "請輸入有效的遠端 URL。",
+      "pull_required": "請輸入拉取 URL。"
     }
   },
   "gpui_component": {

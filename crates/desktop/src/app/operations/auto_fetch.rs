@@ -1,4 +1,4 @@
-use gpui_kit::{component::WindowExt as _, *};
+use gpui_kit::*;
 
 use super::RepoOperation;
 use crate::app::Client;
@@ -32,7 +32,7 @@ impl Client {
     }
 
     fn auto_fetch_current(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if self.session.opening || self.modal_is_present() || window.has_active_dialog(cx) {
+        if self.session.opening || self.modal_is_present() {
             return;
         }
         let Some(tab) = self.current() else { return };
@@ -45,6 +45,7 @@ impl Client {
             Some(RepoOperation::AutoFetch),
             tab.history.limit,
             false,
+            None,
             window,
             cx,
         );

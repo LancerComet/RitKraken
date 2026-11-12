@@ -1,0 +1,289 @@
+--- a/diff/mod.rs
++++ b/diff/mod.rs
+@@ -38,7 +38,7 @@
+     scroll::{ScrollableMask, Scrollbar},
+     v_flex,
+ };
+-use crate::{DiffTypography, controls::ChangeControls, split::SplitLayout};
++use crate::{DiffTypography, controls::ChangeControls, horizontal::SplitScroll, split::SplitLayout};
+ use actions::*;
+ use conflict::ConflictPart;
+ use decoration::{Decorations, GutterMarkers};
+@@ -565,33 +565,37 @@
+         split.filter(|_| soft_wrap),
+     );
+     if state.update_layout(layout, row_height) {
+-        // Wrapped rows take the viewport width instead of their longest line.
+-        let width = if soft_wrap {
+-            px(0.)
++        let (width, split_widths) = if soft_wrap {
++            (px(0.), [px(0.); 2])
++        } else if split.is_some() {
++            let widths = [DiffSide::Original, DiffSide::Modified].map(|side| {
++                measure_code_width(
++                    state.files(), font_size, &font_family, gutter_width,
++                    lane_width, DiffMode::Split, Some(side), window, cx,
++                ) / 2.
++            });
++            (widths[0].max(widths[1]) * 2., widths)
+         } else {
+-            measure_code_width(
+-                state.files(),
+-                font_size,
+-                &font_family,
+-                gutter_width,
+-                lane_width,
+-                mode,
+-                window,
+-                cx,
+-            )
++            (measure_code_width(
++                state.files(), font_size, &font_family, gutter_width,
++                lane_width, DiffMode::Unified, None, window, cx,
++            ), [px(0.); 2])
+         };
+         state.set_content_width(width);
++        state.split_scroll_mut().set_widths(split_widths);
+     }
+     state.sync_annotations(&props.annotations.items);
+     let viewport_width = state.viewport().width;
+     let content_width = state.content_width().max(viewport_width);
+     let horizontal = state.horizontal_scroll().clone();
++    let split_horizontal = state.split_scroll().clone();
+     let code = Rc::new(CodePresentation {
+         files: state.files().to_vec(),
+         presentations: state.presentations().to_vec(),
+         mode,
+         split,
+         horizontal_scroll: horizontal.clone(),
++        split_scroll: split_horizontal.clone(),
+         font_family,
+         font_size,
+         row_height,
+@@ -637,17 +641,8 @@
+         .min_h_0()
+         .min_w_0()
+         .flex_1()
+-        // Track horizontal overflow before painting the fixed split panes.
+-        .when_some(split, |this, split| {
+-            this.child(
+-                div()
+-                    .id("diff-split-scroll-extent")
+-                    .absolute()
+-                    .inset_0()
+-                    .overflow_x_hidden()
+-                    .track_scroll(&horizontal)
+-                    .child(div().w(split.scroll_extent(viewport_width, state.content_width()))),
+-            )
++        .when_some(split.filter(|_| !soft_wrap), |this, split| {
++            this.child(split_horizontal.trackers(split))
+         })
+         .child(SelectionLayer::new(
+             div()
+@@ -683,12 +678,15 @@
+             state.selection().clone(),
+             state.geometry().clone(),
+         ))
+-        .when(has_rows && !soft_wrap, |this| {
++        .when(has_rows && !soft_wrap && split.is_none(), |this| {
+             this.child(
+                 ScrollableMask::new(Axis::Horizontal, &horizontal).id("diff-horizontal-wheel"),
+             )
+         })
+-        .when_some(split, |this, split| this.child(split.divider(cx)))
++        .when_some(split, |this, split| {
++            this.child(split_horizontal.controls(split, has_rows && !soft_wrap))
++                .child(split.divider(cx))
++        })
+         .when(has_rows, |this| {
+             this.child(
+                 div()
+@@ -696,8 +694,8 @@
+                     .inset_0()
+                     .child(Scrollbar::vertical(&scrollbar).viewport_from_layout()),
+             )
+-            .when(!soft_wrap, |this| {
+-                this.child(Scrollbar::horizontal(&horizontal))
++            .when(!soft_wrap && split.is_none(), |this| {
++                this.child(crate::horizontal::scrollbar(&horizontal))
+             })
+         })
+         // A line-number drag may finish anywhere, including outside the body.
+@@ -723,22 +721,22 @@
+             this.list().scroll_by(window.rem_size() * 1.5);
+             cx.notify();
+         }))
+-        .on_action(cx.listener(|this, _: &ScrollLeft, window, cx| {
+-            if !body_focused(this, window, cx) {
++        .on_action(cx.listener(move |this, _: &ScrollLeft, window, cx| {
++            if soft_wrap || !body_focused(this, window, cx) {
+                 return;
+             }
+-            let offset = this.horizontal_scroll().offset();
+-            this.horizontal_scroll()
+-                .set_offset(point(offset.x + window.rem_size() * 3., offset.y));
++            let handle = this.horizontal_input(split.is_some());
++            let offset = handle.offset();
++            handle.set_offset(point(offset.x + window.rem_size() * 3., offset.y));
+             cx.notify();
+         }))
+-        .on_action(cx.listener(|this, _: &ScrollRight, window, cx| {
+-            if !body_focused(this, window, cx) {
++        .on_action(cx.listener(move |this, _: &ScrollRight, window, cx| {
++            if soft_wrap || !body_focused(this, window, cx) {
+                 return;
+             }
+-            let offset = this.horizontal_scroll().offset();
+-            this.horizontal_scroll()
+-                .set_offset(point(offset.x - window.rem_size() * 3., offset.y));
++            let handle = this.horizontal_input(split.is_some());
++            let offset = handle.offset();
++            handle.set_offset(point(offset.x - window.rem_size() * 3., offset.y));
+             cx.notify();
+         }))
+         .on_action(cx.listener(|this, _: &PageUp, window, cx| {
+@@ -814,7 +812,17 @@
+                                 let painted = state.geometry().borrow().painted_width();
+-                                code_width(painted, gutter_width, lane_width, rem, mode)
++                                let mode = split.map_or(DiffMode::Unified, |_| DiffMode::Split);
++                                code_width(painted, gutter_width, lane_width, rem, mode)
+                             };
+-                            if state.record_paint(bounds.size, painted) || rehinted {
++                            let split_widened = if split.is_some() && !soft_wrap {
++                                let widths = [DiffSide::Original, DiffSide::Modified].map(|side| {
++                                    let painted = state.geometry().borrow().painted_width_for(Some(side));
++                                    code_width(painted, gutter_width, lane_width, rem, DiffMode::Split) / 2.
++                                });
++                                state.split_scroll_mut().grow_widths(widths)
++                            } else {
++                                false
++                            };
++                            if state.record_paint(bounds.size, painted) || rehinted || split_widened {
+                                 cx.notify();
+                             }
+                         });
+@@ -860,6 +867,7 @@
+     mode: DiffMode,
+     split: Option<SplitLayout>,
+     horizontal_scroll: gpui::ScrollHandle,
++    split_scroll: SplitScroll,
+     font_family: SharedString,
+     font_size: Pixels,
+     row_height: Pixels,
+@@ -936,6 +944,7 @@
+     gutter_width: Pixels,
+     lane_width: Pixels,
+     mode: DiffMode,
++    only_side: Option<DiffSide>,
+     window: &mut Window,
+     cx: &App,
+ ) -> Pixels {
+@@ -945,6 +954,9 @@
+     let mut candidates: Vec<(usize, &SharedString)> = Vec::with_capacity(CANDIDATES + 1);
+     for file in files {
+         for side in [DiffSide::Original, DiffSide::Modified] {
++            if only_side.is_some_and(|selected| selected != side) {
++                continue;
++            }
+             for line in file.lines(side) {
+                 let cells = unicode_width::UnicodeWidthStr::width(line.display().as_str());
+                 if candidates.len() == CANDIDATES
+@@ -1771,7 +1783,7 @@
+                     .flex_row()
+                     .flex_shrink_0()
+                     .when(code.split.is_some(), |this| {
+-                        this.relative().left(code.horizontal_scroll.offset().x)
++                        this.relative().left(code.split_scroll.handle(side).offset().x)
+                     })
+             }
+         })
+--- a/diff/state.rs
++++ b/diff/state.rs
+@@ -13,7 +13,7 @@
+ };
+ use gpui_base::{TextSelection, TextSelectionContentKey, TextSelectionEvent, TextSelectionHandle};
+ 
+-use crate::split::SplitLayout;
++use crate::{horizontal::SplitScroll, split::SplitLayout};
+ 
+ use super::{
+     DiffAnnotation, DiffConflictResolution, DiffFile, DiffFileStatus, DiffInlineUnit,
+@@ -227,6 +227,7 @@
+     change_rows: Vec<usize>,
+     list: ListState,
+     horizontal_scroll: ScrollHandle,
++    split_scroll: SplitScroll,
+     focus: FocusHandle,
+     selection: TextSelectionHandle,
+     geometry: Rc<RefCell<SelectionGeometry>>,
+@@ -359,6 +360,7 @@
+             change_rows: Vec::new(),
+             list: ListState::new(0, ListAlignment::Top, px(0.)),
+             horizontal_scroll: ScrollHandle::new(),
++            split_scroll: SplitScroll::default(),
+             focus,
+             selection,
+             geometry,
+@@ -580,6 +582,15 @@
+     pub(crate) fn horizontal_scroll(&self) -> &ScrollHandle {
+         &self.horizontal_scroll
+     }
++    pub(crate) fn split_scroll(&self) -> &SplitScroll {
++        &self.split_scroll
++    }
++    pub(crate) fn split_scroll_mut(&mut self) -> &mut SplitScroll {
++        &mut self.split_scroll
++    }
++    pub(crate) fn horizontal_input(&self, split: bool) -> &ScrollHandle {
++        if split { self.split_scroll.active_handle() } else { &self.horizontal_scroll }
++    }
+     pub(crate) fn selection(&self) -> &TextSelectionHandle {
+         &self.selection
+     }
+@@ -651,6 +662,7 @@
+         self.geometry.borrow_mut().clear();
+         self.rebuild(true);
+         self.horizontal_scroll.set_offset(point(px(0.), px(0.)));
++        self.split_scroll.reset();
+         self.ensure_presentation(cx);
+         cx.notify();
+     }
+@@ -666,6 +678,7 @@
+         let was_heading = matches!(self.rows.get(top), Some(DisplayRow::Hunk { .. }));
+         let anchor = self.row_position(top);
+         let horizontal_offset = self.horizontal_scroll.offset();
++        let split_offsets = self.split_scroll.offsets();
+         self.set_files(files, cx);
+         if let Some(position) = anchor.filter(|position| self.line_index(position).is_some()) {
+             self.scroll_to_line(position.clone(), cx);
+@@ -679,6 +692,7 @@
+             self.scroll_to_first_hunk(cx);
+         }
+         self.horizontal_scroll.set_offset(horizontal_offset);
++        self.split_scroll.restore(split_offsets);
+     }
+ 
+     /// Places the first hunk's heading at the top of the visible diff.
+@@ -709,6 +723,7 @@
+         self.mode = mode;
+         self.rebuild_at_anchor();
+         self.horizontal_scroll.set_offset(point(px(0.), px(0.)));
++        self.split_scroll.reset();
+         cx.notify();
+     }
+ 
+--- a/diff/selection.rs
++++ b/diff/selection.rs
+@@ -49,8 +49,12 @@
+ 
+     /// The widest painted source line, measured from its first text run.
+     pub fn painted_width(&self) -> Pixels {
++        self.painted_width_for(None)
++    }
++    pub fn painted_width_for(&self, side: Option<DiffSide>) -> Pixels {
+         self.runs
+             .iter()
++            .filter(|run| side.is_none_or(|side| run.side == side))
+             .fold((None, px(0.), px(0.)), |(previous, left, widest), run| {
+                 let key = (run.file, run.side, run.line_ix);
+                 let left = if previous == Some(key) {

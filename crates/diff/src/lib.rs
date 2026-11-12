@@ -16,6 +16,7 @@ macro_rules! _rust_i18n_t {
 pub(crate) use _rust_i18n_t;
 
 mod controls;
+mod horizontal;
 mod split;
 mod typography;
 include!(concat!(env!("OUT_DIR"), "/modules.rs"));

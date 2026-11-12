@@ -15,7 +15,7 @@ use crate::i18n::{LocalizedInput, tr};
 
 use super::{
     Client, RepoOperation, RepoTab,
-    widgets::{NAV_TEXT, Tone, WHITE, button, icon, modal::MODAL_CORNER_RADIUS},
+    widgets::{NAV_TEXT, Tone, button, icon, modal::Modal},
 };
 
 impl Client {
@@ -268,51 +268,55 @@ impl BranchDialog {
 }
 
 impl Client {
-    pub(super) fn branch_view(&self, cx: &mut Context<Self>) -> Div {
-        div()
-            .w(px(390.))
-            .p(px(15.))
-            .rounded(MODAL_CORNER_RADIUS)
-            .bg(rgb(WHITE))
-            .flex()
-            .flex_col()
-            .gap(px(10.))
-            .child(
-                div()
-                    .text_size(px(16.))
-                    .child(tr!("app.branch.create_and_checkout")),
-            )
-            .child(Input::new(&self.branch_dialog.name))
-            .child(
-                div()
-                    .flex()
-                    .justify_end()
-                    .gap(px(6.))
-                    .child(button(
-                        "cancel-branch",
-                        tr!("app.common.cancel"),
-                        Tone::Outline,
-                        true,
-                        cx.listener(|this, _, window, cx| this.escape(window, cx)),
-                    ))
-                    .child(button(
-                        "create-branch",
-                        tr!("app.branch.create"),
-                        Tone::Green,
-                        true,
-                        cx.listener(|this, _, window, cx| {
-                            let branch = this.branch_dialog.name.read(cx).value().trim().to_owned();
-                            if let Some(id) = this.session.active.filter(|_| !branch.is_empty()) {
-                                this.dismiss_modal(window, cx);
-                                this.update_repo(
-                                    id,
-                                    Some(RepoOperation::Branch(branch)),
-                                    window,
-                                    cx,
-                                );
-                            }
-                        }),
-                    )),
-            )
+    pub(super) fn branch_view(&self, cx: &mut Context<Self>) -> Modal {
+        Modal::new(
+            "branch-modal",
+            tr!("app.branch.create_and_checkout"),
+            &self.modal_focus,
+            true,
+            cx.listener(|this, _, window, cx| this.escape(window, cx)),
+        )
+        .content_size(size(px(390.), px(650.)), true)
+        .child(
+            div()
+                .p(px(16.))
+                .flex()
+                .flex_col()
+                .gap(px(10.))
+                .child(Input::new(&self.branch_dialog.name))
+                .child(
+                    div()
+                        .flex()
+                        .justify_end()
+                        .gap(px(6.))
+                        .child(button(
+                            "cancel-branch",
+                            tr!("app.common.cancel"),
+                            Tone::Outline,
+                            true,
+                            cx.listener(|this, _, window, cx| this.escape(window, cx)),
+                        ))
+                        .child(button(
+                            "create-branch",
+                            tr!("app.branch.create"),
+                            Tone::Green,
+                            true,
+                            cx.listener(|this, _, window, cx| {
+                                let branch =
+                                    this.branch_dialog.name.read(cx).value().trim().to_owned();
+                                if let Some(id) = this.session.active.filter(|_| !branch.is_empty())
+                                {
+                                    this.dismiss_modal(window, cx);
+                                    this.update_repo(
+                                        id,
+                                        Some(RepoOperation::Branch(branch)),
+                                        window,
+                                        cx,
+                                    );
+                                }
+                            }),
+                        )),
+                ),
+        )
     }
 }
