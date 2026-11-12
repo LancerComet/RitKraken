@@ -118,6 +118,7 @@ impl Client {
             return;
         }
         self.session.active = Some(id);
+        self.branch_editor.clear();
         self.dismiss_modal(window, cx);
         self.load_saved_tab(id, window, cx);
         self.select_initial_commit(id, window, cx);

@@ -21,16 +21,12 @@ const MODAL_DURATION: Duration = Duration::from_millis(200);
 pub(super) enum ClosingModal {
     Preferences(Box<PreferenceDraft>),
     Repositories(ManagerMode),
-    Branch,
     Content(ContentModal),
 }
 
 impl Client {
     pub(super) fn has_open_modal(&self) -> bool {
-        self.preferences.is_some()
-            || self.manager.mode.is_some()
-            || self.branch_dialog.open
-            || self.content_modal.is_some()
+        self.preferences.is_some() || self.manager.mode.is_some() || self.content_modal.is_some()
     }
 
     pub(super) fn modal_is_present(&self) -> bool {
@@ -51,11 +47,9 @@ impl Client {
         }
         let preferences = self.preferences.take();
         let repositories = self.manager.mode.take();
-        let branch = std::mem::take(&mut self.branch_dialog.open);
         if let Some(modal) = preferences
             .map(|draft| ClosingModal::Preferences(Box::new(draft)))
             .or(repositories.map(ClosingModal::Repositories))
-            .or(branch.then_some(ClosingModal::Branch))
             .or(content.map(ClosingModal::Content))
         {
             self.closing_modal = Some(modal);
@@ -98,7 +92,6 @@ impl Client {
         let (preferences, repositories, content) = match &self.closing_modal {
             Some(ClosingModal::Preferences(draft)) => (Some(draft.as_ref()), None, None),
             Some(ClosingModal::Repositories(mode)) => (None, Some(*mode), None),
-            Some(ClosingModal::Branch) => (None, None, None),
             Some(ClosingModal::Content(content)) => (None, None, Some(content)),
             None => (
                 self.preferences.as_ref(),
@@ -113,7 +106,8 @@ impl Client {
         } else if let Some(content) = content {
             content.render(&self.modal_focus, cx).into_any_element()
         } else {
-            self.branch_view(cx).into_any_element()
+            self.modal_compositor.clear(window);
+            return None;
         };
         Some(modal_layer(surface, composition, motion.progress, !open))
     }

@@ -6,7 +6,10 @@ use ritkraken_git::Repo;
 use crate::{
     app::{
         repository_manager::OpenRepo,
-        widgets::{PAPER, Tone, button, error_text, note},
+        widgets::{
+            MUTED, Tone, button, error_text,
+            loading::{loading_page, opening_message},
+        },
     },
     i18n::tr,
 };
@@ -104,30 +107,28 @@ impl Client {
                         true,
                         cx.listener(move |this, _, window, cx| this.show_tab(id, window, cx)),
                     )
-                    .self_start(),
+                    .self_center(),
                 ),
-            SavedTabState::Idle | SavedTabState::Loading => note(tr!("app.status.opening")).px_0(),
+            SavedTabState::Idle | SavedTabState::Loading => opening_message(),
         };
-        div()
-            .size_full()
-            .flex()
-            .items_center()
-            .justify_center()
-            .bg(rgb(PAPER))
-            .child(
-                div()
-                    .w(px(560.))
-                    .max_w_full()
-                    .px(px(20.))
-                    .child(
-                        div()
-                            .text_size(px(20.))
-                            .font_weight(FontWeight::SEMIBOLD)
-                            .truncate()
-                            .child(Repo::name_from_path(&tab.path)),
-                    )
-                    .child(note(tab.path.to_string_lossy().into_owned()).px_0())
-                    .child(content),
-            )
+        loading_page(
+            div()
+                .w_full()
+                .flex()
+                .flex_col()
+                .items_center()
+                .gap(px(8.))
+                .child(content)
+                .child(
+                    div()
+                        .max_w_full()
+                        .text_size(px(12.))
+                        .line_height(px(18.))
+                        .text_color(rgb(MUTED))
+                        .truncate()
+                        .child(Repo::name_from_path(&tab.path)),
+                ),
+            cx,
+        )
     }
 }

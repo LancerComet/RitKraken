@@ -35,6 +35,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "edge-whitespace.patch",
         "editor-typography.patch",
         "horizontal-scroll.patch",
+        "overview.patch",
     ] {
         let patch = manifest_dir.join(name);
         gpui_build::apply_patch(&generated, &patch)?;

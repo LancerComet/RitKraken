@@ -25,7 +25,6 @@ pub(super) enum RepoOperation {
     StashFile(Change),
     Commit(String, String),
     Switch(String),
-    Branch(String),
     Fetch(Option<String>),
     AddRemote(git::NewRemote),
     AutoFetch,
@@ -53,7 +52,7 @@ impl RepoOperation {
                         ..
                     }
             ),
-            Self::Switch(_) | Self::Branch(_) | Self::Stash | Self::Pop => true,
+            Self::Switch(_) | Self::Stash | Self::Pop => true,
             _ => false,
         }
     }
@@ -79,7 +78,6 @@ impl RepoOperation {
             Self::StashFile(change) => repo.stash_file(change),
             Self::Commit(summary, description) => repo.commit(summary, description),
             Self::Switch(branch) => repo.switch(branch),
-            Self::Branch(branch) => repo.create_branch(branch),
             Self::Fetch(remote) => repo.fetch(remote.as_deref()),
             Self::AddRemote(remote) => repo.add_remote(remote),
             Self::AutoFetch => repo.auto_fetch(),
@@ -111,7 +109,6 @@ impl RepoOperation {
             },
             Self::Commit(..) => "app.notice.committed",
             Self::Switch(_) => "app.notice.switched",
-            Self::Branch(_) => "app.notice.branched",
             Self::Fetch(_) | Self::AutoFetch => "app.notice.fetched",
             Self::AddRemote(_) => "app.notice.remote_added",
             Self::Push { .. } => "app.notice.pushed",
@@ -240,6 +237,11 @@ impl Client {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        if let Some((Ok(()), RepoOperation::CommitGraph(prepared))) = &result
+            && let git::CommitOperation::CreateBranch { name, .. } = &prepared.operation
+        {
+            self.finish_inline_branch(id, name, window, cx);
+        }
         let Some(tab) = self.tab_mut(id) else { return };
         tab.busy = false;
         let mut committed = false;
@@ -333,6 +335,7 @@ impl Client {
         {
             self.select(id, initial_selection, None, window, cx);
         }
+        self.resume_toolbar_branch(id, window, cx);
         cx.notify();
     }
 }

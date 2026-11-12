@@ -17,6 +17,7 @@ pub(crate) use _rust_i18n_t;
 
 mod controls;
 mod horizontal;
+mod overview;
 mod split;
 mod typography;
 include!(concat!(env!("OUT_DIR"), "/modules.rs"));
@@ -51,6 +52,7 @@ pub use diff::{
     Diff, DiffFile, DiffHunkSeparator, DiffLinePosition, DiffMode, DiffParseOptions, DiffSide,
     DiffState,
 };
+pub use overview::{DiffChangeKind, DiffOverview, DiffOverviewSpan};
 pub use typography::{DiffTypography, font_families};
 
 pub fn init(cx: &mut App) {

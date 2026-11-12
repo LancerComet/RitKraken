@@ -106,7 +106,7 @@ impl Client {
         }
         self.manager.mode = Some(ManagerMode::Open);
         self.manager.list = RepoList::Recent;
-        self.branch_dialog.open = false;
+        self.branch_editor.clear();
         self.manager.error = None;
         self.modal_focus.focus(window, cx);
         cx.notify();

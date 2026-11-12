@@ -17,7 +17,7 @@ use crate::i18n::{LocalizedInput, tr};
 use super::{
     Client, RepoOperation, RepoTab,
     widgets::{
-        GREEN, HOVER, LINE, MUTED, PAPER, SELECT, SUBTLE, TEXT, Tone, button, heading, icon,
+        GREEN, HOVER, LINE, MUTED, PAPER, SELECT, SUBTLE, TEXT, Tone, WHITE, button, heading, icon,
     },
 };
 
@@ -30,6 +30,8 @@ const REF_GROUPS: [(RefKind, &str, &str); 3] = [
     ),
     (RefKind::Tag, "app.refs.tags", "app.refs.tags"),
 ];
+
+const SIDEBAR_ICON_SIZE: Pixels = px(14.);
 
 pub(super) fn ref_icon(kind: RefKind) -> &'static str {
     match kind {
@@ -260,8 +262,9 @@ impl Client {
                     div()
                         .flex()
                         .items_center()
-                        .gap(px(3.))
+                        .gap(px(6.))
                         .child(disclosure_chevron(open))
+                        .child(sidebar_icon(ref_icon(kind)))
                         .child(heading(tr!(title)).text_size(px(13.))),
                 )
                 .child(
@@ -326,6 +329,7 @@ impl Client {
                         key,
                         parts[depth].to_owned(),
                         depth,
+                        kind == RefKind::Remote && depth == 0,
                         Some(!collapsed),
                         cx,
                     ));
@@ -348,7 +352,7 @@ impl Client {
                     .h(px(23.))
                     .mx(px(3.))
                     .pr(px(6.))
-                    .pl(px(10. + (parts.len() - 1) as f32 * 13.))
+                    .pl(px(5.))
                     .flex()
                     .items_center()
                     .gap(px(6.))
@@ -377,14 +381,27 @@ impl Client {
                     }))
                     .child(
                         div()
-                            .text_color(rgb(if checked { GREEN } else { SUBTLE }))
-                            .child(if checked {
-                                "✓"
-                            } else if kind == RefKind::Tag {
-                                "◇"
-                            } else {
-                                "⑂"
+                            .size(px(12.))
+                            .mx(px(1.))
+                            .flex_shrink_0()
+                            .flex()
+                            .items_center()
+                            .justify_center()
+                            .rounded(px(2.))
+                            .when(checked, |badge| {
+                                badge
+                                    .bg(rgb(GREEN))
+                                    .child(icon("icons/check.svg", WHITE).size(px(10.)))
                             }),
+                    )
+                    .child(
+                        sidebar_icon(if kind == RefKind::Tag {
+                            ref_icon(kind)
+                        } else {
+                            "icons/git-branch.svg"
+                        })
+                        .text_color(rgb(SUBTLE))
+                        .ml(px((parts.len() - 1) as f32 * 13.)),
                     )
                     .child(
                         div()
@@ -406,6 +423,7 @@ impl Client {
                         format!("{title}/{remote}"),
                         remote.clone(),
                         0,
+                        true,
                         None,
                         cx,
                     ));
@@ -421,6 +439,7 @@ fn ref_folder(
     key: String,
     label: String,
     depth: usize,
+    remote: bool,
     expanded: Option<bool>,
     cx: &mut Context<Client>,
 ) -> Stateful<Div> {
@@ -428,7 +447,7 @@ fn ref_folder(
         .id(SharedString::from(key.clone()))
         .flex()
         .items_center()
-        .gap(px(3.))
+        .gap(px(6.))
         .h(px(22.))
         .pl(px(10. + 13. * depth as f32))
         .min_w_0()
@@ -444,11 +463,22 @@ fn ref_folder(
                     }
                 }))
         })
-        .child(expanded.map_or_else(
-            || icon("icons/cloud.svg", MUTED).size(px(12.)),
-            disclosure_chevron,
-        ))
+        .child(
+            div()
+                .size(px(12.))
+                .flex_shrink_0()
+                .when_some(expanded, |slot, open| slot.child(disclosure_chevron(open))),
+        )
+        .child(sidebar_icon(if remote {
+            ref_icon(RefKind::Remote)
+        } else {
+            "icons/folder.svg"
+        }))
         .child(div().text_color(rgb(MUTED)).truncate().child(label))
+}
+
+fn sidebar_icon(path: &'static str) -> Svg {
+    icon(path, MUTED).size(SIDEBAR_ICON_SIZE)
 }
 
 fn disclosure_chevron(open: bool) -> Svg {

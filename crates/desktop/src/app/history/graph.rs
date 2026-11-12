@@ -11,6 +11,8 @@ use crate::app::{
 pub(super) const ROW_HEIGHT: Pixels = px(28.);
 pub(super) const BAND_HEIGHT: Pixels = px(22.);
 pub(super) const CONNECTOR_OPACITY: f32 = 0.38;
+// One 22 px commit node with 4 px of space on each side.
+pub(super) const MIN_GRAPH_WIDTH: Pixels = px(30.);
 
 const LANE_INSET: Pixels = px(36.);
 const LANE_GAP: Pixels = px(22.);
@@ -41,6 +43,7 @@ pub(super) fn graph_cell(
         .w(width)
         .h_full()
         .flex_shrink_0()
+        .overflow_hidden()
         .child(drawing)
         .when_some(index, |element, index| {
             let node = history.graph.rows[index].node;
@@ -48,7 +51,7 @@ pub(super) fn graph_cell(
             element.child(
                 div()
                     .absolute()
-                    .left(lane_offset(node.lane) - BAND_HEIGHT / 2.)
+                    .left(lane_offset(node.lane) - graph_shift(width) - BAND_HEIGHT / 2.)
                     .top((ROW_HEIGHT - BAND_HEIGHT) / 2.)
                     .child(PersonAvatar::new(
                         &commit.author,
@@ -64,6 +67,10 @@ fn lane_offset(lane: usize) -> Pixels {
     LANE_INSET + LANE_GAP * lane as f32
 }
 
+fn graph_shift(width: Pixels) -> Pixels {
+    (LANE_INSET - width / 2.).max(px(0.))
+}
+
 fn paint_graph(
     history: &History,
     index: Option<usize>,
@@ -72,6 +79,11 @@ fn paint_graph(
     bounds: Bounds<Pixels>,
     window: &mut Window,
 ) {
+    let shift = graph_shift(bounds.size.width);
+    let bounds = Bounds::new(
+        bounds.origin - point(shift, px(0.)),
+        size(bounds.size.width + shift, bounds.size.height),
+    );
     let visible = bounds.intersect(&window.content_mask().bounds);
     if visible.size.width <= px(0.) || visible.size.height <= px(0.) {
         return;
@@ -186,6 +198,9 @@ fn paint_vertical(x: Pixels, top: Pixels, bottom: Pixels, color: Rgba, window: &
 }
 
 fn paint_band(left: Pixels, right: Pixels, middle: Pixels, color: Rgba, window: &mut Window) {
+    if right <= left {
+        return;
+    }
     window.paint_quad(fill(
         Bounds::new(
             point(left, middle - BAND_HEIGHT / 2.),
@@ -193,6 +208,23 @@ fn paint_band(left: Pixels, right: Pixels, middle: Pixels, color: Rgba, window: 
         ),
         color,
     ));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{BAND_HEIGHT, LANE_INSET, MIN_GRAPH_WIDTH, column_width, graph_shift};
+    use gpui_kit::px;
+
+    #[test]
+    fn narrow_graph_columns_keep_one_whole_commit_node_visible() {
+        for width in [MIN_GRAPH_WIDTH, px(40.), px(84.)] {
+            let center = LANE_INSET - graph_shift(width);
+            assert!(center - BAND_HEIGHT / 2. >= px(0.));
+            assert!(center + BAND_HEIGHT / 2. <= width);
+        }
+        assert_eq!(graph_shift(px(84.)), px(0.));
+        assert!(MIN_GRAPH_WIDTH < column_width(6));
+    }
 }
 
 fn paint_wip(history: &History, bounds: Bounds<Pixels>, window: &mut Window) {

@@ -12,12 +12,16 @@ use crate::app::{
     Client,
     widgets::{
         HEADER, LINE, MUTED, PAPER, TEAL, Tone, button, button_content, error_text, heading, icon,
+        loading::{loading_page, opening_message},
         modal::Modal,
     },
 };
 
 impl Client {
     pub(in crate::app) fn welcome(&self, cx: &mut Context<Self>) -> Div {
+        if self.session.opening {
+            return loading_page(opening_message(), cx);
+        }
         div()
             .size_full()
             .flex()

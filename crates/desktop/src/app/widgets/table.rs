@@ -115,7 +115,7 @@ impl RenderOnce for Header {
             .collect();
         if !minimums.is_empty() {
             let state = self.state.clone();
-            // Newly loaded graph lanes can raise a column's minimum. Let layout
+            // Updated column definitions can raise a minimum. Let layout
             // install the new ranges first, then redistribute through the same
             // resize engine used by a pointer drag.
             window.defer(cx, move |window, cx| {

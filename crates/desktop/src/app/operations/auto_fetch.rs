@@ -32,7 +32,7 @@ impl Client {
     }
 
     fn auto_fetch_current(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if self.session.opening || self.modal_is_present() {
+        if self.session.opening || self.modal_is_present() || self.branch_editor.is_editing() {
             return;
         }
         let Some(tab) = self.current() else { return };

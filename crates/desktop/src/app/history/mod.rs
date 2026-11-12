@@ -1,3 +1,4 @@
+mod branch_editor;
 mod commit_menu;
 mod graph;
 mod labels;
@@ -11,6 +12,7 @@ use gpui_kit::*;
 use ritkraken_git::{CommitMenuSnapshot, Repo, Snapshot};
 
 use super::{Client, Load, Message, changes::ChangeSummary, widgets::table::ResizableColumns};
+pub(super) use branch_editor::BranchEditor;
 use labels::{RefBadge, group_refs};
 use layout::GraphLayout;
 
@@ -104,6 +106,13 @@ impl Client {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        if self
+            .branch_editor
+            .for_tab(id)
+            .is_some_and(|(target, _)| Some(target.as_str()) != selected.as_deref())
+        {
+            self.branch_editor.clear();
+        }
         let Some(tab) = self.tab_mut(id) else { return };
         tab.history.selected = selected;
         tab.review.close();

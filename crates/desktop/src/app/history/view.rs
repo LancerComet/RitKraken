@@ -2,14 +2,17 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use gpui_kit::{
-    base::InteractiveElementExt as _, component::scroll::ScrollableElement, prelude::*, *,
+    base::InteractiveElementExt as _,
+    component::{input::InputState, scroll::ScrollableElement},
+    prelude::*,
+    *,
 };
 use ritkraken_git as git;
 
 use super::{
     History,
     commit_menu::CommitMenu,
-    graph::{BAND_HEIGHT, ROW_HEIGHT, column_width, graph_cell},
+    graph::{BAND_HEIGHT, MIN_GRAPH_WIDTH, ROW_HEIGHT, column_width, graph_cell},
     labels::ref_labels,
 };
 use crate::app::{
@@ -34,7 +37,7 @@ fn columns(lanes: usize) -> [Column; 6] {
         Column {
             label: "app.history.graph",
             width: Some(graph_width),
-            minimum: graph_width,
+            minimum: MIN_GRAPH_WIDTH,
         },
         Column {
             label: "app.history.message",
@@ -74,7 +77,9 @@ impl Client {
         let count = history.graph.rows.len() + usize::from(show_wip);
         let view = cx.weak_entity();
         let focus = tab.history.focus.clone();
-        let allow_ref_hover = self.manager.mode.is_none() && !self.branch_dialog.open;
+        let allow_ref_hover = self.manager.mode.is_none() && !self.branch_editor.is_editing();
+        let inline_branch = self.branch_editor.for_tab(id);
+        let busy = tab.busy;
         let lazy =
             self.saved.preferences.lazy_history && history.snapshot.history_limited && !tab.busy;
         let mut list = uniform_list(("history", id), count, move |range, window, cx| {
@@ -97,6 +102,8 @@ impl Client {
                         allow_ref_hover,
                         id,
                         view.clone(),
+                        inline_branch.as_ref(),
+                        busy,
                     );
                     let menu = selection.clone().map(|target| CommitMenu {
                         id,
@@ -198,6 +205,8 @@ fn history_row(
     allow_ref_hover: bool,
     id: u64,
     owner: WeakEntity<Client>,
+    inline_branch: Option<&(String, Entity<InputState>)>,
+    busy: bool,
 ) -> Stateful<Div> {
     let commit = index.map(|index| &history.snapshot.commits[index]);
     let labels = commit.and_then(|commit| {
@@ -206,6 +215,13 @@ fn history_row(
             .map(|labels| (commit.id.as_str(), labels))
     });
     let color = index.map_or(TEAL, |index| history.graph.rows[index].node.color);
+    let refs = if let Some((_, input)) =
+        inline_branch.filter(|(target, _)| commit.is_some_and(|commit| commit.id == *target))
+    {
+        super::branch_editor::field(input, busy)
+    } else {
+        ref_labels(labels, color, allow_ref_hover, id, owner)
+    };
     let element = div()
         .id(SharedString::from(format!(
             "commit-row-{}",
@@ -218,7 +234,7 @@ fn history_row(
         .cursor_pointer()
         .bg(rgb(if selected { SELECT } else { WHITE }))
         .hover(|style| style.bg(rgb(if selected { SELECT } else { HOVER })))
-        .child(widths.cell(0, ref_labels(labels, color, allow_ref_hover, id, owner)))
+        .child(widths.cell(0, refs))
         .child(widths.cell(
             1,
             graph_cell(

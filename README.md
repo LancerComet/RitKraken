@@ -9,15 +9,17 @@ Rust 桌面 Git 客户端。界面以 GitKraken Desktop 9.11.0 的三栏布局�
 1. 点提交图里的 `// WIP` 查看工作区，或点历史提交查看说明和文件。
 2. 点右栏的文件打开文件页。分支栏会收成图标栏，关闭文件时恢复。在 **File View** 查看对应版本，在 **Diff View** 切换 **Hunk**、**Inline** 或 **Split**，用箭头跳到上一个或下一个改动。**Split** 默认平分可见区域，拖动中线可以调整比例。
    Diff 工具栏的 **¶** 切换是否忽略行首和行尾空白，旁边的折行图标独立切换自动换行。
+   右侧滚动条旁的红绿标记显示全部修改的位置，点击可跳转；文件视图也保留这些标记。并排视图的左右窗格各自横向滚动。
 3. 用 **Stage File** 暂存整文件。Diff 中每个区块的标题都有 **Stage Hunk**，悬停变更行时可点 `+` 暂存该行。从 **Staged Files** 打开已暂存的差异，用 **Unstage Hunk** 或行旁的 `−` 取消暂存。
 4. 填写 **Summary** 并提交。选择 **View changes** 回到剩余工作区改动。
 
 单击分支可定位提交，双击本地分支可切换分支。`F5` 刷新，`Ctrl+O` 打开仓库管理。
+拖动提交图表头的列边界可以调整列宽，图形列最窄可收至一个提交节点的宽度。
 
 右键提交行可在指定提交创建分支或标签、比较、导出补丁，以及执行适用的 Cherry-pick、Revert、合并、Rebase、Amend 和 Reset。菜单按 HEAD、祖先关系、分离 HEAD、工作区及正在进行的 Git 操作调整；禁用项悬停会说明原因。
 **Interactive Rebase** 整理所选提交之后至 HEAD 的线性提交，支持排序、Pick、Reword、Edit、Squash、Fixup 和 Drop；HEAD 上不显示该入口。Edit 或冲突暂停后，可右键当前提交继续、跳过或中止；Edit 暂停期间也可 Amend。修改已发布历史和 Hard Reset 会显示确认。
 
-**Fetch** 更新所有远端的跟踪引用，右侧箭头可选单个远端。**Push** 推送当前分支，首次推送可从菜单选远端并建立跟踪。**Branch** 创建并切换分支。**Stash** 收起暂存、未暂存和未跟踪的改动，**Pop** 恢复最近一次 stash 和它的暂存状态。
+**Fetch** 更新所有远端的跟踪引用，右侧箭头可选单个远端。**Push** 推送当前分支，首次推送可从菜单选远端并建立跟踪。**Branch** 在当前提交的分支列显示输入框，按 `Enter` 创建并切换分支，按 `Esc` 取消；右键提交创建分支也在对应行输入。**Stash** 收起暂存、未暂存和未跟踪的改动，**Pop** 恢复最近一次 stash 和它的暂存状态。
 
 右上角齿轮或 `Ctrl+,` 打开偏好设置弹窗，点右上角关闭按钮或按 `Esc` 保存并退出；输入有误时会留在弹窗中提示。默认先加载 2,000 条提交，到达提交图底部时继续加载，并在下次启动恢复打开的仓库标签。
 
@@ -59,7 +61,7 @@ cargo test --workspace --release --locked --target "$(rustc -vV | sed -n 's/^hos
 ## 代码组织
 
 - `crates/git` 提供仓库、历史、工作区、diff 和远端操作。这个包独立于 GPUI，集成测试使用临时仓库和本地 bare 远端。
-- `crates/diff` 复用锁定版本的 GPUI Diff 渲染器，扩展 Split View 窗格布局、区块和行操作，以及空白过滤。Cargo 在构建目录应用 `crates/diff` 中的补丁。升级 GPUI Kit 时需要一起核对这些补丁。[GPUI Kit 源码与许可证](https://github.com/longbridge/gpui-kit)
+- `crates/diff` 复用锁定版本的 GPUI Diff 渲染器，扩展 Split View 窗格布局、区块和行操作、空白过滤及修改分布标记。Cargo 在构建目录应用 `crates/diff` 中的补丁。升级 GPUI Kit 时需要一起核对这些补丁。[GPUI Kit 源码与许可证](https://github.com/longbridge/gpui-kit)
 - `crates/desktop` 负责窗口与交互。仓库管理、引用、提交图、暂存与提交详情、文件审阅、工具栏和设置各自维护功能代码。`shell.rs` 组合应用外壳，`session.rs` 管理标签，`operations.rs` 调度后台 Git 操作。
 
 项目文件的硬上限是 1000 行。`tools/check_project.py` 检查已跟踪和未被 Git 忽略的文件。依赖变更后，可运行 `python tools/check_project.py --compact-lock <Cargo生成的锁文件>` 保存紧凑的锁文件，然后用 `--locked` 验证构建。

@@ -4,18 +4,14 @@ use gpui_kit::component::{
     menu::{DropdownMenu, PopupMenuItem},
 };
 
-use gpui_kit::{
-    component::input::{Input, InputState},
-    prelude::*,
-    *,
-};
+use gpui_kit::{prelude::*, *};
 use ritkraken_git as git;
 
-use crate::i18n::{LocalizedInput, tr};
+use crate::i18n::tr;
 
 use super::{
     Client, RepoOperation, RepoTab,
-    widgets::{NAV_TEXT, Tone, button, icon, modal::Modal},
+    widgets::{NAV_TEXT, icon},
 };
 
 impl Client {
@@ -84,16 +80,11 @@ impl Client {
                     "app.toolbar.branch",
                     "icons/git-branch.svg",
                     "app.toolbar.create_branch_hint",
-                    available,
+                    available && snapshot.head.is_some(),
                     cx,
                 )
-                .on_click(cx.listener(|this, _, window, cx| {
-                    this.branch_dialog.open = true;
-                    this.branch_dialog.name.update(cx, |input, cx| {
-                        input.set_value("", window, cx);
-                        input.focus_handle(cx).focus(window, cx);
-                    });
-                    cx.notify();
+                .on_click(cx.listener(move |this, _, window, cx| {
+                    this.start_toolbar_branch(id, window, cx);
                 })),
             )
             .child(
@@ -249,74 +240,4 @@ fn toolbar_tile(
             )
             .child(icon(glyph, NAV_TEXT).size(px(18.))),
     )
-}
-
-pub(super) struct BranchDialog {
-    pub(super) open: bool,
-    name: LocalizedInput,
-}
-
-impl BranchDialog {
-    pub(super) fn new(window: &mut Window, cx: &mut Context<Client>) -> Self {
-        let name = LocalizedInput::new("app.branch.name", cx, |cx| InputState::new(window, cx));
-        Self { open: false, name }
-    }
-
-    pub(super) fn localize(&self, window: &mut Window, cx: &mut App) {
-        self.name.localize(window, cx);
-    }
-}
-
-impl Client {
-    pub(super) fn branch_view(&self, cx: &mut Context<Self>) -> Modal {
-        Modal::new(
-            "branch-modal",
-            tr!("app.branch.create_and_checkout"),
-            &self.modal_focus,
-            true,
-            cx.listener(|this, _, window, cx| this.escape(window, cx)),
-        )
-        .content_size(size(px(390.), px(650.)), true)
-        .child(
-            div()
-                .p(px(16.))
-                .flex()
-                .flex_col()
-                .gap(px(10.))
-                .child(Input::new(&self.branch_dialog.name))
-                .child(
-                    div()
-                        .flex()
-                        .justify_end()
-                        .gap(px(6.))
-                        .child(button(
-                            "cancel-branch",
-                            tr!("app.common.cancel"),
-                            Tone::Outline,
-                            true,
-                            cx.listener(|this, _, window, cx| this.escape(window, cx)),
-                        ))
-                        .child(button(
-                            "create-branch",
-                            tr!("app.branch.create"),
-                            Tone::Green,
-                            true,
-                            cx.listener(|this, _, window, cx| {
-                                let branch =
-                                    this.branch_dialog.name.read(cx).value().trim().to_owned();
-                                if let Some(id) = this.session.active.filter(|_| !branch.is_empty())
-                                {
-                                    this.dismiss_modal(window, cx);
-                                    this.update_repo(
-                                        id,
-                                        Some(RepoOperation::Branch(branch)),
-                                        window,
-                                        cx,
-                                    );
-                                }
-                            }),
-                        )),
-                ),
-        )
-    }
 }

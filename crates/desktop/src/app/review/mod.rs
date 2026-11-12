@@ -4,7 +4,9 @@ mod view;
 use std::sync::Arc;
 
 use gpui_kit::*;
-use ritkraken_diff::{DiffFile, DiffLinePosition, DiffMode, DiffParseOptions, DiffSide, DiffState};
+use ritkraken_diff::{
+    DiffFile, DiffLinePosition, DiffMode, DiffOverview, DiffParseOptions, DiffSide, DiffState,
+};
 use ritkraken_git::{self as git, FileTarget, PATCH_VIEW_LIMIT, Patch, Repo};
 
 use super::{Client, Load, Message, preferences::Preferences};
@@ -59,6 +61,13 @@ pub(super) struct FileReview {
 }
 
 impl FileReview {
+    fn sync_source_overview(&self, cx: &mut App) {
+        if let (Some(viewer), Some(Load::Ready(source))) = (&self.viewer, &self.source) {
+            let changes = DiffOverview::from_files(viewer.read(cx).files());
+            source.update(cx, |state, cx| state.set_overview_changes(changes, cx));
+        }
+    }
+
     pub(super) fn state(&self) -> Option<&Entity<DiffState>> {
         if self.show_source {
             match &self.source {
@@ -248,6 +257,7 @@ impl Client {
                     }
                     Err(error) => diff.patch = Load::Failed(error.into()),
                 }
+                diff.sync_source_overview(cx);
                 cx.notify();
             },
         );
@@ -292,6 +302,7 @@ impl Client {
                 let viewer = result
                     .map(|file| cx.new(|cx| DiffState::new([file], cx).with_context_lines(None)));
                 diff.source = Some(viewer.into());
+                diff.sync_source_overview(cx);
                 cx.notify();
             },
         );

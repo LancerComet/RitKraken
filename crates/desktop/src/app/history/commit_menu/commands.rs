@@ -89,7 +89,7 @@ impl Client {
         }
     }
 
-    pub(super) fn load_graph_operation(
+    pub(in crate::app) fn load_graph_operation(
         &mut self,
         id: u64,
         expected: Arc<CommitMenuState>,

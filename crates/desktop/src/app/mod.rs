@@ -23,6 +23,7 @@ use std::path::PathBuf;
 
 use gpui_kit::*;
 
+use history::BranchEditor;
 use message::Message;
 use modals::{ClosingModal, ContentModal};
 use operations::RepoOperation;
@@ -30,7 +31,6 @@ use preferences::PreferenceDraft;
 use repository_manager::{OpenRepo, RepositoryManager};
 use session::{RepoTab, Session, Tab};
 use settings::SavedRepos;
-use toolbar::BranchDialog;
 use widgets::modal::ModalCompositor;
 use workspace::WorkspacePanes;
 
@@ -90,7 +90,7 @@ pub struct Client {
     manager: RepositoryManager,
     saved: SavedRepos,
     preferences: Option<PreferenceDraft>,
-    branch_dialog: BranchDialog,
+    branch_editor: BranchEditor,
     closing_modal: Option<ClosingModal>,
     content_modal: Option<ContentModal>,
     modal_compositor: ModalCompositor,
@@ -119,7 +119,7 @@ impl Client {
             manager: RepositoryManager::new(window, cx),
             saved,
             preferences: None,
-            branch_dialog: BranchDialog::new(window, cx),
+            branch_editor: BranchEditor::new(window, cx),
             closing_modal: None,
             content_modal: None,
             modal_compositor: ModalCompositor::default(),
@@ -167,10 +167,12 @@ impl Client {
     }
 
     fn escape(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if self.preferences.is_some() {
+        if self.branch_editor.is_editing() {
+            self.cancel_inline_branch(window, cx);
+        } else if self.preferences.is_some() {
             self.save_preferences(window, cx);
         } else if self.has_open_modal() {
-            if self.branch_dialog.open || !self.session.opening {
+            if !self.session.opening {
                 self.dismiss_modal(window, cx);
             }
         } else if self.closing_modal.is_none()

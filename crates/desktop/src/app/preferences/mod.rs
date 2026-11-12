@@ -156,7 +156,7 @@ impl Client {
         let auto_fetch = cx.new(|cx| unsigned_input(Some(options.auto_fetch_minutes), window, cx));
         let editor = EditorDraft::new(&options, window, cx);
         self.manager.mode = None;
-        self.branch_dialog.open = false;
+        self.branch_editor.clear();
         self.preferences = Some(PreferenceDraft {
             page: PreferencePage::General,
             options,
@@ -282,7 +282,7 @@ impl Client {
             draft.editor.localize(window, cx);
         }
         self.manager.localize(window, cx);
-        self.branch_dialog.localize(window, cx);
+        self.branch_editor.localize(window, cx);
         for tab in self.session.tabs.iter().filter_map(Tab::ready) {
             tab.refs.filter.localize(window, cx);
             tab.changes.summary.localize(window, cx);

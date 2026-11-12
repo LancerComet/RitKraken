@@ -1,0 +1,99 @@
+--- a/diff/mod.rs
++++ b/diff/mod.rs
+@@ -35,7 +35,7 @@
+     button::{Button, ButtonVariants as _},
+     h_flex,
+     input::{Copy, SelectAll},
+-    scroll::{ScrollableMask, Scrollbar},
++    scroll::ScrollableMask,
+     v_flex,
+ };
+ use crate::{DiffTypography, controls::ChangeControls, horizontal::SplitScroll, split::SplitLayout};
+@@ -44,7 +44,8 @@
+ use decoration::{Decorations, GutterMarkers};
+ use presentation::FilePresentation;
+ use selection::{CodeText, SelectionLayer};
+-use state::{DisplayRow, FoldExpansion, LayoutKey, SelectedLines};
++pub(crate) use state::DisplayRow;
++use state::{FoldExpansion, LayoutKey, SelectedLines};
+ 
+ // Private: bindings serve the focused code body only.
+ mod actions {
+@@ -687,16 +688,8 @@
+             this.child(split_horizontal.controls(split, has_rows && !soft_wrap))
+                 .child(split.divider(cx))
+         })
+-        .when(has_rows, |this| {
+-            this.child(
+-                div()
+-                    .absolute()
+-                    .inset_0()
+-                    .child(Scrollbar::vertical(&scrollbar).viewport_from_layout()),
+-            )
+-            .when(!soft_wrap && split.is_none(), |this| {
+-                this.child(crate::horizontal::scrollbar(&horizontal))
+-            })
++        .when(has_rows && !soft_wrap && split.is_none(), |this| {
++            this.child(crate::horizontal::scrollbar(&horizontal))
+         })
+         // A line-number drag may finish anywhere, including outside the body.
+         .on_mouse_up(
+@@ -848,7 +841,13 @@
+         .text_sm()
+         .border_1()
+         .border_color(cx.theme().border)
+-        .child(body)
++        .child(
++            div().flex().flex_1().min_h_0().min_w_0()
++                .child(body)
++                .when(has_rows, |container| container.child(
++                    crate::overview::scrollbar(state.overview().clone(), &scrollbar, cx),
++                )),
++        )
+         .refine_style(&props.style)
+         .into_any_element()
+ }
+--- a/diff/state.rs
++++ b/diff/state.rs
+@@ -225,6 +225,8 @@
+     header_rows: Vec<usize>,
+     rows: Rc<Vec<DisplayRow>>,
+     change_rows: Vec<usize>,
++    overview: crate::overview::Overview,
++    overview_changes: Option<crate::DiffOverview>,
+     list: ListState,
+     horizontal_scroll: ScrollHandle,
+     split_scroll: SplitScroll,
+@@ -358,6 +360,8 @@
+             header_rows: Vec::new(),
+             rows: Rc::default(),
+             change_rows: Vec::new(),
++            overview: crate::overview::Overview::default(),
++            overview_changes: None,
+             list: ListState::new(0, ListAlignment::Top, px(0.)),
+             horizontal_scroll: ScrollHandle::new(),
+             split_scroll: SplitScroll::default(),
+@@ -572,6 +576,15 @@
+     pub fn is_file_collapsed(&self, path: &str) -> bool {
+         self.collapsed.contains(path)
+     }
++
++    /// Reuses a patch's change metadata when displaying its full modified source.
++    pub fn set_overview_changes(&mut self, changes: crate::DiffOverview, cx: &mut Context<Self>) {
++        self.overview_changes = Some(changes);
++        self.overview = crate::overview::Overview::new(&self.rows, &self.files, self.overview_changes.as_ref());
++        cx.notify();
++    }
++
++    pub(crate) fn overview(&self) -> &crate::overview::Overview { &self.overview }
+ 
+     pub(crate) fn rows(&self) -> &Rc<Vec<DisplayRow>> {
+         &self.rows
+@@ -1409,6 +1422,7 @@
+         let rows = self.project_rows();
+         self.file_rows = source_rows(&self.files, &rows);
+         self.change_rows = changed_groups(&rows);
++        self.overview = crate::overview::Overview::new(&rows, &self.files, self.overview_changes.as_ref());
+         self.header_rows = rows
+             .iter()
+             .enumerate()

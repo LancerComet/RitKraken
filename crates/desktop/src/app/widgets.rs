@@ -1,3 +1,4 @@
+pub(super) mod loading;
 pub(super) mod menu;
 pub(super) mod modal;
 pub(super) mod name_dialog;

@@ -199,6 +199,10 @@ impl Client {
     }
 
     pub(super) fn submit(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.branch_editor.is_editing() {
+            self.submit_inline_branch(window, cx);
+            return;
+        }
         if self.modal_is_present() {
             return;
         }
