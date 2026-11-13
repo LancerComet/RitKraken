@@ -8,7 +8,7 @@ use gpui_kit::{
 
 use super::{
     PreferenceDraft, Preferences,
-    view::{preference_row, unit_suffix},
+    view::{preference_action_row, preference_row, unit_suffix},
 };
 use crate::{
     app::{
@@ -70,7 +70,7 @@ pub(super) fn git_preferences(draft: &PreferenceDraft, cx: &mut Context<Client>)
             Some("app.preferences.auto_fetch_timeout_hint"),
             p,
         ))
-        .child(preference_row(
+        .child(preference_action_row(
             "app.preferences.global_config",
             button(
                 "open-global-git-config",
@@ -83,7 +83,6 @@ pub(super) fn git_preferences(draft: &PreferenceDraft, cx: &mut Context<Client>)
             .rounded_full()
             .px(px(14.))
             .self_start(),
-            None,
             p,
         ))
 }

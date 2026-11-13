@@ -149,7 +149,9 @@ impl Client {
                                     )))
                                     .flex_1()
                                     .min_h_0()
-                                    .child(form.pr(Scrollbar::width() + px(8.)))
+                                    // Focus rings extend beyond the control's border.
+                                    // Keep them inside the scrolling area's clip.
+                                    .child(form.p(px(4.)).pr(Scrollbar::width() + px(8.)))
                                     .overflow_y_scrollbar(),
                             ),
                     ),
@@ -556,9 +558,28 @@ pub(super) fn preference_row(
     hint_key: Option<&'static str>,
     p: Palette,
 ) -> Div {
+    render_preference_row(label_key, input, hint_key, p, false)
+}
+
+pub(super) fn preference_action_row(
+    label_key: &'static str,
+    action: impl IntoElement,
+    p: Palette,
+) -> Div {
+    render_preference_row(label_key, action, None, p, true)
+}
+
+fn render_preference_row(
+    label_key: &'static str,
+    input: impl IntoElement,
+    hint_key: Option<&'static str>,
+    p: Palette,
+    centered: bool,
+) -> Div {
     div()
         .flex()
         .items_start()
+        .when(centered, |row| row.items_center())
         .gap(px(24.))
         .child(
             div()
@@ -566,7 +587,7 @@ pub(super) fn preference_row(
                 .max_w(px(210.))
                 .min_w_0()
                 .flex_shrink_0()
-                .pt(px(6.))
+                .when(!centered, |label| label.pt(px(6.)))
                 .text_right()
                 .text_color(rgb(p.text))
                 .child(tr!(label_key)),

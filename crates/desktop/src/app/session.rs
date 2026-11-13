@@ -9,6 +9,7 @@ use super::{
     Client, Message,
     changes::ChangesState,
     history::{History, HistoryState},
+    operations::RepoUpdates,
     refs::ReferenceState,
     review::ReviewState,
 };
@@ -111,6 +112,7 @@ pub(super) struct RepoTab {
     pub(super) review: ReviewState,
     pub(super) busy: bool,
     pub(super) active_op: Option<ActiveOp>,
+    pub(super) updates: RepoUpdates,
     pub(super) notice: Option<(bool, Message)>,
 }
 
@@ -233,6 +235,7 @@ impl Client {
             review: ReviewState::new(&self.saved.preferences),
             busy: false,
             active_op: None,
+            updates: RepoUpdates::default(),
             notice: None,
         }));
         if let Some(tab) = self.session.entry_mut(id) {

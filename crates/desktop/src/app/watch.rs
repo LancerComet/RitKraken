@@ -78,8 +78,7 @@ impl Client {
                         {
                             return false;
                         }
-                        this.refresh_watched_repo(id, window, cx);
-                        true
+                        this.refresh_watched_repo(id, window, cx)
                     }) else {
                         return;
                     };

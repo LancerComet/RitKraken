@@ -33,10 +33,13 @@ impl History {
     pub(super) fn reload(
         repo: &Repo,
         limit: Option<usize>,
-        previous_menu: Option<&Arc<CommitMenuSnapshot>>,
+        previous: Option<&Arc<Self>>,
     ) -> ritkraken_git::Result<Arc<Self>> {
         let snapshot = repo.snapshot(limit)?;
-        let menu = repo.commit_menu_snapshot(&snapshot, previous_menu)?;
+        if let Some(previous) = previous.filter(|previous| previous.snapshot == snapshot) {
+            return Ok(previous.clone());
+        }
+        let menu = repo.commit_menu_snapshot(&snapshot, previous.map(|history| &history.menu))?;
         let graph = GraphLayout::new(&snapshot.commits);
         let worktree_summary = ChangeSummary::new(snapshot.status.distinct_changes());
         let position = snapshot

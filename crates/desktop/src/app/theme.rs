@@ -14,23 +14,19 @@ pub(in crate::app) enum ThemeId {
     #[default]
     Nawal,
     OneDarkPro,
-    TokyoNight,
     Dracula,
     Nord,
     Classic,
-    GitHubLight,
     CatppuccinLatte,
 }
 
 impl ThemeId {
-    pub(in crate::app) const ALL: [Self; 8] = [
+    pub(in crate::app) const ALL: [Self; 6] = [
         Self::Nawal,
         Self::OneDarkPro,
-        Self::TokyoNight,
         Self::Dracula,
         Self::Nord,
         Self::Classic,
-        Self::GitHubLight,
         Self::CatppuccinLatte,
     ];
 
@@ -38,11 +34,9 @@ impl ThemeId {
         match self {
             Self::Nawal => "nawal",
             Self::OneDarkPro => "one_dark_pro",
-            Self::TokyoNight => "tokyo_night",
             Self::Dracula => "dracula",
             Self::Nord => "nord",
             Self::Classic => "classic",
-            Self::GitHubLight => "github_light",
             Self::CatppuccinLatte => "catppuccin_latte",
         }
     }
@@ -58,11 +52,9 @@ impl ThemeId {
         match self {
             Self::Nawal => "Nawal",
             Self::OneDarkPro => "One Dark Pro",
-            Self::TokyoNight => "Tokyo Night",
             Self::Dracula => "Dracula",
             Self::Nord => "Nord",
             Self::Classic => "RitKraken Classic",
-            Self::GitHubLight => "GitHub Light",
             Self::CatppuccinLatte => "Catppuccin Latte",
         }
     }
@@ -75,11 +67,9 @@ impl ThemeId {
         match self {
             Self::Nawal => palettes::nawal(),
             Self::OneDarkPro => palettes::one_dark_pro(),
-            Self::TokyoNight => palettes::tokyo_night(),
             Self::Dracula => palettes::dracula(),
             Self::Nord => palettes::nord(),
             Self::Classic => palettes::classic(),
-            Self::GitHubLight => palettes::github_light(),
             Self::CatppuccinLatte => palettes::catppuccin_latte(),
         }
     }

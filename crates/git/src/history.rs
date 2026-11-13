@@ -14,7 +14,7 @@ pub use file::{BlameLine, FileCommit, FileHistory};
 pub(crate) const COMMIT_DATE_FORMAT: &str = "--date=format-local:%Y/%m/%d @ %H:%M";
 pub(crate) const COMMIT_LOG_FORMAT: &str = "--format=%H%x00%P%x00%an%x00%ae%x00%ad%x00%s";
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Commit {
     pub id: String,
     pub parents: Vec<String>,
@@ -42,7 +42,7 @@ pub struct Reference {
     pub checked_out: bool,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub struct Snapshot {
     pub branch: Option<String>,
     pub head: Option<String>,

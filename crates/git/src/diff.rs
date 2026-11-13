@@ -33,7 +33,7 @@ pub struct FileTarget {
     pub change: Change,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub struct Patch {
     bytes: Vec<u8>,
     hunks: Vec<Range<usize>>,

@@ -1,5 +1,5 @@
 use gpui_kit::{component::tooltip::Tooltip, prelude::*, *};
-use ritkraken_diff::{Diff, DiffHunkSeparator, DiffState, DiffTypography};
+use ritkraken_diff::{Diff, DiffHunkSeparator, DiffSearchLabels, DiffState, DiffTypography};
 use ritkraken_git::Scope;
 
 use crate::i18n::tr;
@@ -30,6 +30,13 @@ impl DiffLayout {
             .hunk_separator(separator)
             .soft_wrap(wrap_lines)
             .typography(typography)
+            .search_labels(DiffSearchLabels {
+                placeholder: tr!("app.review.find_placeholder").into(),
+                match_case: tr!("app.review.find_case").into(),
+                previous: tr!("app.review.find_previous").into(),
+                next: tr!("app.review.find_next").into(),
+                close: tr!("app.review.find_close").into(),
+            })
     }
 
     pub(in crate::app) fn selector_button(
@@ -294,6 +301,28 @@ impl Client {
                                     .flex()
                                     .gap(px(4.))
                                     .flex_shrink_0()
+                                    .child(toolbar_toggle(
+                                        "find-in-file",
+                                        "app.review.find",
+                                        review
+                                            .state()
+                                            .is_some_and(|state| state.read(cx).is_search_open()),
+                                        review.state().is_some(),
+                                        icon("icons/search.svg", p.text),
+                                        cx,
+                                        cx.listener(move |this, _, window, cx| {
+                                            if let Some(state) = this
+                                                .tab(id)
+                                                .and_then(|tab| tab.review.active.as_ref())
+                                                .and_then(FileReview::state)
+                                                .cloned()
+                                            {
+                                                state.update(cx, |state, cx| {
+                                                    state.open_search(window, cx)
+                                                });
+                                            }
+                                        }),
+                                    ))
                                     .child(toolbar_toggle(
                                         "ignore-edge-whitespace",
                                         "app.review.ignore_edge_whitespace",

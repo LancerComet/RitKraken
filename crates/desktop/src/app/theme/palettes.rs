@@ -139,68 +139,6 @@ pub(super) fn one_dark_pro() -> ThemeSpec {
     }
 }
 
-pub(super) fn tokyo_night() -> ThemeSpec {
-    ThemeSpec {
-        palette: Palette {
-            is_dark: true,
-            canvas: 0x1a1b26,
-            surface: 0x1f2335,
-            surface_dim: 0x16161e,
-            surface_high: 0x24283b,
-            chrome: 0x12131a,
-            chrome_alt: 0x191b27,
-            chrome_hover: 0x292e42,
-            chrome_border: 0x323851,
-            chrome_text: 0xc0caf5,
-            chrome_muted: 0x9aa5ce,
-            border: 0x2f3549,
-            border_strong: 0x434c69,
-            text: 0xc0caf5,
-            text_muted: 0x9aa5ce,
-            text_subtle: 0x565f89,
-            accent: 0x7aa2f7,
-            accent_hover: 0x8fb2fa,
-            accent_fg: 0x131624,
-            accent_soft: 0x283457,
-            accent_soft_fg: 0xbdd1fb,
-            accent_soft_border: 0x4a5f9d,
-            accent_soft_hover: 0x303f68,
-            hover: 0x23273a,
-            success: 0x9ece6a,
-            success_bg: 0x223326,
-            success_border: 0x476a49,
-            success_hover: 0x2b4030,
-            danger: 0xf7768e,
-            danger_bg: 0x3d222c,
-            danger_border: 0x7a4052,
-            danger_hover: 0x4b2936,
-            warning: 0xe0af68,
-            warning_bg: 0x362d20,
-            renamed: 0xbb9af7,
-            info_bg: 0x243152,
-            info_fg: 0xb8cffc,
-            avatar_bg: 0x293047,
-            avatar_fg: 0xc0caf5,
-            graph_rails: [
-                0x7aa2f7, 0xbb9af7, 0x9ece6a, 0xf7768e, 0xe0af68, 0x7dcfff, 0xff9e64, 0x2ac3de,
-                0x73daca,
-            ],
-        },
-        syntax: SyntaxColors {
-            comment: 0x565f89,
-            keyword: 0xbb9af7,
-            operator: 0x89ddff,
-            function: 0x7aa2f7,
-            type_name: 0x2ac3de,
-            string: 0x9ece6a,
-            constant: 0xff9e64,
-            variable: 0xc0caf5,
-            attribute: 0x7dcfff,
-            property: 0x73daca,
-        },
-    }
-}
-
 pub(super) fn dracula() -> ThemeSpec {
     ThemeSpec {
         palette: Palette {
@@ -388,69 +326,8 @@ pub(super) fn classic() -> ThemeSpec {
     }
 }
 
-pub(super) fn github_light() -> ThemeSpec {
-    ThemeSpec {
-        palette: Palette {
-            is_dark: false,
-            canvas: 0xffffff,
-            surface: 0xffffff,
-            surface_dim: 0xf6f8fa,
-            surface_high: 0xeef2f6,
-            chrome: 0xe7ecf2,
-            chrome_alt: 0xf3f6fa,
-            chrome_hover: 0xdce3ec,
-            chrome_border: 0xd0d7de,
-            chrome_text: 0x1f2328,
-            chrome_muted: 0x59636e,
-            border: 0xd8dee4,
-            border_strong: 0xb9c2cc,
-            text: 0x1f2328,
-            text_muted: 0x59636e,
-            text_subtle: 0x8c959f,
-            accent: 0x0969da,
-            accent_hover: 0x085ec4,
-            accent_fg: 0xffffff,
-            accent_soft: 0xdff0ff,
-            accent_soft_fg: 0x0550ae,
-            accent_soft_border: 0x9ac6f5,
-            accent_soft_hover: 0xcde6fe,
-            hover: 0xf0f4f8,
-            success: 0x1a7f37,
-            success_bg: 0xe6f5ea,
-            success_border: 0x9fd3ad,
-            success_hover: 0xd6edd9,
-            danger: 0xcf222e,
-            danger_bg: 0xfcebec,
-            danger_border: 0xeba7ac,
-            danger_hover: 0xf8d8da,
-            warning: 0x9a6700,
-            warning_bg: 0xfff8dc,
-            renamed: 0x8250df,
-            info_bg: 0xdff0ff,
-            info_fg: 0x0550ae,
-            avatar_bg: 0xe3eaf3,
-            avatar_fg: 0x2b4970,
-            graph_rails: [
-                0x079dbb, 0x0969da, 0x8250df, 0xbf3989, 0xd1242f, 0xc9510c, 0x9a6700, 0x1a7f37,
-                0x5468c4,
-            ],
-        },
-        syntax: SyntaxColors {
-            comment: 0x6e7781,
-            keyword: 0xcf222e,
-            operator: 0x0550ae,
-            function: 0x8250df,
-            type_name: 0x953800,
-            string: 0x0a3069,
-            constant: 0x0550ae,
-            variable: 0x1f2328,
-            attribute: 0x116329,
-            property: 0x0550ae,
-        },
-    }
-}
-
 pub(super) fn catppuccin_latte() -> ThemeSpec {
+    // Periwinkle-purple chrome grounded on #5f5e95 + Catppuccin Latte workspace.
     ThemeSpec {
         palette: Palette {
             is_dark: false,
@@ -458,12 +335,12 @@ pub(super) fn catppuccin_latte() -> ThemeSpec {
             surface: 0xf8f9fc,
             surface_dim: 0xe6e9ef,
             surface_high: 0xdce0e8,
-            chrome: 0xdce0e8,
-            chrome_alt: 0xe9ecf2,
-            chrome_hover: 0xccd0da,
-            chrome_border: 0xbcc0cc,
-            chrome_text: 0x4c4f69,
-            chrome_muted: 0x6c6f85,
+            chrome: 0x4d4c7c,
+            chrome_alt: 0x5f5e95,
+            chrome_hover: 0x7473ad,
+            chrome_border: 0x6c6ba3,
+            chrome_text: 0xf7f7fc,
+            chrome_muted: 0xdcdbf2,
             border: 0xccd0da,
             border_strong: 0xacb0be,
             text: 0x4c4f69,

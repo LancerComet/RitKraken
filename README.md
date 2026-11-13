@@ -14,7 +14,7 @@
 - **macOS 15 or newer** is required to run the macOS application.
 - **Preview limits**: File and diff previews are capped at 8 MiB. Hunk and single-line staging apply to modified text files; added, deleted, renamed, and binary files can be staged as a whole.
 - **Automatic fetching**: Set its timeout in seconds under **Preferences → Git** (default: 30). A timed-out attempt is cancelled; automatic fetching resumes on the next scheduled interval.
-- **Settings**: Language (`English`, `简体中文`, `繁體中文`, `日本語`) and color themes (`Nawal`, `One Dark Pro`, `Tokyo Night`, `Dracula`, `Nord`, `RitKraken Classic`, `GitHub Light`, `Catppuccin Latte`) can be switched in **Preferences** (`Ctrl+,` / `Cmd+,`) and take effect immediately.
+- **Settings**: Language (`English`, `简体中文`, `繁體中文`, `日本語`) and color themes (`Nawal`, `One Dark Pro`, `Dracula`, `Nord`, `RitKraken Classic`, `Catppuccin Latte`) can be switched in **Preferences** (`Ctrl+,` / `Cmd+,`) and take effect immediately.
 
 ## Developer Requirements & Notes
 

@@ -256,6 +256,12 @@
       "welcome_hint": "開啟、複製或初始化本機 Git 儲存庫。"
     },
     "review": {
+      "find": "在檔案中搜尋（Ctrl/Cmd+F）",
+      "find_placeholder": "在檔案中搜尋",
+      "find_case": "區分大小寫",
+      "find_previous": "上一處（Shift+Enter / Shift+F3）",
+      "find_next": "下一處（Enter / F3）",
+      "find_close": "關閉搜尋（Escape）",
       "available_context": "正在顯示修補程式中可用的上下文。",
       "commit": "提交",
       "diff_view": "差異檢視",

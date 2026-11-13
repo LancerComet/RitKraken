@@ -256,6 +256,12 @@
       "welcome_hint": "ローカルの Git リポジトリを開く、クローンする、または初期化します。"
     },
     "review": {
+      "find": "ファイル内を検索（Ctrl/Cmd+F）",
+      "find_placeholder": "ファイル内を検索",
+      "find_case": "大文字と小文字を区別",
+      "find_previous": "前の一致（Shift+Enter / Shift+F3）",
+      "find_next": "次の一致（Enter / F3）",
+      "find_close": "検索を閉じる（Escape）",
       "available_context": "パッチに含まれる前後の行を表示しています。",
       "commit": "コミット",
       "diff_view": "差分表示",

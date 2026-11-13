@@ -1,5 +1,8 @@
 mod auto_fetch;
 mod confirm;
+mod updates;
+
+pub(super) use updates::RepoUpdates;
 
 use std::{sync::Arc, time::Duration};
 
@@ -199,9 +202,11 @@ impl Client {
         id: u64,
         window: &mut Window,
         cx: &mut Context<Self>,
-    ) {
-        let Some(tab) = self.tab(id) else { return };
-        self.start_repo_update(id, None, tab.history.limit, false, None, window, cx);
+    ) -> bool {
+        let Some(tab) = self.tab(id) else {
+            return false;
+        };
+        self.start_repo_update(id, None, tab.history.limit, false, None, window, cx)
     }
 
     fn start_repo_update(
@@ -217,23 +222,27 @@ impl Client {
         let Some(tab) = self.tab_mut(id).filter(|tab| !tab.busy) else {
             return false;
         };
-        tab.busy = true;
-        tab.active_op = Some(
+        let read_only = edit.is_none();
+        let Some(generation) = tab.updates.begin(read_only) else {
+            return false;
+        };
+        tab.busy = !read_only;
+        tab.active_op = (!read_only).then(|| {
             edit.as_ref()
-                .map_or(ActiveOp::Other, RepoOperation::activity),
-        );
+                .map_or(ActiveOp::Other, RepoOperation::activity)
+        });
         if report_operation {
             tab.notice = None;
         }
         let repo = tab.repo.clone();
-        let previous_menu = tab.history.data.menu.clone();
+        let previous = tab.history.data.clone();
         Self::spawn_background(
             window,
             cx,
             move || {
                 let result = edit.as_ref().map(|edit| edit.execute(&repo));
-                let history = History::reload(&repo, limit, Some(&previous_menu))
-                    .map(|history| (history, limit));
+                let history =
+                    History::reload(&repo, limit, Some(&previous)).map(|history| (history, limit));
                 let reported = if report_operation {
                     result.zip(edit)
                 } else {
@@ -242,6 +251,12 @@ impl Client {
                 (reported, history)
             },
             move |this, (result, history), window, cx| {
+                if !this
+                    .tab_mut(id)
+                    .is_some_and(|tab| tab.updates.finish(generation))
+                {
+                    return;
+                }
                 let succeeded = result.as_ref().is_some_and(|(result, _)| result.is_ok());
                 this.finish_update(id, result, history, window, cx);
                 if let Some(complete) = complete {
@@ -249,7 +264,9 @@ impl Client {
                 }
             },
         );
-        cx.notify();
+        if !read_only {
+            cx.notify();
+        }
         true
     }
 
@@ -267,6 +284,7 @@ impl Client {
             self.finish_inline_branch(id, name, window, cx);
         }
         let Some(tab) = self.tab_mut(id) else { return };
+        let was_busy = tab.busy;
         tab.busy = false;
         tab.active_op = None;
         let mut committed = false;
@@ -289,8 +307,10 @@ impl Client {
                 Err(error) => tab.notice = Some((true, error.into())),
             }
         }
+        let mut changed = was_busy;
         match history {
             Ok((history, limit)) => {
+                changed |= !Arc::ptr_eq(&tab.history.data, &history) || tab.history.limit != limit;
                 tab.history.data = history;
                 tab.history.limit = limit;
             }
@@ -348,9 +368,10 @@ impl Client {
                 Scope::Commit { .. } => Some(file),
             };
             if let Some(file) = updated {
-                self.open_diff(id, file, window, cx);
+                self.refresh_diff(id, file, window, cx);
             } else {
                 tab.review.close();
+                changed = true;
             }
         } else if tab
             .history
@@ -361,6 +382,8 @@ impl Client {
             self.select(id, initial_selection, None, window, cx);
         }
         self.resume_toolbar_branch(id, window, cx);
-        cx.notify();
+        if changed {
+            cx.notify();
+        }
     }
 }

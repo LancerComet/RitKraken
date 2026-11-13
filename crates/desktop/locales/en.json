@@ -256,6 +256,12 @@
       "welcome_hint": "Open, clone, or initialize a local Git repository."
     },
     "review": {
+      "find": "Find in file (Ctrl/Cmd+F)",
+      "find_placeholder": "Find in file",
+      "find_case": "Match case",
+      "find_previous": "Previous match (Shift+Enter / Shift+F3)",
+      "find_next": "Next match (Enter / F3)",
+      "find_close": "Close search (Escape)",
       "available_context": "Showing the available patch context.",
       "commit": "Commit",
       "diff_view": "Diff View",

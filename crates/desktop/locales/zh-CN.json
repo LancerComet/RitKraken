@@ -256,6 +256,12 @@
       "welcome_hint": "打开、克隆或初始化本地 Git 仓库。"
     },
     "review": {
+      "find": "在文件中搜索（Ctrl/Cmd+F）",
+      "find_placeholder": "在文件中搜索",
+      "find_case": "区分大小写",
+      "find_previous": "上一处（Shift+Enter / Shift+F3）",
+      "find_next": "下一处（Enter / F3）",
+      "find_close": "关闭搜索（Escape）",
       "available_context": "正在显示补丁中可用的上下文。",
       "commit": "提交",
       "diff_view": "差异视图",

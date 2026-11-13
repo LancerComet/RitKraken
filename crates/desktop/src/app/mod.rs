@@ -114,7 +114,9 @@ impl Client {
         focus.focus(window, cx);
         let activation = cx.observe_window_activation(window, |this, window, cx| {
             if window.is_window_active() && !this.modal_is_present() {
-                this.refresh(window, cx);
+                if let Some(id) = this.session.active {
+                    this.refresh_watched_repo(id, window, cx);
+                }
             }
         });
         let mut app = Self {

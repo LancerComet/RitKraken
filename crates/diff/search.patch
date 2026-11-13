@@ -1,0 +1,170 @@
+--- a/diff/state.rs
++++ b/diff/state.rs
+@@ -225,6 +225,7 @@
+     header_rows: Vec<usize>,
+     rows: Rc<Vec<DisplayRow>>,
+     change_rows: Vec<usize>,
++    pub(crate) search: crate::search::SearchState,
+     overview: crate::overview::Overview,
+     overview_changes: Option<crate::DiffOverview>,
+     list: ListState,
+@@ -360,6 +361,7 @@
+             header_rows: Vec::new(),
+             rows: Rc::default(),
+             change_rows: Vec::new(),
++            search: crate::search::SearchState::default(),
+             overview: crate::overview::Overview::default(),
+             overview_changes: None,
+             list: ListState::new(0, ListAlignment::Top, px(0.)),
+@@ -677,6 +679,7 @@
+         self.horizontal_scroll.set_offset(point(px(0.), px(0.)));
+         self.split_scroll.reset();
+         self.ensure_presentation(cx);
++        self.refresh_search(cx);
+         cx.notify();
+     }
+ 
+@@ -737,6 +740,7 @@
+         self.rebuild_at_anchor();
+         self.horizontal_scroll.set_offset(point(px(0.), px(0.)));
+         self.split_scroll.reset();
++        self.reveal_search(cx);
+         cx.notify();
+     }
+ 
+@@ -748,6 +752,7 @@
+         self.context_lines = lines;
+         self.expanded.iter_mut().for_each(Vec::clear);
+         self.rebuild_at_anchor();
++        self.reveal_search(cx);
+         cx.notify();
+     }
+ 
+--- a/diff/mod.rs
++++ b/diff/mod.rs
+@@ -226,6 +226,7 @@
+     state: Entity<DiffState>,
+     style: StyleRefinement,
+     typography: DiffTypography,
++    search_labels: crate::DiffSearchLabels,
+     line_number: bool,
+     syntax_highlight: bool,
+     header_visible: bool,
+@@ -260,6 +261,7 @@
+             state: state.clone(),
+             style: StyleRefinement::default(),
+             typography: DiffTypography::default(),
++            search_labels: crate::DiffSearchLabels::default(),
+             line_number: true,
+             syntax_highlight: true,
+             header_visible: true,
+@@ -324,6 +326,12 @@
+     /// Overrides typography in the code area.
+     pub fn typography(mut self, typography: DiffTypography) -> Self {
+         self.typography = typography;
++        self
++    }
++
++    /// Localizes the common Find bar.
++    pub fn search_labels(mut self, labels: crate::DiffSearchLabels) -> Self {
++        self.search_labels = labels;
+         self
+     }
+ 
+@@ -585,12 +593,14 @@
+         state.set_content_width(width);
+         state.split_scroll_mut().set_widths(split_widths);
+     }
++    let search_bar = crate::search::bar(state, props.search_labels.clone(), window, cx);
+     state.sync_annotations(&props.annotations.items);
+     let viewport_width = state.viewport().width;
+     let content_width = state.content_width().max(viewport_width);
+     let horizontal = state.horizontal_scroll().clone();
+     let split_horizontal = state.split_scroll().clone();
+     let code = Rc::new(CodePresentation {
++        search: state.search_highlights(),
+         files: state.files().to_vec(),
+         presentations: state.presentations().to_vec(),
+         mode,
+@@ -792,11 +802,12 @@
+             gpui::canvas(
+                 {
+                     let state = cx.entity();
+-                    move |bounds, _, cx| {
++                    move |bounds, window, cx| {
+                         state.update(cx, |state, cx| {
+                             // Runs after the list's prepaint, which drops
+                             // every row height when its width changes.
+                             let rehinted = state.keep_row_height_hint();
++                            state.reveal_search_target(soft_wrap, split.is_some(), window, cx);
+                             // The estimate shapes the widest candidates only;
+                             // grow to fit any wider line once it is painted.
+                             let painted = if soft_wrap {
+@@ -833,6 +844,11 @@
+         .aria_label(label);
+     v_flex()
+         .id(("diff", cx.entity_id()))
++        .key_context(if state.is_search_open() { "RitKrakenDiffSearch" } else { "RitKrakenDiffView" })
++        .on_action(cx.listener(|state, _: &crate::input::Escape, window, cx| {
++            if state.is_search_open() { state.close_search(window, cx); } else { cx.propagate(); }
++        }))
++        .capture_key_down(cx.listener(crate::search::key_down))
+         .size_full()
+         .min_w_0()
+         .min_h_0()
+@@ -841,6 +857,7 @@
+         .text_sm()
+         .border_1()
+         .border_color(cx.theme().border)
++        .children(search_bar)
+         .child(
+             div().flex().flex_1().min_h_0().min_w_0()
+                 .child(body)
+@@ -862,6 +879,7 @@
+ }
+ 
+ struct CodePresentation {
++    search: crate::search::SearchHighlights,
+     files: Vec<DiffFile>,
+     presentations: Vec<Option<Arc<FilePresentation>>>,
+     mode: DiffMode,
+@@ -1656,6 +1674,12 @@
+             },
+         ));
+     }
++    highlights.extend(code.search.line(file, side, ix).map(|(range, current)| (
++        range, HighlightStyle {
++            background_color: Some(cx.theme().warning.opacity(if current { 0.75 } else { 0.3 })),
++            ..Default::default()
++        },
++    )));
+     highlights
+ }
+ 
+--- a/diff/selection.rs
++++ b/diff/selection.rs
+@@ -66,6 +66,24 @@
+             })
+             .2
+     }
++    /// Actual painted positions for a search hit, including wrapped text.
++    pub(crate) fn search_target(
++        &self, file: usize, side: DiffSide, index: usize, source: Range<usize>,
++    ) -> Option<(Bounds<Pixels>, Point<Pixels>, Point<Pixels>, Pixels)> {
++        let matching = || self.runs.iter().filter(|run| {
++            run.file == file && run.side == side && run.line_ix == index
++        });
++        let first = matching().next()?;
++        let line = &first.document.lines(side)[index];
++        let display = line.display_range(source);
++        let position = |offset| matching().find_map(|run| {
++            (run.display_range.contains(&offset) || offset == line.display().len())
++                .then(|| run.layout.position_for_index(offset - run.display_range.start))
++                .flatten()
++        });
++        Some((self.bounds, position(display.start)?, position(display.end)?, first.layout.line_height()))
++    }
++
+     pub fn key_at(&self, point: Point<Pixels>, side: Option<DiffSide>) -> Option<u64> {
+         if let Some((count, position, cursor)) = self.multi_click.get() {
+             let run = self.run_at(position, None)?;

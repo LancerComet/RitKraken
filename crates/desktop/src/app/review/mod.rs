@@ -1,15 +1,16 @@
+mod loading;
+mod refresh;
 mod staging;
 mod view;
 
 use std::sync::Arc;
 
 use gpui_kit::*;
-use ritkraken_diff::{
-    DiffFile, DiffLinePosition, DiffMode, DiffOverview, DiffParseOptions, DiffSide, DiffState,
-};
+use ritkraken_diff::{DiffFile, DiffMode, DiffOverview, DiffParseOptions, DiffState};
 use ritkraken_git::{self as git, FileTarget, PATCH_VIEW_LIMIT, Patch, Repo};
 
 use super::{Client, Load, Message, preferences::Preferences};
+use loading::load_source;
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub(super) enum DiffLayout {
@@ -56,6 +57,7 @@ pub(super) struct FileReview {
     pub(super) message: Option<Message>,
     pub(super) compact_context: bool,
     pub(super) source: Option<Load<Entity<DiffState>>>,
+    source_text: Option<Arc<str>>,
     pub(super) show_source: bool,
     pub(super) collapsed_sidebar: bool,
 }
@@ -90,11 +92,15 @@ fn load_diff(
     repo: &Repo,
     file: &FileTarget,
     ignore_edge_whitespace: bool,
-) -> git::Result<LoadedDiff> {
+    previous: Option<&Patch>,
+) -> git::Result<Option<LoadedDiff>> {
     let patch = Arc::new(
         repo.patch(file)?
             .with_edge_whitespace_ignored(ignore_edge_whitespace),
     );
+    if previous == Some(patch.as_ref()) {
+        return Ok(None);
+    }
     let document = parse_patch(patch.bytes(), patch.ignores_edge_whitespace());
     let needs_context = matches!(file.change.code, b'M' | b'R' | b'C')
         && document
@@ -122,11 +128,11 @@ fn load_diff(
         }
     });
     let compact_context = compact_context && document.is_ok();
-    Ok(LoadedDiff {
+    Ok(Some(LoadedDiff {
         patch,
         document,
         compact_context,
-    })
+    }))
 }
 
 fn load_full_diff(
@@ -202,62 +208,23 @@ impl Client {
             message: None,
             compact_context: false,
             source: None,
+            source_text: None,
             show_source,
             collapsed_sidebar,
         }));
         Self::spawn_background(
             window,
             cx,
-            move || load_diff(&repo, &target, ignore_edge_whitespace),
+            move || load_diff(&repo, &target, ignore_edge_whitespace, None),
             move |this, result, _, cx| {
                 let Some((diff, layout)) = this.review_for_request(id, request) else {
                     return;
                 };
                 match result {
-                    Ok(loaded) => {
-                        let line = loaded.patch.first_context_line();
-                        let stageable = loaded.patch.hunk_count() > 0;
-                        diff.patch = Load::Ready(loaded.patch);
-                        diff.compact_context = loaded.compact_context;
-                        match loaded.document {
-                            Ok(files) => {
-                                let anchor = line.and_then(|line| {
-                                    let file = files.first()?;
-                                    file.modified_path()?;
-                                    Some(DiffLinePosition::new(
-                                        file.path().clone(),
-                                        DiffSide::Modified,
-                                        line,
-                                    ))
-                                });
-                                diff.viewer = Some(match viewer {
-                                    Some(viewer) => {
-                                        viewer.update(cx, |state, cx| {
-                                            layout.apply(state, cx);
-                                            state.refresh_files(files, cx);
-                                        });
-                                        viewer
-                                    }
-                                    None => cx.new(|cx| {
-                                        let mut state = DiffState::new(files, cx);
-                                        layout.apply(&mut state, cx);
-                                        if stageable {
-                                            state.scroll_to_first_hunk(cx);
-                                        } else if let Some(anchor) =
-                                            anchor.filter(|anchor| anchor.line() > 1)
-                                        {
-                                            state.scroll_to_line(anchor, cx);
-                                        }
-                                        state
-                                    }),
-                                });
-                            }
-                            Err(message) => diff.message = Some(message),
-                        }
-                    }
+                    Ok(Some(loaded)) => diff.apply_loaded(loaded, layout, viewer, cx),
+                    Ok(None) => {}
                     Err(error) => diff.patch = Load::Failed(error.into()),
                 }
-                diff.sync_source_overview(cx);
                 cx.notify();
             },
         );
@@ -283,27 +250,32 @@ impl Client {
         if !show || diff.source.is_some() {
             return;
         }
-        diff.source = Some(Load::Pending);
+        self.load_review_source(id, window, cx);
+    }
+
+    fn load_review_source(&mut self, id: u64, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(tab) = self.tab_mut(id) else { return };
+        let Some(diff) = tab.review.active.as_mut() else {
+            return;
+        };
+        if diff.source.is_none() {
+            diff.source = Some(Load::Pending);
+        }
         let request = tab.review.request;
         let target = diff.file.clone();
         let repo = tab.repo.clone();
+        let previous = diff.source_text.clone();
         Self::spawn_background(
             window,
             cx,
-            move || {
-                let text = repo.file_contents(&target)?;
-                let path = target.change.path.to_string_lossy().into_owned();
-                Ok::<_, git::Error>(DiffFile::unchanged(path, &text))
-            },
+            move || load_source(&repo, &target, previous.as_deref()),
             move |this, result, _, cx| {
                 let Some((diff, _)) = this.review_for_request(id, request) else {
                     return;
                 };
-                let viewer = result
-                    .map(|file| cx.new(|cx| DiffState::new([file], cx).with_context_lines(None)));
-                diff.source = Some(viewer.into());
-                diff.sync_source_overview(cx);
-                cx.notify();
+                if diff.apply_source(result, cx) {
+                    cx.notify();
+                }
             },
         );
     }
@@ -368,6 +340,7 @@ impl Client {
 pub(super) struct ReviewState {
     pub(super) active: Option<FileReview>,
     request: u64,
+    refresh_request: u64,
     pub(super) layout: DiffLayout,
     pub(super) wrap_lines: bool,
     ignore_edge_whitespace: bool,
@@ -378,6 +351,7 @@ impl ReviewState {
         Self {
             active: None,
             request: 0,
+            refresh_request: 0,
             layout: options.diff_layout,
             wrap_lines: options.wrap_lines,
             ignore_edge_whitespace: false,

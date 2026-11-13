@@ -38,7 +38,7 @@ fn optional_file(path: &Path) -> Result<Option<Vec<u8>>> {
     }
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct MenuMetadata {
     pub(crate) version: GraphVersion,
     pub(crate) remote_url: Option<String>,
