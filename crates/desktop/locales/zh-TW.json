@@ -203,6 +203,9 @@
       "remember_tabs_hint": "下次啟動時還原開啟的儲存庫及所選分頁。",
       "show_all_history": "在提交圖中顯示所有提交",
       "show_all_history_hint": "開啟儲存庫時載入所有可達的提交歷史。",
+      "theme": "佈景主題",
+      "theme_dark": "深色",
+      "theme_light": "淺色",
       "title": "偏好設定",
       "wrap_lines": "長行自動換行",
       "wrap_lines_hint": "在檔案預覽和差異檢視中自動換行。"
@@ -287,7 +290,6 @@
       "fetch_all": "擷取所有遠端",
       "fetch_options": "擷取選項",
       "fetch_remote": "擷取 %{remote}",
-      "local_git": "本機 Git",
       "pop": "還原",
       "pop_hint": "還原並移除最新的貯藏",
       "push": "推送",

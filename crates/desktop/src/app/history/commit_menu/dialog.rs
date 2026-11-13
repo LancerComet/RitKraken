@@ -15,7 +15,8 @@ use crate::{
     app::{
         Client, Escape, Load, Message, Submit,
         modals::{ContentModal, ModalHandle},
-        widgets::{LINE, MUTED, Tone, button, error_text},
+        theme::palette,
+        widgets::{Tone, button, error_text},
     },
     i18n::tr,
 };
@@ -144,13 +145,14 @@ impl CommitDialog {
 
 impl Render for CommitDialog {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let p = palette(cx);
         let interactive = self.plan.is_some();
         let ready = !matches!(self.plan, Some(Load::Pending | Load::Failed(_)));
         let mut content = div().w_full().min_w_0().flex().flex_col().gap(px(12.));
         if interactive {
             content = content.h_full().child(self.planner_view(cx));
         } else {
-            content = content.child(div().text_color(rgb(MUTED)).child(format!(
+            content = content.child(div().text_color(rgb(p.text_muted)).child(format!(
                 "{} · {}",
                 ritkraken_git::short_id(&self.context.commit.id),
                 self.context.commit.subject
@@ -188,35 +190,45 @@ impl Render for CommitDialog {
             }))
             .text_size(px(12.))
             .when_some(self.error.as_ref(), |element, error| {
-                element.child(error_text(error))
+                element.child(error_text(error, cx))
             })
             .child(
                 div()
                     .flex_shrink_0()
                     .border_t_1()
-                    .border_color(rgb(LINE))
+                    .border_color(rgb(p.border))
                     .pt(px(12.))
                     .flex()
                     .justify_end()
                     .gap(px(8.))
-                    .child(button(
-                        "cancel-commit-operation",
-                        tr!("app.common.cancel"),
-                        Tone::Outline,
-                        true,
-                        cx.listener(|this, _, window, cx| this.modal.close(window, cx)),
-                    ))
-                    .child(button(
-                        "apply-commit-operation",
-                        tr!(if interactive {
-                            "app.commit_menu.start_rebase"
-                        } else {
-                            "app.commit_menu.apply"
-                        }),
-                        Tone::Green,
-                        ready,
-                        cx.listener(|this, _, window, cx| this.submit(window, cx)),
-                    )),
+                    .child(
+                        button(
+                            "cancel-commit-operation",
+                            tr!("app.common.cancel"),
+                            Tone::Outline,
+                            true,
+                            cx,
+                            cx.listener(|this, _, window, cx| this.modal.close(window, cx)),
+                        )
+                        .rounded_full()
+                        .px(px(14.)),
+                    )
+                    .child(
+                        button(
+                            "apply-commit-operation",
+                            tr!(if interactive {
+                                "app.commit_menu.start_rebase"
+                            } else {
+                                "app.commit_menu.apply"
+                            }),
+                            Tone::Green,
+                            ready,
+                            cx,
+                            cx.listener(|this, _, window, cx| this.submit(window, cx)),
+                        )
+                        .rounded_full()
+                        .px(px(14.)),
+                    ),
             )
     }
 }

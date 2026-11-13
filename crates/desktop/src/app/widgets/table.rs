@@ -5,8 +5,7 @@ use gpui_kit::{
     *,
 };
 
-use super::{HEADER, LINE, MUTED};
-use crate::i18n::tr;
+use crate::{app::theme::palette, i18n::tr};
 
 pub(in crate::app) const HEADER_HEIGHT: Pixels = px(30.);
 
@@ -132,16 +131,17 @@ impl RenderOnce for Header {
                 });
             });
         }
+        let p = palette(cx);
         div()
             .w_full()
             .h(HEADER_HEIGHT)
             .flex_shrink_0()
-            .bg(rgb(HEADER))
+            .bg(rgb(p.surface_high))
             .text_size(px(12.))
-            .text_color(rgb(MUTED))
-            .font_weight(FontWeight::NORMAL)
+            .text_color(rgb(p.text_muted))
+            .font_weight(FontWeight::MEDIUM)
             .border_b_1()
-            .border_color(rgb(LINE))
+            .border_color(rgb(p.border))
             .child(
                 h_resizable(self.id)
                     .with_state(&self.state)

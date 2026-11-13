@@ -10,6 +10,7 @@ use gpui_kit::{
 use unicode_segmentation::UnicodeSegmentation as _;
 
 use self::gravatar::{Gravatar, Key, Lookup};
+use crate::app::theme::palette;
 
 const CACHE_CAPACITY: usize = 512;
 
@@ -56,6 +57,7 @@ impl PersonAvatar {
 
 impl RenderOnce for PersonAvatar {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        let p = palette(cx);
         let image = self.key.and_then(|key| load(key, window, cx));
         let avatar = match image {
             Some(image) => Avatar::new().image(AvatarImage::new(image).size_full().rounded_full()),
@@ -65,7 +67,7 @@ impl RenderOnce for PersonAvatar {
                     .flex()
                     .items_center()
                     .justify_center()
-                    .text_color(rgb(0x365479))
+                    .text_color(rgb(p.avatar_fg))
                     .text_size(self.diameter * 0.5)
                     .font_weight(FontWeight::SEMIBOLD)
                     .child(self.initial),
@@ -76,7 +78,7 @@ impl RenderOnce for PersonAvatar {
             .flex_shrink_0()
             .rounded_full()
             .overflow_hidden()
-            .bg(rgb(0xe1e8f2))
+            .bg(rgb(p.avatar_bg))
             .when_some(self.ring, |e, color| e.border_1().border_color(rgb(color)))
     }
 }

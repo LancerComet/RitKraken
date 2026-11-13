@@ -9,13 +9,18 @@ use gpui_kit::{component::input::InputState, *};
 use crate::i18n::{Language, LocalizedInput};
 use editor::{EditorDraft, EditorTypography};
 
-use super::{Client, Message, Tab, review::DiffLayout};
+use super::{
+    Client, Message, Tab,
+    review::DiffLayout,
+    theme::{ThemeId, apply_theme},
+};
 
 const INITIAL_COMMIT_RANGE: RangeInclusive<usize> = 500..=100_000;
 
 #[derive(Clone)]
 pub(super) struct Preferences {
     pub(super) language: Language,
+    pub(super) theme: ThemeId,
     pub(super) default_branch: String,
     auto_fetch_minutes: u64,
     pub(super) initial_commits: usize,
@@ -32,6 +37,7 @@ impl Default for Preferences {
     fn default() -> Self {
         Self {
             language: Language::default(),
+            theme: ThemeId::default(),
             default_branch: "main".into(),
             auto_fetch_minutes: git::DEFAULT_AUTO_FETCH_MINUTES,
             initial_commits: 2000,
@@ -53,6 +59,10 @@ impl Preferences {
             language: value["language"]
                 .as_str()
                 .map(Language::from_code)
+                .unwrap_or_default(),
+            theme: value["theme"]
+                .as_str()
+                .map(ThemeId::from_id)
                 .unwrap_or_default(),
             default_branch: value["default_branch"]
                 .as_str()
@@ -90,6 +100,7 @@ impl Preferences {
     pub(super) fn json(&self) -> serde_json::Value {
         serde_json::json!({
             "language": self.language.code(),
+            "theme": self.theme.id(),
             "default_branch": self.default_branch,
             "auto_fetch_minutes": self.auto_fetch_minutes,
             "initial_commits": self.initial_commits,
@@ -180,6 +191,20 @@ impl Client {
         draft.options.language = language;
         self.saved.preferences.language = language;
         self.localize(window, cx);
+        self.saved.save();
+        cx.notify();
+    }
+
+    fn choose_theme(&mut self, theme: ThemeId, cx: &mut Context<Self>) {
+        let Some(draft) = self.preferences.as_mut() else {
+            return;
+        };
+        if self.saved.preferences.theme == theme {
+            return;
+        }
+        draft.options.theme = theme;
+        self.saved.preferences.theme = theme;
+        apply_theme(theme, cx);
         self.saved.save();
         cx.notify();
     }
@@ -305,7 +330,22 @@ fn unsigned_input(
 mod tests {
     use std::time::Duration;
 
-    use super::{DiffLayout, Language, Preferences};
+    use super::{DiffLayout, Language, Preferences, ThemeId};
+
+    #[test]
+    fn theme_preference_round_trips_and_handles_legacy_settings() {
+        let legacy = serde_json::json!({"initial_commits": 750});
+        assert_eq!(Preferences::read(&legacy).theme, ThemeId::default());
+
+        let unknown = serde_json::json!({"theme": "nonexistent"});
+        assert_eq!(Preferences::read(&unknown).theme, ThemeId::default());
+
+        for theme in ThemeId::ALL {
+            let options = Preferences::read(&serde_json::json!({"theme": theme.id()}));
+            assert_eq!(options.theme, theme);
+            assert_eq!(options.json()["theme"], theme.id());
+        }
+    }
 
     #[test]
     fn language_preference_preserves_legacy_settings() {

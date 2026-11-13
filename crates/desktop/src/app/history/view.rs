@@ -18,8 +18,8 @@ use super::{
 use crate::app::{
     Client, NextRow, PreviousRow, RepoTab,
     changes::SummaryStyle,
+    theme::{Palette, palette},
     widgets::{
-        HOVER, LINE, MUTED, SELECT, TEAL, WHITE,
         menu::ContextMenuExt as _,
         table::{Column, ColumnWidths, HEADER_HEIGHT},
     },
@@ -68,6 +68,7 @@ impl Client {
         tab: &RepoTab,
         cx: &mut Context<Self>,
     ) -> Stateful<Div> {
+        let p = palette(cx);
         let id = tab.id;
         let history = tab.history.data.clone();
         let selected = tab.history.selected.clone();
@@ -104,6 +105,7 @@ impl Client {
                         view.clone(),
                         inline_branch.as_ref(),
                         busy,
+                        p,
                     );
                     let menu = selection.clone().map(|target| CommitMenu {
                         id,
@@ -173,7 +175,8 @@ impl Client {
             )
             .size_full()
             .relative()
-            .bg(rgb(WHITE))
+            .bg(rgb(p.canvas))
+            .text_color(rgb(p.text))
             .child(
                 div()
                     .id("history-columns")
@@ -196,6 +199,7 @@ impl Client {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn history_row(
     history: &Arc<History>,
     index: Option<usize>,
@@ -207,6 +211,7 @@ fn history_row(
     owner: WeakEntity<Client>,
     inline_branch: Option<&(String, Entity<InputState>)>,
     busy: bool,
+    p: Palette,
 ) -> Stateful<Div> {
     let commit = index.map(|index| &history.snapshot.commits[index]);
     let labels = commit.and_then(|commit| {
@@ -214,13 +219,15 @@ fn history_row(
             .labels_for(&commit.id)
             .map(|labels| (commit.id.as_str(), labels))
     });
-    let color = index.map_or(TEAL, |index| history.graph.rows[index].node.color);
+    let color = index.map_or(p.accent, |index| {
+        p.rail_color(history.graph.rows[index].node.color_index)
+    });
     let refs = if let Some((_, input)) =
         inline_branch.filter(|(target, _)| commit.is_some_and(|commit| commit.id == *target))
     {
         super::branch_editor::field(input, busy)
     } else {
-        ref_labels(labels, color, allow_ref_hover, id, owner)
+        ref_labels(labels, color, allow_ref_hover, id, owner, p)
     };
     let element = div()
         .id(SharedString::from(format!(
@@ -232,8 +239,14 @@ fn history_row(
         .flex()
         .items_center()
         .cursor_pointer()
-        .bg(rgb(if selected { SELECT } else { WHITE }))
-        .hover(|style| style.bg(rgb(if selected { SELECT } else { HOVER })))
+        .bg(rgb(if selected { p.accent_soft } else { p.canvas }))
+        .hover(|style| {
+            style.bg(rgb(if selected {
+                p.accent_soft_hover
+            } else {
+                p.hover
+            }))
+        })
         .child(widths.cell(0, refs))
         .child(widths.cell(
             1,
@@ -243,48 +256,49 @@ fn history_row(
                 widths.get(1).expect("graph column has a width"),
                 show_wip,
                 labels.is_some(),
+                p,
             ),
         ));
     if let Some(commit) = commit {
         element
             .child(widths.cell(2, message_column(div()).child(commit.subject.clone())))
-            .child(widths.cell(3, metadata(commit.author.clone())))
-            .child(widths.cell(4, metadata(commit.date.clone())))
-            .child(widths.cell(5, metadata(git::short_id(&commit.id).to_owned())))
+            .child(widths.cell(3, metadata(commit.author.clone(), p)))
+            .child(widths.cell(4, metadata(commit.date.clone(), p)))
+            .child(widths.cell(5, metadata(git::short_id(&commit.id).to_owned(), p)))
     } else {
-        element.child(widths.cell(2, wip_message(history)))
+        element.child(widths.cell(2, wip_message(history, p)))
     }
 }
 
-fn wip_message(history: &History) -> Div {
+fn wip_message(history: &History, p: Palette) -> Div {
     let summary = &history.worktree_summary;
     let counts = if summary.total() == 0 {
         div()
             .text_size(px(11.))
-            .text_color(rgb(MUTED))
+            .text_color(rgb(p.text_muted))
             .child(tr!("app.review.worktree"))
     } else {
-        summary.view(SummaryStyle::Compact)
+        summary.view(SummaryStyle::Compact, p)
     };
     div()
         .min_w_0()
         .flex()
         .items_center()
-        .gap(px(14.))
+        .gap(px(12.))
         .child(
             div()
-                .w(px(96.))
                 .h(BAND_HEIGHT)
                 .flex_shrink_0()
                 .flex()
                 .items_center()
-                .px(px(11.))
+                .px(px(10.))
                 .border_1()
-                .border_color(rgb(LINE))
-                .rounded(px(3.))
-                .bg(rgb(WHITE).opacity(0.3))
-                .text_size(px(12.))
-                .text_color(rgb(MUTED))
+                .border_color(rgb(p.border_strong))
+                .rounded_full()
+                .bg(rgb(p.surface_high))
+                .text_size(px(11.5))
+                .font_weight(FontWeight::MEDIUM)
+                .text_color(rgb(p.text_muted))
                 .child(tr!("app.history.wip")),
         )
         .child(counts)
@@ -294,13 +308,13 @@ fn message_column(column: Div) -> Div {
     column.pl(px(7.)).truncate()
 }
 
-fn metadata(text: String) -> Div {
+fn metadata(text: String, p: Palette) -> Div {
     div()
         .min_w_0()
         .pl(px(6.))
         .pr(px(3.))
         .truncate()
         .text_size(px(11.))
-        .text_color(rgb(MUTED))
+        .text_color(rgb(p.text_muted))
         .child(text)
 }

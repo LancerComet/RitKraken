@@ -13,6 +13,7 @@ const COLORS: &[u32] = &[
 pub(super) struct Rail {
     pub lane: usize,
     pub color: u32,
+    pub color_index: usize,
 }
 
 #[derive(Debug)]
@@ -109,6 +110,7 @@ impl GraphLayout {
                 span.rows.contains(&row).then_some(Rail {
                     lane,
                     color: span.color,
+                    color_index: span.color_index,
                 })
             })
     }
@@ -124,6 +126,7 @@ struct Track {
 struct Span {
     rows: Range<usize>,
     color: u32,
+    color_index: usize,
 }
 
 #[derive(Default)]
@@ -142,9 +145,14 @@ impl Lanes {
             self.spans.push(Vec::new());
             self.spans.len() - 1
         };
-        let color = COLORS[self.next_color];
+        let color_index = self.next_color;
+        let color = COLORS[color_index];
         self.next_color = (self.next_color + 1) % COLORS.len();
-        Rail { lane, color }
+        Rail {
+            lane,
+            color,
+            color_index,
+        }
     }
 
     fn record(&mut self, track: Track, end: usize) {
@@ -153,6 +161,7 @@ impl Lanes {
             self.spans[track.rail.lane].push(Span {
                 rows,
                 color: track.rail.color,
+                color_index: track.rail.color_index,
             });
         }
     }

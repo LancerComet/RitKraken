@@ -3,12 +3,12 @@ mod surface;
 
 use gpui_kit::{base::FocusTrapElement as _, component::tooltip::Tooltip, prelude::*, *};
 
-use super::{HEADER, LINE, Tone, WHITE, button};
-use crate::i18n::tr;
+use super::{Tone, button};
+use crate::{app::theme::palette, i18n::tr};
 
 pub(in crate::app) use composition::ModalCompositor;
 pub(in crate::app) use surface::modal_layer;
-pub(in crate::app) const MODAL_CORNER_RADIUS: Pixels = px(4.);
+pub(in crate::app) const MODAL_CORNER_RADIUS: Pixels = px(16.);
 
 type CloseHandler = Box<dyn Fn(&ClickEvent, &mut Window, &mut App)>;
 
@@ -66,7 +66,8 @@ impl ParentElement for Modal {
 }
 
 impl RenderOnce for Modal {
-    fn render(self, window: &mut Window, _: &mut App) -> impl IntoElement {
+    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        let p = palette(cx);
         let dimensions = window.viewport_size();
         let available = match self.viewport_fractions {
             Some(fractions) => size(
@@ -80,17 +81,18 @@ impl RenderOnce for Modal {
             .flex()
             .items_center()
             .justify_between()
-            .h(px(45.))
+            .h(px(48.))
             .flex_shrink_0()
-            .px(px(13.))
-            .py(px(3.))
-            .bg(rgb(HEADER))
+            .px(px(16.))
+            .py(px(4.))
+            .bg(rgb(p.surface_high))
             .border_b_1()
-            .border_color(rgb(LINE))
+            .border_color(rgb(p.border))
             .child(
                 div()
                     .text_size(px(14.))
-                    .font_weight(FontWeight::MEDIUM)
+                    .font_weight(FontWeight::SEMIBOLD)
+                    .text_color(rgb(p.text))
                     .child(self.title.clone()),
             )
             .child(
@@ -99,9 +101,13 @@ impl RenderOnce for Modal {
                     "×",
                     Tone::Plain,
                     self.close_enabled,
+                    cx,
                     self.on_close,
                 )
-                .text_size(px(21.6))
+                .size(px(28.))
+                .px(px(0.))
+                .rounded_full()
+                .text_size(px(20.))
                 .aria_label(close_label.clone())
                 .tooltip(move |window, cx| Tooltip::new(close_label.clone()).build(window, cx)),
             );
@@ -119,10 +125,12 @@ impl RenderOnce for Modal {
             })
             .flex()
             .flex_col()
-            .bg(rgb(WHITE))
+            .overflow_hidden()
+            .bg(rgb(p.surface))
+            .text_color(rgb(p.text))
             .rounded(MODAL_CORNER_RADIUS)
             .border_1()
-            .border_color(rgb(0xaeb4bf))
+            .border_color(rgb(p.border_strong))
             .child(header)
             .children(self.children)
             .focus_trap(self.id, &self.focus)

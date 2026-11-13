@@ -2,7 +2,7 @@ use gpui_kit::{component::tooltip::Tooltip, prelude::*, *};
 use ritkraken_git::Change;
 
 use crate::{
-    app::widgets::{MUTED, RED, TEXT, icon},
+    app::{theme::Palette, widgets::icon},
     i18n::tr,
 };
 
@@ -12,14 +12,14 @@ pub(in crate::app) struct ChangeMark {
     pub color: u32,
 }
 
-pub(in crate::app) fn change_mark(code: u8) -> ChangeMark {
+pub(in crate::app) fn change_mark(code: u8, p: Palette) -> ChangeMark {
     ChangeKind::from_code(code).map_or(
         ChangeMark {
             glyph: "",
             icon_path: None,
-            color: MUTED,
+            color: p.text_muted,
         },
-        ChangeKind::mark,
+        |kind| kind.mark(p),
     )
 }
 
@@ -46,13 +46,13 @@ impl ChangeKind {
         })
     }
 
-    fn mark(self) -> ChangeMark {
+    fn mark(self, p: Palette) -> ChangeMark {
         let (glyph, icon_path, color) = match self {
-            Self::Added => ("+", "icons/plus.svg", 0x2f964e),
-            Self::Deleted => ("−", "icons/minus.svg", RED),
-            Self::Renamed => ("↪", "icons/corner-up-right.svg", 0x7453af),
-            Self::Modified => ("✎", "icons/pencil.svg", 0xc88732),
-            Self::Conflicted => ("!", "icons/circle-alert.svg", RED),
+            Self::Added => ("+", "icons/plus.svg", p.success),
+            Self::Deleted => ("−", "icons/minus.svg", p.danger),
+            Self::Renamed => ("↪", "icons/corner-up-right.svg", p.renamed),
+            Self::Modified => ("✎", "icons/pencil.svg", p.warning),
+            Self::Conflicted => ("!", "icons/circle-alert.svg", p.danger),
         };
         ChangeMark {
             glyph,
@@ -105,7 +105,7 @@ impl ChangeSummary {
         self.0.iter().sum()
     }
 
-    pub(in crate::app) fn view(&self, style: SummaryStyle) -> Div {
+    pub(in crate::app) fn view(&self, style: SummaryStyle, p: Palette) -> Div {
         let compact = matches!(style, SummaryStyle::Compact);
         div()
             .flex()
@@ -117,20 +117,20 @@ impl ChangeSummary {
             })
             .children(style.order().into_iter().filter_map(|kind| {
                 let count = self.0[kind as usize];
-                (count > 0).then(|| count_item(kind, count, compact))
+                (count > 0).then(|| count_item(kind, count, compact, p))
             }))
     }
 }
 
-fn count_item(kind: ChangeKind, count: usize, compact: bool) -> AnyElement {
-    let mark = kind.mark();
+fn count_item(kind: ChangeKind, count: usize, compact: bool, p: Palette) -> AnyElement {
+    let mark = kind.mark(p);
     let key = kind.label_key();
     let label = tr!(key, count = count);
     let item = div().flex().items_center().gap(px(3.));
     if compact {
         item.id(key)
             .flex_shrink_0()
-            .text_color(rgb(TEXT))
+            .text_color(rgb(p.text))
             .aria_label(label.clone())
             .tooltip(move |window, cx| Tooltip::new(label.clone()).build(window, cx))
             .children(

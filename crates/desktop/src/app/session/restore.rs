@@ -6,8 +6,9 @@ use ritkraken_git::Repo;
 use crate::{
     app::{
         repository_manager::OpenRepo,
+        theme::palette,
         widgets::{
-            MUTED, Tone, button, error_text,
+            Tone, button, error_text,
             loading::{loading_page, opening_message},
         },
     },
@@ -92,21 +93,25 @@ impl Client {
     }
 
     pub(in crate::app) fn saved_tab_view(&self, tab: &SavedTab, cx: &Context<Self>) -> Div {
+        let p = palette(cx);
         let id = tab.id;
         let content = match &tab.state {
             SavedTabState::Failed(error) => div()
                 .flex()
                 .flex_col()
                 .gap(px(8.))
-                .child(error_text(error))
+                .child(error_text(error, cx))
                 .child(
                     button(
                         ("retry-saved-tab", id),
                         tr!("app.common.retry"),
                         Tone::Outline,
                         true,
+                        cx,
                         cx.listener(move |this, _, window, cx| this.show_tab(id, window, cx)),
                     )
+                    .rounded_full()
+                    .px(px(14.))
                     .self_center(),
                 ),
             SavedTabState::Idle | SavedTabState::Loading => opening_message(),
@@ -124,7 +129,7 @@ impl Client {
                         .max_w_full()
                         .text_size(px(12.))
                         .line_height(px(18.))
-                        .text_color(rgb(MUTED))
+                        .text_color(rgb(p.text_muted))
                         .truncate()
                         .child(Repo::name_from_path(&tab.path)),
                 ),

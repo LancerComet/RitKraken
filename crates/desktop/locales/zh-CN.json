@@ -203,6 +203,9 @@
       "remember_tabs_hint": "下次启动时恢复打开的仓库和选中的标签页。",
       "show_all_history": "在提交图中显示所有提交",
       "show_all_history_hint": "打开仓库时加载所有可达的提交历史。",
+      "theme": "主题皮肤",
+      "theme_dark": "深色",
+      "theme_light": "浅色",
       "title": "偏好设置",
       "wrap_lines": "长行自动换行",
       "wrap_lines_hint": "在文件预览和差异视图中自动折行。"
@@ -287,7 +290,6 @@
       "fetch_all": "抓取所有远端",
       "fetch_options": "抓取选项",
       "fetch_remote": "抓取 %{remote}",
-      "local_git": "本地 Git",
       "pop": "恢复",
       "pop_hint": "恢复并移除最新的储藏",
       "push": "推送",

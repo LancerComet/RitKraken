@@ -10,6 +10,7 @@ use crate::{
     app::{
         Client, Message,
         system::open_text_file,
+        theme::palette,
         widgets::{Tone, button},
     },
     i18n::tr,
@@ -30,6 +31,7 @@ impl Preferences {
 }
 
 pub(super) fn git_preferences(draft: &PreferenceDraft, cx: &mut Context<Client>) -> Div {
+    let p = palette(cx);
     div()
         .flex()
         .flex_col()
@@ -40,9 +42,10 @@ pub(super) fn git_preferences(draft: &PreferenceDraft, cx: &mut Context<Client>)
                 .w(px(132.))
                 .max_w_full()
                 .min_w_0()
-                .suffix(unit_suffix(tr!("app.preferences.minutes")))
+                .suffix(unit_suffix(tr!("app.preferences.minutes"), cx))
                 .aria_label(tr!("app.preferences.auto_fetch_interval")),
             Some("app.preferences.auto_fetch_interval_hint"),
+            p,
         ))
         .child(preference_row(
             "app.preferences.global_config",
@@ -51,10 +54,14 @@ pub(super) fn git_preferences(draft: &PreferenceDraft, cx: &mut Context<Client>)
                 tr!("app.common.open"),
                 Tone::Outline,
                 true,
+                cx,
                 cx.listener(|this, _, window, cx| this.open_global_git_config(window, cx)),
             )
+            .rounded_full()
+            .px(px(14.))
             .self_start(),
             None,
+            p,
         ))
 }
 

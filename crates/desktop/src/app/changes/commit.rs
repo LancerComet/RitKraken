@@ -15,7 +15,8 @@ use crate::i18n::tr;
 use super::{ChangeSummary, SummaryStyle, change_count};
 use crate::app::{
     Client, Load, RepoTab,
-    widgets::{LINE, Tone, button, error_text, note},
+    theme::palette,
+    widgets::{Tone, button, error_text, note},
 };
 
 impl Client {
@@ -25,6 +26,7 @@ impl Client {
         window: &Window,
         cx: &mut Context<Self>,
     ) -> Div {
+        let p = palette(cx);
         let id = tab.id;
         let oid = tab.history.selected.as_deref().unwrap_or_default();
         let Some(commit) = tab
@@ -34,11 +36,11 @@ impl Client {
             .get(oid)
             .and_then(|index| tab.history.data.snapshot.commits.get(*index))
         else {
-            return div().child(note(tr!("app.error.commit_outside_history")));
+            return div().child(note(tr!("app.error.commit_outside_history"), cx));
         };
         let detail = match &tab.changes.detail {
-            Load::Pending => note(tr!("app.commit.loading")).into_any_element(),
-            Load::Failed(error) => error_text(error).into_any_element(),
+            Load::Pending => note(tr!("app.commit.loading"), cx).into_any_element(),
+            Load::Failed(error) => error_text(error, cx).into_any_element(),
             Load::Ready(detail) => {
                 let scope = Scope::Commit {
                     id: oid.to_owned(),
@@ -49,14 +51,15 @@ impl Client {
                 let message = div().size_full().p(px(8.)).child(
                     div()
                         .size_full()
-                        .rounded(px(3.))
+                        .rounded(px(12.))
                         .border_1()
-                        .border_color(rgb(LINE))
-                        .bg(rgb(0xfafafb))
+                        .border_color(rgb(p.border))
+                        .bg(rgb(p.surface))
                         .child(
                             div()
-                                .p(px(10.))
+                                .p(px(12.))
                                 .text_size(px(14.))
+                                .text_color(rgb(p.text))
                                 .child(detail.message.clone()),
                         )
                         .overflow_y_scrollbar(),
@@ -64,8 +67,8 @@ impl Client {
                 let files = if tab.changes.show_all_files {
                     match &tab.changes.commit_files {
                         Some(Load::Ready(files)) => self.file_list(tab, files, scope, cx),
-                        Some(Load::Failed(error)) => error_text(error),
-                        _ => note(tr!("app.commit.loading_tree")),
+                        Some(Load::Failed(error)) => error_text(error, cx),
+                        _ => note(tr!("app.commit.loading_tree"), cx),
                     }
                 } else {
                     self.file_list(tab, &detail.changes, scope, cx)
@@ -75,16 +78,16 @@ impl Client {
                     .flex()
                     .flex_col()
                     .child(self.commit_people(tab, commit, detail, cx))
-                    .child(ChangeSummary::new(&detail.changes).view(SummaryStyle::Labeled))
+                    .child(ChangeSummary::new(&detail.changes).view(SummaryStyle::Labeled, p))
                     .child(
                         div()
                             .flex()
                             .items_center()
                             .pr(px(8.))
-                            .h(px(34.))
+                            .h(px(36.))
                             .flex_shrink_0()
                             .border_b_1()
-                            .border_color(rgb(LINE))
+                            .border_color(rgb(p.border))
                             .child(self.file_mode(tab, cx).flex_1())
                             .child(
                                 div().flex_shrink_0().child(
@@ -131,14 +134,17 @@ impl Client {
             .when(tab.has_changes(), |element| {
                 element.child(
                     div()
-                        .h(px(34.))
+                        .h(px(36.))
                         .flex_shrink_0()
                         .flex()
                         .items_center()
                         .justify_center()
-                        .gap(px(6.))
-                        .px(px(5.))
-                        .bg(rgb(0xaac4f7))
+                        .gap(px(8.))
+                        .px(px(8.))
+                        .bg(rgb(p.info_bg))
+                        .text_color(rgb(p.info_fg))
+                        .border_b_1()
+                        .border_color(rgb(p.border))
                         .child(div().truncate().child(tr!(
                             "app.commit.worktree_changes",
                             count = change_count(tab)
@@ -149,42 +155,46 @@ impl Client {
                                 tr!("app.commit.view_changes"),
                                 Tone::Outline,
                                 true,
+                                cx,
                                 cx.listener(move |this, _, window, cx| {
                                     this.select(id, None, Some(ScrollStrategy::Top), window, cx);
                                 }),
                             )
-                            .h(px(21.)),
+                            .rounded_full()
+                            .h(px(22.)),
                         ),
                 )
             })
             .child(
                 div()
-                    .h(px(31.))
+                    .h(px(32.))
                     .flex_shrink_0()
                     .flex()
                     .items_center()
                     .justify_center()
                     .border_b_1()
-                    .border_color(rgb(LINE))
-                    .child(commit_hash_button(id, oid)),
+                    .border_color(rgb(p.border))
+                    .child(commit_hash_button(id, oid, cx)),
             )
             .child(detail)
     }
 }
 
-fn commit_hash_button(id: u64, oid: &str) -> Stateful<Div> {
+fn commit_hash_button(id: u64, oid: &str, cx: &App) -> Stateful<Div> {
     let clipboard_oid = oid.to_owned();
-    let horizontal_padding = px(8.);
+    let horizontal_padding = px(10.);
     let press_offset = px(1.);
     button(
         ("copy-sha", id),
         git::short_id(oid).to_owned(),
         Tone::Plain,
         true,
+        cx,
         move |_, _, cx| {
             cx.write_to_clipboard(ClipboardItem::new_string(clipboard_oid.clone()));
         },
     )
+    .rounded_full()
     .role(Role::Button)
     .aria_label(tr!("app.commit.copy_sha"))
     .px(horizontal_padding)

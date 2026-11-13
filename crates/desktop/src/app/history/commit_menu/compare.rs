@@ -79,10 +79,10 @@ impl CommitComparison {
 }
 
 impl Render for CommitComparison {
-    fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         div().size_full().child(match &self.data {
-            Load::Pending => note(tr!("app.commit_menu.loading")).into_any_element(),
-            Load::Failed(error) => error_text(error).into_any_element(),
+            Load::Pending => note(tr!("app.commit_menu.loading"), cx).into_any_element(),
+            Load::Failed(error) => error_text(error, cx).into_any_element(),
             Load::Ready(state) => self
                 .layout
                 .viewer(state, self.wrap_lines, self.typography.clone())

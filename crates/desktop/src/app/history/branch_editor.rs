@@ -82,11 +82,11 @@ pub(super) fn field(input: &Entity<InputState>, busy: bool) -> Div {
         .child(
             Styled::h(Input::new(input).xsmall(), px(24.))
                 .w_full()
-                .px(px(4.))
+                .px(px(6.))
                 .py(px(0.))
                 .text_size(px(12.))
                 .line_height(px(18.))
-                .rounded(px(2.))
+                .rounded_full()
                 .disabled(busy),
         )
 }

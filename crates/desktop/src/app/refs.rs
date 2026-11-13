@@ -16,9 +16,8 @@ use crate::i18n::{LocalizedInput, tr};
 
 use super::{
     Client, RepoOperation, RepoTab,
-    widgets::{
-        GREEN, HOVER, LINE, MUTED, PAPER, SELECT, SUBTLE, TEXT, Tone, WHITE, button, heading, icon,
-    },
+    theme::{Palette, palette},
+    widgets::{Tone, button, heading, icon},
 };
 
 const REF_GROUPS: [(RefKind, &str, &str); 3] = [
@@ -84,58 +83,66 @@ impl Client {
     }
 
     pub(super) fn branch_rail(&self, tab: &RepoTab, cx: &mut Context<Self>) -> Div {
+        let p = palette(cx);
         let id = tab.id;
         div()
-            .w(px(34.))
+            .w(px(38.))
             .flex_shrink_0()
             .h_full()
             .flex()
             .flex_col()
             .items_center()
+            .gap(px(4.))
+            .py(px(6.))
             .border_r_1()
-            .border_color(rgb(LINE))
-            .bg(rgb(PAPER))
+            .border_color(rgb(p.border))
+            .bg(rgb(p.surface_dim))
             .child(
                 button(
                     "expand-sidebar",
                     "",
                     Tone::Plain,
                     true,
+                    cx,
                     cx.listener(move |this, _, _, cx| {
                         this.set_sidebar(id, false, None, cx);
                     }),
                 )
-                .w(px(31.))
-                .h(px(30.))
-                .child(icon("icons/chevron-right.svg", TEXT)),
+                .size(px(30.))
+                .px(px(0.))
+                .rounded_full()
+                .child(icon("icons/chevron-right.svg", p.text)),
             )
             .children(REF_GROUPS.into_iter().map(|(kind, _, title)| {
                 let count = tab.history.data.snapshot.refs_of_kind(kind).count();
                 div()
                     .id(title)
                     .aria_label(tr!(title))
-                    .w(px(31.))
-                    .h(px(41.))
+                    .w(px(32.))
+                    .h(px(42.))
+                    .rounded(px(10.))
                     .flex()
                     .flex_col()
                     .items_center()
                     .justify_center()
                     .cursor_pointer()
-                    .hover(|style| style.bg(rgb(HOVER)))
+                    .hover(|style| style.bg(rgb(p.hover)))
                     .on_click(cx.listener(move |this, _, _, cx| {
                         this.set_sidebar(id, false, Some(kind), cx)
                     }))
-                    .child(icon(ref_icon(kind), MUTED))
+                    .child(icon(ref_icon(kind), p.text_muted))
                     .child(
                         div()
                             .text_size(px(10.))
-                            .text_color(rgb(0x315aae))
+                            .font_weight(FontWeight::MEDIUM)
+                            .text_color(rgb(p.accent))
                             .child(count.to_string()),
                     )
             }))
     }
 
     pub(super) fn sidebar(&self, tab: &RepoTab, cx: &mut Context<Self>) -> Div {
+        let p = palette(cx);
         let filter = tab.refs.filter.read(cx).value().to_lowercase();
         let id = tab.id;
         let refs = &tab.history.data.snapshot.refs;
@@ -147,61 +154,67 @@ impl Client {
             .size_full()
             .flex()
             .flex_col()
-            .bg(rgb(PAPER))
+            .bg(rgb(p.surface_dim))
             .border_r_1()
-            .border_color(rgb(LINE))
+            .border_color(rgb(p.border))
             .child(
                 div()
                     .flex()
                     .items_center()
                     .justify_between()
-                    .h(px(26.))
-                    .my(px(3.))
+                    .h(px(28.))
+                    .my(px(4.))
                     .px(px(9.))
                     .child(
                         div()
                             .flex()
                             .items_center()
-                            .gap(px(3.))
+                            .gap(px(4.))
                             .child(
                                 button(
                                     "collapse-sidebar",
                                     "",
                                     Tone::Plain,
                                     true,
+                                    cx,
                                     cx.listener(move |this, _, _, cx| {
                                         this.set_sidebar(id, true, None, cx);
                                     }),
                                 )
-                                .w(px(22.))
-                                .h(px(22.))
-                                .child(icon("icons/chevron-left.svg", TEXT)),
+                                .size(px(24.))
+                                .px(px(0.))
+                                .rounded_full()
+                                .child(icon("icons/chevron-left.svg", p.text)),
                             )
-                            .child(div().child(tr!(
+                            .child(div().text_color(rgb(p.text)).child(tr!(
                                 "app.refs.viewing",
                                 count = count,
                                 total = refs.len()
                             ))),
                     )
-                    .child(button(
-                        "reset-branch-filter",
-                        tr!("app.refs.show_all"),
-                        Tone::Plain,
-                        !filter.is_empty(),
-                        cx.listener(move |this, _, window, cx| {
-                            if let Some(tab) = this.tab_mut(id) {
-                                tab.refs
-                                    .filter
-                                    .update(cx, |input, cx| input.set_value("", window, cx));
-                                cx.notify();
-                            }
-                        }),
-                    )),
+                    .child(
+                        button(
+                            "reset-branch-filter",
+                            tr!("app.refs.show_all"),
+                            Tone::Plain,
+                            !filter.is_empty(),
+                            cx,
+                            cx.listener(move |this, _, window, cx| {
+                                if let Some(tab) = this.tab_mut(id) {
+                                    tab.refs
+                                        .filter
+                                        .update(cx, |input, cx| input.set_value("", window, cx));
+                                    cx.notify();
+                                }
+                            }),
+                        )
+                        .rounded_full(),
+                    ),
             )
             .child(
                 div()
                     .px(px(8.))
-                    .pb(px(7.))
+                    .pb(px(8.))
                     .child(Input::new(&tab.refs.filter).small()),
             )
             .child(
@@ -212,7 +225,7 @@ impl Client {
                         .size_full()
                         .children(
                             REF_GROUPS.into_iter().map(|(kind, title, _)| {
-                                self.ref_group(tab, kind, title, &filter, cx)
+                                self.ref_group(tab, kind, title, &filter, p, cx)
                             }),
                         )
                         .overflow_y_scrollbar(),
@@ -226,6 +239,7 @@ impl Client {
         kind: RefKind,
         title: &'static str,
         filter: &str,
+        p: Palette,
         cx: &mut Context<Self>,
     ) -> Div {
         let snapshot = &tab.history.data.snapshot;
@@ -237,18 +251,18 @@ impl Client {
             .collect();
         let open = !tab.refs.closed_groups.contains(&kind);
         let tab_id = tab.id;
-        let mut group = div().flex().flex_col().pb(px(5.)).child(
+        let mut group = div().flex().flex_col().pb(px(6.)).child(
             div()
                 .id(title)
                 .group("ref-group-heading")
-                .h(px(27.))
-                .px(px(8.))
+                .h(px(28.))
+                .px(px(9.))
                 .flex()
                 .items_center()
                 .justify_between()
                 .border_t_1()
-                .border_color(rgb(LINE))
-                .hover(|s| s.bg(rgb(HOVER)))
+                .border_color(rgb(p.border))
+                .hover(|s| s.bg(rgb(p.hover)))
                 .cursor_pointer()
                 .on_click(cx.listener(move |this, _, _, cx| {
                     if let Some(tab) = this.tab_mut(tab_id) {
@@ -263,9 +277,9 @@ impl Client {
                         .flex()
                         .items_center()
                         .gap(px(6.))
-                        .child(disclosure_chevron(open))
-                        .child(sidebar_icon(ref_icon(kind)))
-                        .child(heading(tr!(title)).text_size(px(13.))),
+                        .child(disclosure_chevron(open, p))
+                        .child(sidebar_icon(ref_icon(kind), p))
+                        .child(heading(tr!(title), cx).text_size(px(12.))),
                 )
                 .child(
                     div()
@@ -275,8 +289,13 @@ impl Client {
                         .items_center()
                         .child(
                             div()
-                                .text_size(px(11.))
-                                .text_color(rgb(0x315aae))
+                                .px(px(7.))
+                                .py(px(1.))
+                                .rounded_full()
+                                .bg(rgb(p.surface_high))
+                                .text_size(px(10.5))
+                                .font_weight(FontWeight::MEDIUM)
+                                .text_color(rgb(p.accent))
                                 .child(format!("{}/{}", matches.len(), refs.len()))
                                 .when(kind == RefKind::Remote, |count| {
                                     count
@@ -290,6 +309,7 @@ impl Client {
                                     "",
                                     Tone::Plain,
                                     !tab.busy,
+                                    cx,
                                     cx.listener(move |this, _, window, cx| {
                                         cx.stop_propagation();
                                         this.open_add_remote(tab_id, window, cx);
@@ -298,10 +318,10 @@ impl Client {
                                 .absolute()
                                 .right_0()
                                 .top_0()
-                                .w(px(21.))
-                                .h(px(21.))
+                                .size(px(21.))
                                 .px(px(0.))
-                                .child(icon("icons/plus.svg", TEXT).size(px(14.)))
+                                .rounded_full()
+                                .child(icon("icons/plus.svg", p.text).size(px(14.)))
                                 .aria_label(tr!("app.remotes.add"))
                                 .invisible()
                                 .group_hover("ref-group-heading", |style| style.visible())
@@ -331,6 +351,7 @@ impl Client {
                         depth,
                         kind == RefKind::Remote && depth == 0,
                         Some(!collapsed),
+                        p,
                         cx,
                     ));
                 }
@@ -349,18 +370,27 @@ impl Client {
             group = group.child(
                 div()
                     .id(SharedString::from(format!("{title}/ref/{branch}")))
-                    .h(px(23.))
-                    .mx(px(3.))
-                    .pr(px(6.))
-                    .pl(px(5.))
+                    .h(px(25.))
+                    .mx(px(6.))
+                    .pr(px(8.))
+                    .pl(px(6.))
+                    .rounded(px(8.))
                     .flex()
                     .items_center()
                     .gap(px(6.))
                     .cursor_pointer()
                     .min_w_0()
-                    .when(checked, |e| e.bg(rgb(0xcce6cc)))
-                    .when(!checked && selected, |e| e.bg(rgb(SELECT)))
-                    .hover(|s| s.bg(rgb(if checked { 0xbce0bf } else { HOVER })))
+                    .when(checked, |e| e.bg(rgb(p.success_bg)))
+                    .when(!checked && selected, |e| e.bg(rgb(p.accent_soft)))
+                    .hover(|s| {
+                        s.bg(rgb(if checked {
+                            p.success_hover
+                        } else if selected {
+                            p.accent_soft_hover
+                        } else {
+                            p.hover
+                        }))
+                    })
                     .on_click(cx.listener(move |this, click: &ClickEvent, window, cx| {
                         if click.click_count() == 2 && kind == RefKind::Local && !checked {
                             this.update_repo(
@@ -381,31 +411,45 @@ impl Client {
                     }))
                     .child(
                         div()
-                            .size(px(12.))
-                            .mx(px(1.))
+                            .size(SIDEBAR_ICON_SIZE)
                             .flex_shrink_0()
                             .flex()
                             .items_center()
                             .justify_center()
-                            .rounded(px(2.))
+                            .rounded_full()
                             .when(checked, |badge| {
                                 badge
-                                    .bg(rgb(GREEN))
-                                    .child(icon("icons/check.svg", WHITE).size(px(10.)))
+                                    .bg(rgb(p.success))
+                                    .child(icon("icons/check.svg", p.accent_fg).size(px(11.)))
                             }),
                     )
                     .child(
-                        sidebar_icon(if kind == RefKind::Tag {
-                            ref_icon(kind)
-                        } else {
-                            "icons/git-branch.svg"
-                        })
-                        .text_color(rgb(SUBTLE))
+                        sidebar_icon(
+                            if kind == RefKind::Tag {
+                                ref_icon(kind)
+                            } else {
+                                "icons/git-branch.svg"
+                            },
+                            p,
+                        )
+                        .text_color(rgb(p.text_subtle))
                         .ml(px((parts.len() - 1) as f32 * 13.)),
                     )
                     .child(
                         div()
                             .truncate()
+                            .text_color(rgb(if checked {
+                                p.success
+                            } else if selected {
+                                p.accent_soft_fg
+                            } else {
+                                p.text
+                            }))
+                            .font_weight(if checked {
+                                FontWeight::MEDIUM
+                            } else {
+                                FontWeight::NORMAL
+                            })
                             .child(parts.last().copied().unwrap_or(&reference.name).to_owned()),
                     ),
             );
@@ -425,6 +469,7 @@ impl Client {
                         0,
                         true,
                         None,
+                        p,
                         cx,
                     ));
                 }
@@ -434,6 +479,7 @@ impl Client {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn ref_folder(
     tab_id: u64,
     key: String,
@@ -441,6 +487,7 @@ fn ref_folder(
     depth: usize,
     remote: bool,
     expanded: Option<bool>,
+    p: Palette,
     cx: &mut Context<Client>,
 ) -> Stateful<Div> {
     div()
@@ -448,10 +495,13 @@ fn ref_folder(
         .flex()
         .items_center()
         .gap(px(6.))
-        .h(px(22.))
-        .pl(px(10. + 13. * depth as f32))
+        .h(px(24.))
+        .mx(px(6.))
+        .rounded(px(8.))
+        .pl(px(6. + 13. * depth as f32))
+        .pr(px(6.))
         .min_w_0()
-        .hover(|style| style.bg(rgb(HOVER)))
+        .hover(|style| style.bg(rgb(p.hover)))
         .when(expanded.is_some(), |row| {
             row.cursor_pointer()
                 .on_click(cx.listener(move |this, _, _, cx| {
@@ -467,22 +517,27 @@ fn ref_folder(
             div()
                 .size(px(12.))
                 .flex_shrink_0()
-                .when_some(expanded, |slot, open| slot.child(disclosure_chevron(open))),
+                .when_some(expanded, |slot, open| {
+                    slot.child(disclosure_chevron(open, p))
+                }),
         )
-        .child(sidebar_icon(if remote {
-            ref_icon(RefKind::Remote)
-        } else {
-            "icons/folder.svg"
-        }))
-        .child(div().text_color(rgb(MUTED)).truncate().child(label))
+        .child(sidebar_icon(
+            if remote {
+                ref_icon(RefKind::Remote)
+            } else {
+                "icons/folder.svg"
+            },
+            p,
+        ))
+        .child(div().text_color(rgb(p.text_muted)).truncate().child(label))
 }
 
-fn sidebar_icon(path: &'static str) -> Svg {
-    icon(path, MUTED).size(SIDEBAR_ICON_SIZE)
+fn sidebar_icon(path: &'static str, p: Palette) -> Svg {
+    icon(path, p.text_muted).size(SIDEBAR_ICON_SIZE)
 }
 
-fn disclosure_chevron(open: bool) -> Svg {
-    icon("icons/chevron-right.svg", MUTED)
+fn disclosure_chevron(open: bool, p: Palette) -> Svg {
+    icon("icons/chevron-right.svg", p.text_muted)
         .size(px(12.))
         .when(open, |arrow| {
             arrow.with_transformation(Transformation::rotate(radians(std::f32::consts::FRAC_PI_2)))

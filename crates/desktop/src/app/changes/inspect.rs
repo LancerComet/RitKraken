@@ -11,7 +11,8 @@ use crate::{
         Client, Load,
         modals::{ContentModal, ModalHandle},
         review::parse_patch,
-        widgets::{MUTED, error_text, note, table::ResizableColumns},
+        theme::palette,
+        widgets::{error_text, note, table::ResizableColumns},
     },
     i18n::tr,
 };
@@ -165,11 +166,12 @@ impl FileInspection {
 
     fn blame_view(&self, lines: &Arc<[BlameLine]>, window: &Window, cx: &mut Context<Self>) -> Div {
         if lines.is_empty() {
-            return div().child(note(tr!("app.file_menu.empty_file")));
+            return div().child(note(tr!("app.file_menu.empty_file"), cx));
         }
         let lines = lines.clone();
         let (family, font_size, row_height) = self.typography.resolve(window, cx);
-        let list = uniform_list("file-blame", lines.len(), move |range, _, _| {
+        let list = uniform_list("file-blame", lines.len(), move |range, _, cx| {
+            let p = palette(cx);
             range
                 .map(|index| {
                     let line = &lines[index];
@@ -180,11 +182,11 @@ impl FileInspection {
                         .flex()
                         .items_center()
                         .bg(rgb(if uncommitted {
-                            0xfff6dc
+                            p.warning_bg
                         } else if index % 2 == 0 {
-                            0xffffff
+                            p.canvas
                         } else {
-                            0xf6f7f8
+                            p.surface_dim
                         }))
                         .child(
                             div()
@@ -202,7 +204,7 @@ impl FileInspection {
                             div()
                                 .w(px(72.))
                                 .text_size(px(11.))
-                                .text_color(rgb(MUTED))
+                                .text_color(rgb(p.text_muted))
                                 .child(if uncommitted {
                                     String::new()
                                 } else {
@@ -215,7 +217,7 @@ impl FileInspection {
                                 .pr(px(10.))
                                 .text_right()
                                 .text_size(font_size)
-                                .text_color(rgb(MUTED))
+                                .text_color(rgb(p.text_muted))
                                 .child(line.number.to_string()),
                         )
                         .child(
@@ -244,8 +246,8 @@ impl FileInspection {
 impl Render for FileInspection {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let body = match &self.data {
-            Load::Pending => div().child(note(tr!("app.file_menu.loading"))),
-            Load::Failed(error) => div().child(error_text(error)),
+            Load::Pending => div().child(note(tr!("app.file_menu.loading"), cx)),
+            Load::Failed(error) => div().child(error_text(error, cx)),
             Load::Ready(InspectionData::History(history)) => self.history_view(history, cx),
             Load::Ready(InspectionData::Blame(lines)) => self.blame_view(lines, window, cx),
         };

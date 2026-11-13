@@ -14,6 +14,7 @@ mod session;
 mod settings;
 mod shell;
 mod system;
+mod theme;
 mod toolbar;
 mod watch;
 mod widgets;
@@ -48,6 +49,7 @@ actions!(
 );
 
 pub fn init(cx: &mut App) {
+    theme::init(cx);
     widgets::tooltip::init(cx);
     bind_keys(cx);
 }
@@ -107,6 +109,7 @@ impl Client {
     pub fn new(path: Option<PathBuf>, window: &mut Window, cx: &mut Context<Self>) -> Self {
         let saved = SavedRepos::load();
         saved.preferences.language.apply();
+        theme::apply_theme(saved.preferences.theme, cx);
         let focus = cx.focus_handle();
         focus.focus(window, cx);
         let activation = cx.observe_window_activation(window, |this, window, cx| {

@@ -203,6 +203,9 @@
       "remember_tabs_hint": "Restores open repositories and the selected tab on the next launch.",
       "show_all_history": "Show All Commits in Graph",
       "show_all_history_hint": "Loads the full reachable history when the repository is opened.",
+      "theme": "Color Theme",
+      "theme_dark": "Dark",
+      "theme_light": "Light",
       "title": "PREFERENCES",
       "wrap_lines": "Wrap long lines",
       "wrap_lines_hint": "Wraps long lines in file previews and diffs."
@@ -287,7 +290,6 @@
       "fetch_all": "Fetch All",
       "fetch_options": "Fetch options",
       "fetch_remote": "Fetch %{remote}",
-      "local_git": "Local Git",
       "pop": "Pop",
       "pop_hint": "Pop latest stash",
       "push": "Push",

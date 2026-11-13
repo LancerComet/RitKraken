@@ -42,11 +42,12 @@ pub(super) fn attach_controls(
             }
         }),
     );
-    let control = move |id: ElementId, label: SharedString, selection| {
+    let control = move |id: ElementId, label: SharedString, selection, cx: &App| {
         let submit = submit.clone();
-        button(id, label, action.tone(), enabled, move |_, window, cx| {
+        button(id, label, action.tone(), enabled, cx, move |_, window, cx| {
             submit(&selection, window, cx);
         })
+        .rounded_full()
         .flex_shrink_0()
     };
 
@@ -58,15 +59,16 @@ pub(super) fn attach_controls(
         StageAction::Unstage => "−",
     };
     diff.render_change_controls(
-        move |index, _, _| {
+        move |index, _, cx| {
             hunk_control(
                 ("hunk-stage-control", index).into(),
                 hunk_label.clone(),
                 PatchSelection::Hunk(index),
+                cx,
             )
-            .h(px(19.))
+            .h(px(20.))
         },
-        move |position, _, _| {
+        move |position, _, cx| {
             let side = match position.side() {
                 DiffSide::Original => PatchSide::Original,
                 DiffSide::Modified => PatchSide::Modified,
@@ -79,6 +81,7 @@ pub(super) fn attach_controls(
                     side,
                     number: position.line(),
                 },
+                cx,
             )
             .size(px(17.))
             .px(px(0.))

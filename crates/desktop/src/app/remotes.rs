@@ -8,7 +8,8 @@ use ritkraken_git::NewRemote;
 use super::{
     Client, Escape, Message, RepoOperation, Submit,
     modals::{ContentModal, ModalHandle},
-    widgets::{MUTED, Tone, button, error_text},
+    theme::palette,
+    widgets::{Tone, button, error_text},
 };
 use crate::i18n::tr;
 
@@ -148,6 +149,7 @@ impl RemoteForm {
 
 impl Render for RemoteForm {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let p = palette(cx);
         let busy = self.modal.is_busy();
         div()
             .id("add-remote-form")
@@ -179,18 +181,18 @@ impl Render for RemoteForm {
                         .flex()
                         .flex_col()
                         .gap(px(5.))
-                        .child(div().text_color(rgb(MUTED)).child(tr!(label)))
+                        .child(div().text_color(rgb(p.text_muted)).child(tr!(label)))
                         .child(Input::new(input).w_full().text_size(px(12.)).disabled(busy))
                 }),
             )
             .child(
                 div()
                     .text_size(px(12.))
-                    .text_color(rgb(MUTED))
+                    .text_color(rgb(p.text_muted))
                     .child(tr!("app.remotes.push_hint")),
             )
             .when_some(self.error.as_ref(), |body, error| {
-                body.child(error_text(error))
+                body.child(error_text(error, cx))
             })
             .child(
                 button(
@@ -202,10 +204,12 @@ impl Render for RemoteForm {
                     }),
                     Tone::Green,
                     !busy && self.request(cx).is_ok(),
+                    cx,
                     cx.listener(|this, _, window, cx| this.submit(window, cx)),
                 )
                 .w_full()
-                .h(px(32.)),
+                .h(px(34.))
+                .rounded_full(),
             )
     }
 }

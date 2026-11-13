@@ -20,7 +20,8 @@ use crate::{
     app::{
         Client, Message,
         review::DiffLayout,
-        widgets::{LINE, WHITE, heading},
+        theme::palette,
+        widgets::heading,
     },
     i18n::{LocalizedInput, tr},
 };
@@ -256,17 +257,24 @@ impl Client {
         draft: &PreferenceDraft,
         cx: &mut Context<Self>,
     ) -> Div {
+        let p = palette(cx);
         let options = &draft.options;
         let editor = &draft.editor;
         let layouts = div()
-            .w_full()
-            .min_w_0()
+            .p(px(3.))
+            .rounded_full()
+            .bg(rgb(p.surface_dim))
+            .border_1()
+            .border_color(rgb(p.border))
             .flex()
+            .gap(px(2.))
+            .self_start()
             .children(DiffLayout::ALL.into_iter().map(|layout| {
                 layout
                     .selector_button(
                         Some(options.diff_layout),
                         true,
+                        cx,
                         cx.listener(move |this, _, _, cx| {
                             if let Some(draft) = this.preferences.as_mut() {
                                 draft.options.diff_layout = layout;
@@ -278,9 +286,8 @@ impl Client {
                             }
                         }),
                     )
-                    .w(px(72.))
-                    .flex_1()
-                    .max_w(px(72.))
+                    .rounded_full()
+                    .w(px(74.))
             }));
         div()
             .flex()
@@ -290,6 +297,7 @@ impl Client {
                 "app.preferences.diff_layout",
                 layouts,
                 Some("app.preferences.diff_layout_hint"),
+                p,
             ))
             .child(preference_row(
                 "app.preferences.wrap_lines",
@@ -302,6 +310,7 @@ impl Client {
                     cx,
                 ),
                 Some("app.preferences.wrap_lines_hint"),
+                p,
             ))
             .child(preference_row(
                 "app.preferences.editor_font",
@@ -313,6 +322,7 @@ impl Client {
                     .search_placeholder(tr!("app.preferences.editor_font_search"))
                     .accessibility_label(tr!("app.preferences.editor_font")),
                 None,
+                p,
             ))
             .child(preference_row(
                 "app.preferences.editor_font_size",
@@ -320,9 +330,10 @@ impl Client {
                     .w(px(132.))
                     .max_w_full()
                     .min_w_0()
-                    .suffix(unit_suffix("px"))
+                    .suffix(unit_suffix("px", cx))
                     .accessibility_label(tr!("app.preferences.editor_font_size")),
                 None,
+                p,
             ))
             .child(preference_row(
                 "app.preferences.editor_line_height",
@@ -330,9 +341,10 @@ impl Client {
                     .w(px(132.))
                     .max_w_full()
                     .min_w_0()
-                    .suffix(unit_suffix("px"))
+                    .suffix(unit_suffix("px", cx))
                     .aria_label(tr!("app.preferences.editor_line_height")),
                 Some("app.preferences.editor_line_height_hint"),
+                p,
             ))
             .child(
                 div()
@@ -340,17 +352,17 @@ impl Client {
                     .flex_col()
                     .gap(px(7.))
                     .max_w(px(940.))
-                    .child(heading(tr!("app.preferences.editor_preview")).text_size(px(13.)))
+                    .child(heading(tr!("app.preferences.editor_preview"), cx).text_size(px(13.)))
                     .child(
                         div()
                             .id("editor-preview")
                             .h(px(244.))
                             .flex_shrink_0()
                             .overflow_hidden()
-                            .rounded(px(3.))
+                            .rounded(px(12.))
                             .border_1()
-                            .border_color(rgb(LINE))
-                            .bg(rgb(WHITE))
+                            .border_color(rgb(p.border))
+                            .bg(rgb(p.canvas))
                             .child(options.diff_layout.viewer(
                                 &editor.preview,
                                 options.wrap_lines,

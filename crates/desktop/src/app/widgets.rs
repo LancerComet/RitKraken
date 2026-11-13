@@ -7,30 +7,17 @@ pub(super) mod tooltip;
 
 use gpui_kit::{prelude::*, *};
 
-use super::Message;
-
-pub(super) const WHITE: u32 = 0xffffff;
-pub(super) const PAPER: u32 = 0xf6f7f8;
-pub(super) const HEADER: u32 = 0xf1f2f4;
-pub(super) const LINE: u32 = 0xd7d9de;
-pub(super) const TEXT: u32 = 0x252932;
-pub(super) const MUTED: u32 = 0x646b7c;
-pub(super) const SUBTLE: u32 = 0x959ba8;
-pub(super) const NAV: u32 = 0x363b51;
-pub(super) const TOOLBAR: u32 = 0x444b63;
-pub(super) const NAV_TEXT: u32 = 0xe0e4f0;
-pub(super) const SELECT: u32 = 0xdde6f8;
-pub(super) const HOVER: u32 = 0xeef2f9;
-pub(super) const TEAL: u32 = 0x1597b0;
-pub(super) const GREEN: u32 = 0x307542;
-pub(super) const GREEN_BG: u32 = 0xe5f2e5;
-pub(super) const RED: u32 = 0xad3e42;
+use super::{
+    Message,
+    theme::{Palette, palette},
+};
 
 #[derive(Clone, Copy)]
 pub(super) enum Tone {
     Plain,
     Outline,
     Selected,
+    Primary,
     Green,
     Red,
     Dark,
@@ -41,18 +28,34 @@ impl Tone {
         if selected { Self::Selected } else { self }
     }
 
-    pub(super) fn foreground(self) -> u32 {
-        self.colors().1
+    pub(super) fn foreground(self, p: Palette) -> u32 {
+        self.colors(p).1
     }
 
-    fn colors(self) -> (Option<u32>, u32, Option<u32>, u32) {
+    fn colors(self, p: Palette) -> (Option<u32>, u32, Option<u32>, u32) {
         match self {
-            Self::Plain => (None, TEXT, None, HOVER),
-            Self::Outline => (Some(WHITE), TEXT, Some(LINE), HOVER),
-            Self::Selected => (Some(SELECT), 0x234773, Some(0xb3c8eb), 0xd1dff6),
-            Self::Green => (Some(GREEN_BG), GREEN, Some(0xa7cba9), 0xd3ead4),
-            Self::Red => (Some(0xfbe9e9), RED, Some(0xdfa0a2), 0xf4dada),
-            Self::Dark => (None, NAV_TEXT, None, 0x555f7c),
+            Self::Plain => (None, p.text, None, p.hover),
+            Self::Outline => (Some(p.surface), p.text, Some(p.border), p.hover),
+            Self::Selected => (
+                Some(p.accent_soft),
+                p.accent_soft_fg,
+                Some(p.accent_soft_border),
+                p.accent_soft_hover,
+            ),
+            Self::Primary => (Some(p.accent), p.accent_fg, None, p.accent_hover),
+            Self::Green => (
+                Some(p.success_bg),
+                p.success,
+                Some(p.success_border),
+                p.success_hover,
+            ),
+            Self::Red => (
+                Some(p.danger_bg),
+                p.danger,
+                Some(p.danger_border),
+                p.danger_hover,
+            ),
+            Self::Dark => (None, p.chrome_text, None, p.chrome_hover),
         }
     }
 }
@@ -62,6 +65,7 @@ pub(super) fn button(
     label: impl Into<SharedString>,
     tone: Tone,
     enabled: bool,
+    cx: &App,
     on_click: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
 ) -> Stateful<Div> {
     button_content(
@@ -69,6 +73,7 @@ pub(super) fn button(
         div().truncate().child(label.into()),
         tone,
         enabled,
+        cx,
         on_click,
     )
 }
@@ -78,18 +83,20 @@ pub(super) fn button_content(
     content: impl IntoElement,
     tone: Tone,
     enabled: bool,
+    cx: &App,
     on_click: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
 ) -> Stateful<Div> {
-    let (background, foreground, border, hover) = tone.colors();
+    let p = palette(cx);
+    let (background, foreground, border, hover) = tone.colors(p);
     div()
         .id(id)
         .flex()
         .items_center()
         .justify_center()
         .min_w_0()
-        .h(px(25.))
-        .px(px(8.))
-        .rounded(px(3.))
+        .h(px(26.))
+        .px(px(10.))
+        .rounded(px(8.))
         .text_size(px(12.))
         .text_color(rgb(foreground))
         .when_some(background, |element, color| element.bg(rgb(color)))
@@ -103,7 +110,7 @@ pub(super) fn button_content(
                 .hover(|style| style.bg(rgb(hover)))
                 .on_click(on_click)
         })
-        .when(!enabled, |element| element.opacity(0.48))
+        .when(!enabled, |element| element.opacity(0.45))
 }
 
 pub(super) fn icon(path: &'static str, color: u32) -> Svg {
@@ -114,29 +121,35 @@ pub(super) fn icon(path: &'static str, color: u32) -> Svg {
         .flex_shrink_0()
 }
 
-pub(super) fn heading(label: impl Into<SharedString>) -> Div {
+pub(super) fn heading(label: impl Into<SharedString>, cx: &App) -> Div {
+    let p = palette(cx);
     div()
         .text_size(px(10.))
         .font_weight(FontWeight::SEMIBOLD)
-        .text_color(rgb(MUTED))
+        .text_color(rgb(p.text_muted))
         .child(label.into())
 }
 
-pub(super) fn note(message: impl Into<SharedString>) -> Div {
+pub(super) fn note(message: impl Into<SharedString>, cx: &App) -> Div {
+    let p = palette(cx);
     div()
         .px(px(12.))
         .py(px(10.))
         .text_size(px(12.))
-        .text_color(rgb(MUTED))
+        .text_color(rgb(p.text_muted))
         .child(message.into())
 }
 
-pub(super) fn error_text(message: &Message) -> Div {
+pub(super) fn error_text(message: &Message, cx: &App) -> Div {
+    let p = palette(cx);
     div()
         .px(px(12.))
         .py(px(8.))
-        .bg(rgb(0xfcebec))
-        .text_color(rgb(RED))
+        .rounded(px(10.))
+        .border_1()
+        .border_color(rgb(p.danger_border))
+        .bg(rgb(p.danger_bg))
+        .text_color(rgb(p.danger))
         .text_size(px(12.))
         .child(message.text())
 }

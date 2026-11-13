@@ -5,7 +5,7 @@ use gpui_kit::{prelude::*, *};
 use super::{History, layout::Rail};
 use crate::app::{
     avatar::PersonAvatar,
-    widgets::{TEAL, WHITE},
+    theme::{Palette, palette},
 };
 
 pub(super) const ROW_HEIGHT: Pixels = px(28.);
@@ -29,12 +29,13 @@ pub(super) fn graph_cell(
     width: Pixels,
     show_wip: bool,
     has_labels: bool,
+    p: Palette,
 ) -> Div {
     let data = history.clone();
     let drawing = canvas(
         |_, _, _| (),
-        move |bounds, _, window, _| {
-            paint_graph(&data, index, show_wip, has_labels, bounds, window);
+        move |bounds, _, window, cx| {
+            paint_graph(&data, index, show_wip, has_labels, bounds, window, cx);
         },
     )
     .size_full();
@@ -57,7 +58,7 @@ pub(super) fn graph_cell(
                         &commit.author,
                         &commit.author_email,
                         BAND_HEIGHT,
-                        Some(node.color),
+                        Some(p.rail_color(node.color_index)),
                     )),
             )
         })
@@ -78,7 +79,9 @@ fn paint_graph(
     has_labels: bool,
     bounds: Bounds<Pixels>,
     window: &mut Window,
+    cx: &App,
 ) {
+    let p = palette(cx);
     let shift = graph_shift(bounds.size.width);
     let bounds = Bounds::new(
         bounds.origin - point(shift, px(0.)),
@@ -89,7 +92,7 @@ fn paint_graph(
         return;
     }
     let Some(index) = index else {
-        paint_wip(history, bounds, window);
+        paint_wip(history, bounds, window, p);
         return;
     };
     let graph = &history.graph;
@@ -98,9 +101,15 @@ fn paint_graph(
     let bottom = bounds.bottom();
     let middle = bounds.center().y;
     let node = point(bounds.left() + lane_offset(row.node.lane), middle);
-    let color = rgb(row.node.color);
+    let color = rgb(p.rail_color(row.node.color_index));
     let mark_x = bounds.right() - px(2.);
-    paint_band(node.x, mark_x, middle, color.opacity(0.12), window);
+    paint_band(
+        node.x,
+        mark_x,
+        middle,
+        color.opacity(if p.is_dark { 0.16 } else { 0.12 }),
+        window,
+    );
     paint_band(mark_x, bounds.right(), middle, color, window);
     if has_labels {
         window.paint_quad(fill(
@@ -122,7 +131,7 @@ fn paint_graph(
             bounds.left() + lane_offset(rail.lane),
             top,
             bottom,
-            rgb(rail.color),
+            rgb(p.rail_color(rail.color_index)),
             window,
         );
     }
@@ -143,6 +152,7 @@ fn paint_graph(
         bounds.left(),
         point(node.x, middle - separation),
         top,
+        p,
         window,
     );
     paint_connections(
@@ -151,6 +161,7 @@ fn paint_graph(
         bounds.left(),
         point(node.x, middle + separation),
         bottom,
+        p,
         window,
     );
 }
@@ -161,6 +172,7 @@ fn paint_connections(
     left: Pixels,
     node: Point<Pixels>,
     edge_y: Pixels,
+    p: Palette,
     window: &mut Window,
 ) {
     // The nearest offscreen rail can still contribute a horizontal segment inside the clip.
@@ -168,7 +180,7 @@ fn paint_connections(
     let end = (rails.partition_point(|rail| rail.lane < lanes.end) + 1).min(rails.len());
     for rail in rails[start..end].iter().rev() {
         let x = left + lane_offset(rail.lane);
-        let color = rgb(rail.color);
+        let color = rgb(p.rail_color(rail.color_index));
         if x == node.x {
             paint_vertical(x, edge_y.min(node.y), edge_y.max(node.y), color, window);
         } else {
@@ -227,21 +239,22 @@ mod tests {
     }
 }
 
-fn paint_wip(history: &History, bounds: Bounds<Pixels>, window: &mut Window) {
+fn paint_wip(history: &History, bounds: Bounds<Pixels>, window: &mut Window, p: Palette) {
     let head = history.head_index();
     let rail = head.map_or(
         Rail {
             lane: 0,
-            color: TEAL,
+            color: p.accent,
+            color_index: 0,
         },
         |index| history.graph.rows[index].node,
     );
-    let color = rgb(rail.color);
+    let color = rgb(p.rail_color(rail.color_index));
     let x = bounds.left() + lane_offset(rail.lane);
     let y = bounds.center().y;
-    paint_band(x, bounds.right() - px(3.), y, color.opacity(0.48), window);
+    paint_band(x, bounds.right() - px(3.), y, color.opacity(0.42), window);
     let radius = px(10.);
-    paint_dot(window, point(x, y), radius, rgb(WHITE));
+    paint_dot(window, point(x, y), radius, rgb(p.canvas));
     if head == Some(0) {
         dot(window, point(x, bounds.bottom() - px(2.)), color);
     }

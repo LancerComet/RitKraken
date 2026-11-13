@@ -10,8 +10,9 @@ use crate::i18n::tr;
 use super::{ICON_SIZE, ManagerMode, OpenRepo, RepoList};
 use crate::app::{
     Client,
+    theme::palette,
     widgets::{
-        HEADER, LINE, MUTED, PAPER, TEAL, Tone, button, button_content, error_text, heading, icon,
+        Tone, button, button_content, error_text, heading, icon,
         loading::{loading_page, opening_message},
         modal::Modal,
     },
@@ -22,46 +23,57 @@ impl Client {
         if self.session.opening {
             return loading_page(opening_message(), cx);
         }
+        let p = palette(cx);
         div()
             .size_full()
             .flex()
             .justify_center()
-            .bg(rgb(PAPER))
+            .bg(rgb(p.surface_dim))
+            .text_color(rgb(p.text))
             .child(
                 div()
                     .w(px(660.))
                     .max_w_full()
-                    .mt(px(95.))
+                    .mt(px(88.))
                     .px(px(20.))
                     .flex()
                     .flex_col()
-                    .gap(px(9.))
+                    .gap(px(10.))
                     .child(
                         div()
-                            .text_size(px(26.))
+                            .text_size(px(28.))
                             .font_weight(FontWeight::SEMIBOLD)
                             .child(tr!("app.repositories.title")),
                     )
-                    .child(div().h(px(3.)).w(px(110.)).bg(rgb(TEAL)))
                     .child(
                         div()
-                            .text_color(rgb(MUTED))
+                            .h(px(4.))
+                            .w(px(96.))
+                            .rounded_full()
+                            .bg(rgb(p.accent)),
+                    )
+                    .child(
+                        div()
+                            .text_color(rgb(p.text_muted))
                             .child(tr!("app.repositories.welcome_hint")),
                     )
                     .child(
                         button(
                             "welcome-open",
                             tr!("app.repositories.open_manager"),
-                            Tone::Outline,
+                            Tone::Primary,
                             true,
+                            cx,
                             cx.listener(|this, _, window, cx| this.open_manager(window, cx)),
                         )
-                        .w(px(212.))
-                        .h(px(32.)),
+                        .rounded_full()
+                        .w(px(220.))
+                        .h(px(36.))
+                        .mt(px(4.)),
                     )
                     .when(!self.saved.recent.is_empty(), |element| {
                         element
-                            .child(heading(tr!("app.repositories.recent_heading")).mt(px(12.)))
+                            .child(heading(tr!("app.repositories.recent_heading"), cx).mt(px(14.)))
                             .children(self.saved.recent.iter().take(5).enumerate().map(
                                 |(index, path)| {
                                     let root = path.clone();
@@ -70,6 +82,7 @@ impl Client {
                                         Repo::name_from_path(path),
                                         Tone::Plain,
                                         true,
+                                        cx,
                                         cx.listener(move |this, _, window, cx| {
                                             this.open_repo(
                                                 OpenRepo::Open(root.clone()),
@@ -78,6 +91,8 @@ impl Client {
                                             );
                                         }),
                                     )
+                                    .rounded(px(10.))
+                                    .h(px(32.))
                                     .justify_start()
                                 },
                             ))
@@ -91,6 +106,7 @@ impl Client {
         window: &Window,
         cx: &mut Context<Self>,
     ) -> Modal {
+        let p = palette(cx);
         let open = mode == ManagerMode::Open;
         Modal::new(
             "repository-manager-modal",
@@ -100,7 +116,7 @@ impl Client {
             cx.listener(|this, _, window, cx| this.escape(window, cx)),
         )
         .when_some(self.manager.error.as_ref(), |element, error| {
-            element.child(error_text(error))
+            element.child(error_text(error, cx).mx(px(12.)).mt(px(10.)))
         })
         .child(
             div()
@@ -109,13 +125,16 @@ impl Client {
                 .flex()
                 .child(
                     div()
-                        .w(px(157.))
+                        .w(px(166.))
                         .flex_shrink_0()
                         .flex()
                         .flex_col()
-                        .bg(rgb(HEADER))
+                        .gap(px(4.))
+                        .py(px(10.))
+                        .px(px(8.))
+                        .bg(rgb(p.surface_high))
                         .border_r_1()
-                        .border_color(rgb(LINE))
+                        .border_color(rgb(p.border))
                         .children(
                             [
                                 (
@@ -139,9 +158,10 @@ impl Client {
                                 let tone = Tone::Plain.selected_when(mode == target);
                                 button_content(
                                     key,
-                                    icon(glyph, tone.foreground()).size(px(16.)),
+                                    icon(glyph, tone.foreground(p)).size(px(16.)),
                                     tone,
                                     !self.session.opening,
+                                    cx,
                                     cx.listener(move |this, _, _, cx| {
                                         this.manager.mode = Some(target);
                                         this.manager.error = None;
@@ -152,10 +172,10 @@ impl Client {
                                 .gap(px(8.))
                                 .w_full()
                                 .justify_start()
-                                .h(px(47.))
-                                .pl(px(15.))
-                                .rounded(px(0.))
-                                .text_size(px(14.))
+                                .h(px(40.))
+                                .pl(px(14.))
+                                .rounded_full()
+                                .text_size(px(13.))
                             }),
                         ),
                 )
@@ -168,24 +188,30 @@ impl Client {
     }
 
     fn open_sources(&self, cx: &mut Context<Self>) -> Div {
+        let p = palette(cx);
         div()
-            .w(px(216.))
+            .w(px(218.))
             .flex_shrink_0()
             .flex()
             .flex_col()
+            .gap(px(2.))
+            .py(px(6.))
+            .px(px(6.))
             .min_h_0()
-            .bg(rgb(PAPER))
+            .bg(rgb(p.surface_dim))
             .border_r_1()
-            .border_color(rgb(LINE))
+            .border_color(rgb(p.border))
             .child(
                 button_content(
                     "browse-repo",
                     source_label(tr!("app.repositories.open_repository"), Some("▱")),
                     Tone::Plain,
                     !self.session.opening,
+                    cx,
                     cx.listener(|this, _, window, cx| this.browse(false, window, cx)),
                 )
                 .h(px(34.))
+                .rounded(px(8.))
                 .justify_start(),
             )
             .children(
@@ -197,29 +223,37 @@ impl Client {
                 .map(|(list, key)| {
                     self.repo_list_button(key, tr!(key), list, cx)
                         .h(px(34.))
-                        .rounded(px(0.))
+                        .rounded(px(8.))
                 }),
             )
             .child(
                 div()
                     .mt(px(6.))
                     .px(px(8.))
-                    .h(px(31.))
+                    .h(px(32.))
                     .flex()
                     .items_center()
                     .justify_between()
                     .border_t_1()
-                    .border_color(rgb(LINE))
-                    .child(div().child(tr!("app.repositories.projects")))
+                    .border_color(rgb(p.border))
+                    .child(
+                        div()
+                            .text_color(rgb(p.text_muted))
+                            .font_weight(FontWeight::MEDIUM)
+                            .child(tr!("app.repositories.projects")),
+                    )
                     .child(
                         button(
                             "add-project",
                             "+",
                             Tone::Green,
                             !self.session.opening,
+                            cx,
                             cx.listener(|this, _, window, cx| this.browse(true, window, cx)),
                         )
-                        .h(px(21.))
+                        .size(px(22.))
+                        .px(px(0.))
+                        .rounded_full()
                         .text_size(ICON_SIZE),
                     ),
             )
@@ -229,6 +263,7 @@ impl Client {
                         .size_full()
                         .flex()
                         .flex_col()
+                        .gap(px(2.))
                         .children(self.saved.projects.iter().enumerate().map(|(index, path)| {
                             let list = RepoList::Project(path.clone());
                             self.repo_list_button(
@@ -237,7 +272,8 @@ impl Client {
                                 list,
                                 cx,
                             )
-                            .h(px(29.))
+                            .h(px(30.))
+                            .rounded(px(8.))
                         }))
                         .overflow_y_scrollbar(),
                 ),
@@ -261,6 +297,7 @@ impl Client {
             source_label(label, glyph),
             Tone::Plain.selected_when(self.manager.list == list),
             !self.session.opening,
+            cx,
             cx.listener(move |this, _, window, cx| this.change_repo_list(list.clone(), window, cx)),
         )
         .justify_start()
@@ -271,38 +308,48 @@ impl Client {
         div()
             .flex_1()
             .min_w_0()
-            .p(px(20.))
+            .p(px(22.))
             .flex()
             .flex_col()
-            .gap(px(9.))
-            .child(div().text_size(px(18.)).child(tr!(if clone {
-                "app.repositories.clone_repository"
-            } else {
-                "app.repositories.init_repository"
-            })))
+            .gap(px(10.))
+            .child(
+                div()
+                    .text_size(px(18.))
+                    .font_weight(FontWeight::SEMIBOLD)
+                    .child(tr!(if clone {
+                        "app.repositories.clone_repository"
+                    } else {
+                        "app.repositories.init_repository"
+                    })),
+            )
             .when(clone, |e| {
-                e.child(heading(tr!("app.repositories.url_heading")))
+                e.child(heading(tr!("app.repositories.url_heading"), cx))
                     .child(Input::new(&self.manager.url))
             })
-            .child(heading(tr!("app.repositories.destination")))
+            .child(heading(tr!("app.repositories.destination"), cx))
             .child(
                 div()
                     .flex()
                     .items_center()
-                    .gap(px(7.))
+                    .gap(px(8.))
                     .child(
                         div()
                             .flex_1()
                             .min_w_0()
                             .child(Input::new(&self.manager.path)),
                     )
-                    .child(button(
-                        "browse-destination",
-                        tr!("app.common.browse"),
-                        Tone::Outline,
-                        !self.session.opening,
-                        cx.listener(|this, _, window, cx| this.browse(false, window, cx)),
-                    )),
+                    .child(
+                        button(
+                            "browse-destination",
+                            tr!("app.common.browse"),
+                            Tone::Outline,
+                            !self.session.opening,
+                            cx,
+                            cx.listener(|this, _, window, cx| this.browse(false, window, cx)),
+                        )
+                        .rounded_full()
+                        .px(px(14.)),
+                    ),
             )
             .child(
                 button(
@@ -314,10 +361,13 @@ impl Client {
                     }),
                     Tone::Green,
                     !self.session.opening,
+                    cx,
                     cx.listener(|this, _, window, cx| this.open_from_input(window, cx)),
                 )
-                .w(px(130.))
-                .h(px(31.)),
+                .rounded_full()
+                .w(px(138.))
+                .h(px(34.))
+                .mt(px(4.)),
             )
     }
 }

@@ -11,7 +11,8 @@ use crate::i18n::tr;
 
 use super::{
     Client, RepoOperation, RepoTab,
-    widgets::{NAV_TEXT, icon},
+    theme::palette,
+    widgets::icon,
 };
 
 impl Client {
@@ -22,14 +23,16 @@ impl Client {
         let remote_available = available && !snapshot.remotes.is_empty();
         let remotes = snapshot.remotes.clone();
         let view = cx.weak_entity();
+        let p = palette(cx);
         let fetch_menu = toolbar_button(
             "fetch-options",
             "app.toolbar.fetch_options",
             remote_available,
             cx,
         )
-        .w(px(16.))
-        .child(icon("icons/chevron-down.svg", NAV_TEXT).size(px(11.)))
+        .w(px(20.))
+        .rounded(px(8.))
+        .child(icon("icons/chevron-down.svg", p.chrome_text).size(px(11.)))
         .dropdown_menu(move |menu, _, _| {
             let menu = menu.item(edit_item(
                 tr!("app.toolbar.fetch_all"),
@@ -59,6 +62,7 @@ impl Client {
             .flex()
             .h_full()
             .items_center()
+            .gap(px(4.))
             .child(
                 toolbar_tile(
                     "fetch",
@@ -197,21 +201,22 @@ fn edit_item(
 }
 
 fn toolbar_button(id: &'static str, hint_key: &'static str, enabled: bool, cx: &App) -> Button {
+    let p = palette(cx);
     let hint: SharedString = tr!(hint_key).into();
     Button::new(id)
         .custom(
             ButtonCustomVariant::new(cx)
-                .foreground(rgb(NAV_TEXT).into())
-                .hover(rgb(0x3e455e).into())
-                .active(rgb(0x3e455e).into()),
+                .foreground(rgb(p.chrome_text).into())
+                .hover(rgb(p.chrome_hover).into())
+                .active(rgb(p.chrome_hover).into()),
         )
         .disabled(!enabled)
         .accessibility_label(hint.clone())
         .tooltip(hint)
         .min_w_0()
         .p(px(0.))
-        .rounded(px(0.))
-        .h(px(48.))
+        .rounded(px(10.))
+        .h(px(44.))
         .flex_shrink_0()
         .when(!enabled, |button| button.opacity(0.45))
 }
@@ -224,20 +229,21 @@ fn toolbar_tile(
     enabled: bool,
     cx: &App,
 ) -> Button {
-    toolbar_button(id, hint_key, enabled, cx).w(px(52.)).child(
+    let p = palette(cx);
+    toolbar_button(id, hint_key, enabled, cx).w(px(54.)).child(
         div()
             .flex()
             .flex_col()
             .items_center()
             .justify_center()
-            .gap(px(5.))
+            .gap(px(4.))
             .child(
                 div()
                     .text_size(px(11.))
                     .line_height(px(12.))
-                    .text_color(rgb(0xc5cde0))
+                    .text_color(rgb(p.chrome_muted))
                     .child(tr!(label_key)),
             )
-            .child(icon(glyph, NAV_TEXT).size(px(18.))),
+            .child(icon(glyph, p.chrome_text).size(px(17.))),
     )
 }

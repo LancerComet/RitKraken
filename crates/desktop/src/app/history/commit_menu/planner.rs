@@ -9,8 +9,9 @@ use super::dialog::CommitDialog;
 use crate::{
     app::{
         Load,
+        theme::palette,
         widgets::{
-            LINE, MUTED, SELECT, Tone, button, error_text,
+            Tone, button, error_text,
             menu::{DropdownMenu as _, PopupMenuItem, menu_style},
             note,
         },
@@ -89,10 +90,11 @@ impl CommitDialog {
     }
 
     pub(super) fn planner_view(&self, cx: &mut Context<Self>) -> Div {
+        let p = palette(cx);
         let Some(Load::Ready(plan)) = &self.plan else {
             return div().flex_1().child(match &self.plan {
-                Some(Load::Failed(error)) => error_text(error),
-                _ => note(tr!("app.commit_menu.loading_plan")),
+                Some(Load::Failed(error)) => error_text(error, cx),
+                _ => note(tr!("app.commit_menu.loading_plan"), cx),
             });
         };
         let count = plan.entries.len();
@@ -104,6 +106,7 @@ impl CommitDialog {
             "interactive-rebase-commits",
             count,
             cx.processor(move |this, range: std::ops::Range<usize>, _, cx| {
+                let p = palette(cx);
                 let Some(Load::Ready(plan)) = &this.plan else {
                     return Vec::new();
                 };
@@ -140,11 +143,19 @@ impl CommitDialog {
                             .id(("rebase-row", index))
                             .h(px(36.))
                             .w_full()
-                            .px(px(6.))
+                            .px(px(8.))
                             .flex()
                             .items_center()
                             .gap(px(8.))
-                            .bg(rgb(if selected { SELECT } else { 0xffffff }))
+                            .rounded(px(8.))
+                            .bg(rgb(if selected { p.accent_soft } else { p.surface }))
+                            .hover(|style| {
+                                style.bg(rgb(if selected {
+                                    p.accent_soft_hover
+                                } else {
+                                    p.hover
+                                }))
+                            })
                             .on_click(cx.listener(move |this, _, window, cx| {
                                 this.select_plan_entry(index, window, cx)
                             }))
@@ -152,7 +163,7 @@ impl CommitDialog {
                             .child(
                                 div()
                                     .w(px(60.))
-                                    .text_color(rgb(MUTED))
+                                    .text_color(rgb(p.text_muted))
                                     .child(short_id(&entry.commit.id).to_owned()),
                             )
                             .child(
@@ -162,26 +173,38 @@ impl CommitDialog {
                                     .truncate()
                                     .child(entry.commit.subject.clone()),
                             )
-                            .child(button(
-                                ("rebase-up", index),
-                                "↑",
-                                Tone::Outline,
-                                index > 0,
-                                cx.listener(move |this, _, window, cx| {
-                                    cx.stop_propagation();
-                                    this.move_plan_entry(index, -1, window, cx);
-                                }),
-                            ))
-                            .child(button(
-                                ("rebase-down", index),
-                                "↓",
-                                Tone::Outline,
-                                index + 1 < count,
-                                cx.listener(move |this, _, window, cx| {
-                                    cx.stop_propagation();
-                                    this.move_plan_entry(index, 1, window, cx);
-                                }),
-                            ))
+                            .child(
+                                button(
+                                    ("rebase-up", index),
+                                    "↑",
+                                    Tone::Outline,
+                                    index > 0,
+                                    cx,
+                                    cx.listener(move |this, _, window, cx| {
+                                        cx.stop_propagation();
+                                        this.move_plan_entry(index, -1, window, cx);
+                                    }),
+                                )
+                                .rounded_full()
+                                .w(px(26.))
+                                .px(px(0.)),
+                            )
+                            .child(
+                                button(
+                                    ("rebase-down", index),
+                                    "↓",
+                                    Tone::Outline,
+                                    index + 1 < count,
+                                    cx,
+                                    cx.listener(move |this, _, window, cx| {
+                                        cx.stop_propagation();
+                                        this.move_plan_entry(index, 1, window, cx);
+                                    }),
+                                )
+                                .rounded_full()
+                                .w(px(26.))
+                                .px(px(0.)),
+                            )
                     })
                     .collect::<Vec<_>>()
             }),
@@ -194,7 +217,7 @@ impl CommitDialog {
             .flex()
             .flex_col()
             .gap(px(10.))
-            .child(div().text_color(rgb(MUTED)).child(tr!(
+            .child(div().text_color(rgb(p.text_muted)).child(tr!(
                 "app.commit_menu.rebase_range",
                 base = short_id(&plan.base),
                 head = short_id(&self.context.head),
@@ -202,26 +225,40 @@ impl CommitDialog {
             )))
             .child(
                 div()
-                    .flex()
-                    .items_center()
-                    .gap(px(8.))
-                    .px(px(6.))
-                    .py(px(8.))
-                    .bg(rgb(0xf1f2f4))
-                    .child(div().w(px(122.)).child(tr!("app.commit_menu.action")))
-                    .child(div().w(px(60.)).child(tr!("app.history.sha")))
-                    .child(div().flex_1().child(tr!("app.history.message"))),
-            )
-            .child(
-                div()
-                    .relative()
                     .flex_1()
                     .min_h_0()
+                    .flex()
+                    .flex_col()
+                    .rounded(px(12.))
+                    .overflow_hidden()
                     .border_1()
-                    .border_color(rgb(LINE))
-                    .pr(px(18.))
-                    .child(list)
-                    .vertical_scrollbar(&self.scroll),
+                    .border_color(rgb(p.border))
+                    .child(
+                        div()
+                            .flex()
+                            .items_center()
+                            .gap(px(8.))
+                            .px(px(10.))
+                            .py(px(8.))
+                            .bg(rgb(p.surface_high))
+                            .border_b_1()
+                            .border_color(rgb(p.border))
+                            .text_color(rgb(p.text_muted))
+                            .font_weight(FontWeight::MEDIUM)
+                            .child(div().w(px(122.)).child(tr!("app.commit_menu.action")))
+                            .child(div().w(px(60.)).child(tr!("app.history.sha")))
+                            .child(div().flex_1().child(tr!("app.history.message"))),
+                    )
+                    .child(
+                        div()
+                            .relative()
+                            .flex_1()
+                            .min_h_0()
+                            .p(px(4.))
+                            .pr(px(18.))
+                            .child(list)
+                            .vertical_scrollbar(&self.scroll),
+                    ),
             )
             .when(reword, |element| {
                 element.child(
@@ -232,7 +269,7 @@ impl CommitDialog {
             })
             .child(
                 div()
-                    .text_color(rgb(MUTED))
+                    .text_color(rgb(p.text_muted))
                     .child(tr!("app.commit_menu.plan_hint")),
             )
     }

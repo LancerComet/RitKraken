@@ -10,7 +10,8 @@ use gpui_kit::{
 use crate::app::{
     Client,
     refs::ref_icon,
-    widgets::{TEXT, WHITE, icon},
+    theme::{Palette, palette},
+    widgets::icon,
 };
 
 use super::super::ref_menu::RefMenu;
@@ -29,6 +30,7 @@ pub(in crate::app::history) fn ref_labels(
     allow_hover: bool,
     id: u64,
     owner: WeakEntity<Client>,
+    p: Palette,
 ) -> Div {
     div()
         .min_w_0()
@@ -51,11 +53,17 @@ pub(in crate::app::history) fn ref_labels(
                     })
                     .into_any_element()
             } else {
-                let primary = ref_badge(first, color, true)
+                let primary = ref_badge(first, color, true, p)
                     .id("commit-ref")
                     .when(allow_hover, |badge| with_tooltip(badge, first));
-                compact_refs(menu.target(primary, first), labels.len() - 1, color, false)
-                    .into_any_element()
+                compact_refs(
+                    menu.target(primary, first),
+                    labels.len() - 1,
+                    color,
+                    false,
+                    p,
+                )
+                .into_any_element()
             };
             element.child(badges).child(connector(color).flex_1())
         })
@@ -70,6 +78,7 @@ struct RefStack {
 
 impl RenderOnce for RefStack {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        let p = palette(cx);
         let layout = window.use_keyed_state("ref-stack-layout", cx, |_, _| RefHover::default());
         let trigger = layout.read(cx).trigger.clone();
         let width = layout.read(cx).primary_width.clone();
@@ -83,7 +92,7 @@ impl RenderOnce for RefStack {
         let first = &self.labels[0];
         let count = self.labels.len() - 1;
         let viewport = window.viewport_size();
-        let height = (BAND_HEIGHT * count as f32)
+        let height = (BAND_HEIGHT * count as f32 + px(2.) * count.saturating_sub(1) as f32)
             .min(BAND_HEIGHT * 10.)
             .min((viewport.height / 2. - BAND_HEIGHT).max(BAND_HEIGHT));
         let anchor = if trigger.get().bottom() + height + POPUP_MARGIN > viewport.height {
@@ -91,7 +100,7 @@ impl RenderOnce for RefStack {
         } else {
             Anchor::TopLeft
         };
-        let primary = ref_badge(first, self.color, true)
+        let primary = ref_badge(first, self.color, true, p)
             .id("commit-ref")
             .when(expanded, |badge| {
                 with_tooltip(badge, first).tooltip_show_delay(Duration::from_millis(750))
@@ -100,8 +109,14 @@ impl RenderOnce for RefStack {
                 let width = width.clone();
                 move |bounds, _, _| width.set(bounds.size.width)
             });
-        let trigger_row = compact_refs(menu.target(primary, first), count, self.color, expanded)
-            .on_prepaint(move |bounds, _, _| trigger.set(bounds));
+        let trigger_row = compact_refs(
+            menu.target(primary, first),
+            count,
+            self.color,
+            expanded,
+            p,
+        )
+        .on_prepaint(move |bounds, _, _| trigger.set(bounds));
         let trigger_row =
             trigger_row.on_hover(window.listener_for(&layout, |layout, hovered, window, cx| {
                 layout.hover(false, *hovered, window, cx);
@@ -119,6 +134,7 @@ impl RenderOnce for RefStack {
                         max_width,
                         height,
                         &menu,
+                        p,
                     )
                     .on_hover(window.listener_for(
                         &layout,
@@ -136,10 +152,12 @@ fn compact_refs(
     count: usize,
     color: u32,
     expanded: bool,
+    p: Palette,
 ) -> Stateful<Div> {
     div()
         .id("compact-refs")
         .min_w_0()
+        .overflow_hidden()
         .flex()
         .items_center()
         .gap(BADGE_GAP)
@@ -151,7 +169,8 @@ fn compact_refs(
                     .relative()
                     .flex_shrink_0()
                     .child(
-                        badge(color, 0.25)
+                        badge(color, if p.is_dark { 0.28 } else { 0.20 }, false, p)
+                            .px(px(6.))
                             .child(format!("+{count}"))
                             .when(expanded, |badge| badge.opacity(0.)),
                     )
@@ -176,12 +195,11 @@ fn expanded_refs(
     max_width: Pixels,
     height: Pixels,
     menu: &RefMenu,
+    p: Palette,
 ) -> Stateful<Div> {
     div()
         .id("expanded-refs")
-        .rounded(px(2.))
-        .shadow_sm()
-        .bg(rgb(WHITE))
+        .pt(px(2.))
         .child(
             div()
                 .flex()
@@ -194,26 +212,38 @@ fn expanded_refs(
                     div()
                         .flex()
                         .flex_col()
+                        .gap(px(2.))
                         .flex_shrink_0()
                         .min_w(min_width)
                         .children(labels.iter().enumerate().map(|(index, label)| {
-                            let badge = ref_badge(label, color, false)
+                            let badge = ref_badge(label, color, false, p)
                                 .id(("expanded-ref", index))
                                 .flex_shrink_0()
                                 .when(!label.remote_refs.is_empty(), |badge| {
                                     with_tooltip(badge, label)
                                 });
-                            menu.target(badge, label)
+                            div()
+                                .rounded_full()
+                                .bg(rgb(p.canvas))
+                                .self_start()
+                                .child(menu.target(badge, label))
                         })),
                 )
                 .overflow_scrollbar(),
         )
 }
 
-fn ref_badge(label: &RefBadge, color: u32, compact: bool) -> Div {
-    badge(color, if label.checked_out { 0.48 } else { 0.25 })
+fn ref_badge(label: &RefBadge, color: u32, compact: bool, p: Palette) -> Div {
+    let opacity = if label.checked_out {
+        if p.is_dark { 0.42 } else { 0.34 }
+    } else if p.is_dark {
+        0.24
+    } else {
+        0.18
+    };
+    badge(color, opacity, label.checked_out, p)
         .when(label.checked_out, |badge| {
-            badge.child(badge_icon("icons/check.svg"))
+            badge.child(badge_icon("icons/check.svg", p))
         })
         .child(
             div()
@@ -225,7 +255,7 @@ fn ref_badge(label: &RefBadge, color: u32, compact: bool) -> Div {
                     label.name.clone()
                 }),
         )
-        .children(label.icons().map(|kind| badge_icon(ref_icon(kind))))
+        .children(label.icons().map(|kind| badge_icon(ref_icon(kind), p)))
 }
 
 fn with_tooltip(badge: Stateful<Div>, label: &RefBadge) -> Stateful<Div> {
@@ -233,21 +263,30 @@ fn with_tooltip(badge: Stateful<Div>, label: &RefBadge) -> Stateful<Div> {
     badge.tooltip(move |window, cx| Tooltip::new(tooltip.clone()).build(window, cx))
 }
 
-fn badge_icon(path: &'static str) -> Svg {
-    icon(path, TEXT).size(px(16.))
+fn badge_icon(path: &'static str, p: Palette) -> Svg {
+    icon(path, p.text).size(px(12.))
 }
 
-fn badge(color: u32, opacity: f32) -> Div {
+fn badge(color: u32, opacity: f32, active: bool, p: Palette) -> Div {
     div()
         .min_w_0()
+        .overflow_hidden()
         .h(BAND_HEIGHT)
-        .px(px(4.))
+        .px(px(7.))
         .flex()
         .items_center()
         .gap(BADGE_GAP)
-        .rounded(px(2.))
-        .text_size(px(12.))
-        .text_color(rgb(TEXT))
+        .rounded_full()
+        .when(active, |pill| {
+            pill.border_1().border_color(rgb(color).opacity(0.72))
+        })
+        .text_size(px(11.5))
+        .font_weight(if active {
+            FontWeight::MEDIUM
+        } else {
+            FontWeight::NORMAL
+        })
+        .text_color(rgb(p.text))
         .bg(rgb(color).opacity(opacity))
 }
 

@@ -15,7 +15,8 @@ use super::{StageAction, StageTarget, change_count, files::FILE_ROW_HEIGHT};
 use crate::app::{
     Client, RepoOperation, RepoTab,
     message::branch_label,
-    widgets::{LINE, Tone, button},
+    theme::palette,
+    widgets::{Tone, button},
 };
 
 const FILE_SECTION_HEADER_HEIGHT: Pixels = px(39.);
@@ -23,6 +24,7 @@ const FILE_SECTION_HEADER_PADDING_Y: Pixels = px(5.);
 
 impl Client {
     pub(super) fn wip_panel(&self, tab: &RepoTab, cx: &mut Context<Self>) -> Div {
+        let p = palette(cx);
         let snapshot = &tab.history.data.snapshot;
         let status = &snapshot.status;
         let files = div()
@@ -63,19 +65,24 @@ impl Client {
                     .flex()
                     .items_center()
                     .justify_center()
-                    .gap(px(5.))
-                    .h(px(31.))
+                    .gap(px(6.))
+                    .h(px(32.))
                     .flex_shrink_0()
-                    .px(px(6.))
+                    .px(px(8.))
                     .border_b_1()
-                    .border_color(rgb(LINE))
+                    .border_color(rgb(p.border))
                     .child(tr!("app.changes.changed_files", count = change_count(tab)))
                     .child(
                         div()
-                            .px(px(4.))
+                            .px(px(8.))
+                            .py(px(1.))
                             .min_w_0()
                             .truncate()
-                            .bg(rgb(0xbbe4ea))
+                            .rounded_full()
+                            .bg(rgb(p.info_bg))
+                            .text_color(rgb(p.info_fg))
+                            .text_size(px(11.))
+                            .font_weight(FontWeight::MEDIUM)
                             .child(branch_label(snapshot)),
                     ),
             )
@@ -143,10 +150,12 @@ impl Client {
                     label,
                     Tone::Green,
                     tab.commit_enabled(cx),
+                    cx,
                     cx.listener(|this, _, window, cx| this.submit(window, cx)),
                 )
+                .rounded_full()
                 .flex_shrink_0()
-                .h(px(34.)),
+                .h(px(36.)),
             )
     }
 
@@ -158,6 +167,7 @@ impl Client {
         scope: Scope,
         cx: &mut Context<Self>,
     ) -> Div {
+        let p = palette(cx);
         let id = tab.id;
         let action = StageAction::for_scope(&scope).filter(|_| !files.is_empty());
         div()
@@ -172,11 +182,12 @@ impl Client {
                     .justify_between()
                     .h(FILE_SECTION_HEADER_HEIGHT)
                     .flex_shrink_0()
-                    .px(px(8.))
+                    .px(px(10.))
                     .py(FILE_SECTION_HEADER_PADDING_Y)
                     .border_t_1()
                     .border_b_1()
-                    .border_color(rgb(LINE))
+                    .border_color(rgb(p.border))
+                    .bg(rgb(p.surface_high))
                     .child(
                         div()
                             .font_weight(FontWeight::MEDIUM)
@@ -189,12 +200,14 @@ impl Client {
                                 action.label(StageTarget::All),
                                 action.tone(),
                                 !tab.busy,
+                                cx,
                                 cx.listener(move |this, _, window, cx| {
                                     let edit = RepoOperation::StageFiles(action, None);
                                     this.update_repo(id, Some(edit), window, cx);
                                 }),
                             )
-                            .h(px(21.)),
+                            .rounded_full()
+                            .h(px(22.)),
                         )
                     }),
             )

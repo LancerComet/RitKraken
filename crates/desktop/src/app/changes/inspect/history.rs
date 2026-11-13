@@ -7,7 +7,8 @@ use super::{FileInspection, Load};
 use crate::{
     app::{
         review::DiffLayout,
-        widgets::{HOVER, LINE, MUTED, SELECT, Tone, button, error_text, note, table::Column},
+        theme::palette,
+        widgets::{Tone, button, error_text, note, table::Column},
     },
     i18n::tr,
 };
@@ -48,28 +49,38 @@ fn cell(value: impl Into<SharedString>) -> Div {
 impl FileInspection {
     pub(super) fn history_view(&self, history: &Arc<FileHistory>, cx: &mut Context<Self>) -> Div {
         if history.commits.is_empty() {
-            return div().child(note(tr!("app.file_menu.no_history")));
+            return div().child(note(tr!("app.file_menu.no_history"), cx));
         }
+        let p = palette(cx);
         let rows = history.clone();
         let selected = self.selected.clone();
         let list = uniform_list(
             "file-history",
             rows.commits.len(),
             cx.processor(move |this, range: std::ops::Range<usize>, _, cx| {
+                let p = palette(cx);
                 let widths = this.history_columns.widths(&COLUMNS, cx);
                 range
                     .map(|index| {
                         let commit = &rows.commits[index].commit;
+                        let is_selected = selected.as_deref() == Some(commit.id.as_str());
                         div()
                             .id(("file-history-row", index))
                             .w_full()
                             .h(px(32.))
-                            .bg(rgb(if selected.as_deref() == Some(commit.id.as_str()) {
-                                SELECT
+                            .rounded(px(8.))
+                            .bg(rgb(if is_selected {
+                                p.accent_soft
                             } else {
-                                0xffffff
+                                p.canvas
                             }))
-                            .hover(|style| style.bg(rgb(HOVER)))
+                            .hover(|style| {
+                                style.bg(rgb(if is_selected {
+                                    p.accent_soft_hover
+                                } else {
+                                    p.hover
+                                }))
+                            })
                             .cursor_pointer()
                             .on_click(cx.listener(move |this, _, window, cx| {
                                 this.select_revision(index, window, cx);
@@ -87,7 +98,7 @@ impl FileInspection {
                                     .map(|(index, value)| {
                                         widths
                                             .cell(index, cell(value))
-                                            .when(index != 1, |cell| cell.text_color(rgb(MUTED)))
+                                            .when(index != 1, |cell| cell.text_color(rgb(p.text_muted)))
                                     }),
                                 ),
                             )
@@ -101,8 +112,8 @@ impl FileInspection {
             Some(Load::Ready(viewer)) => DiffLayout::Hunk
                 .viewer(viewer, false, self.typography.clone())
                 .into_any_element(),
-            Some(Load::Failed(error)) => error_text(error).into_any_element(),
-            _ => note(tr!("app.review.loading_diff")).into_any_element(),
+            Some(Load::Failed(error)) => error_text(error, cx).into_any_element(),
+            _ => note(tr!("app.review.loading_diff"), cx).into_any_element(),
         };
         div()
             .size_full()
@@ -141,16 +152,20 @@ impl FileInspection {
                     .overflow_x_scrollbar(),
             )
             .when(history.has_more, |body| {
-                body.child(button(
-                    "more-file-history",
-                    tr!("app.file_menu.load_more"),
-                    Tone::Outline,
-                    !self.loading,
-                    cx.listener(|this, _, window, cx| {
-                        this.limit = this.limit.saturating_add(500);
-                        this.load(window, cx);
-                    }),
-                ))
+                body.child(
+                    button(
+                        "more-file-history",
+                        tr!("app.file_menu.load_more"),
+                        Tone::Outline,
+                        !self.loading,
+                        cx,
+                        cx.listener(|this, _, window, cx| {
+                            this.limit = this.limit.saturating_add(500);
+                            this.load(window, cx);
+                        }),
+                    )
+                    .rounded_full(),
+                )
             })
             .child(
                 div()
@@ -158,7 +173,7 @@ impl FileInspection {
                     .flex_1()
                     .min_h_0()
                     .border_t_1()
-                    .border_color(rgb(LINE))
+                    .border_color(rgb(p.border))
                     .child(preview),
             )
     }

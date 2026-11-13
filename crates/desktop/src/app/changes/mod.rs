@@ -20,7 +20,8 @@ use crate::i18n::{LocalizedInput, tr};
 
 use super::{
     Client, Load, RepoOperation, RepoTab,
-    widgets::{LINE, PAPER, Tone, error_text},
+    theme::palette,
+    widgets::{Tone, error_text},
 };
 
 pub(super) use summary::{ChangeSummary, SummaryStyle, change_mark};
@@ -221,6 +222,7 @@ impl Client {
         window: &Window,
         cx: &mut Context<Self>,
     ) -> Div {
+        let p = palette(cx);
         let panel = if tab.history.selected.is_none() {
             self.wip_panel(tab, cx)
         } else {
@@ -231,15 +233,17 @@ impl Client {
             .flex()
             .flex_col()
             .border_l_1()
-            .border_color(rgb(LINE))
-            .bg(rgb(PAPER))
+            .border_color(rgb(p.border))
+            .bg(rgb(p.surface_dim))
+            .text_color(rgb(p.text))
             .when_some(
                 tab.notice.as_ref().filter(|(error, _)| *error),
                 |element, (_, message)| {
                     element.child(
                         div()
                             .max_h(px(82.))
-                            .child(error_text(message))
+                            .p(px(6.))
+                            .child(error_text(message, cx))
                             .overflow_y_scrollbar(),
                     )
                 },

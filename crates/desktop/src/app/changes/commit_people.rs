@@ -5,7 +5,8 @@ use crate::{
     app::{
         Client, RepoTab,
         avatar::PersonAvatar,
-        widgets::{MUTED, Tone, button},
+        theme::{Palette, palette},
+        widgets::{Tone, button},
     },
     i18n::tr,
 };
@@ -18,6 +19,7 @@ impl Client {
         detail: &CommitDetail,
         cx: &Context<Self>,
     ) -> Div {
+        let p = palette(cx);
         let id = tab.id;
         let committer = &detail.committer;
         let distinct_committer = committer.name != commit.author
@@ -39,6 +41,7 @@ impl Client {
                         &commit.author,
                         &commit.author_email,
                         tr!("app.commit.authored", date = &commit.date),
+                        p,
                     ))
                     .when_some(commit.parents.first().cloned(), |element, parent| {
                         element.child(
@@ -47,6 +50,7 @@ impl Client {
                                 tr!("app.commit.parent", sha = short_id(&parent)),
                                 Tone::Plain,
                                 tab.history.data.position.contains_key(&parent),
+                                cx,
                                 cx.listener(move |this, _, window, cx| {
                                     this.select(
                                         id,
@@ -57,6 +61,7 @@ impl Client {
                                     );
                                 }),
                             )
+                            .rounded_full()
                             .flex_shrink_0()
                             .h(px(22.))
                             .text_size(px(11.)),
@@ -64,7 +69,7 @@ impl Client {
                     }),
             )
             .when(!detail.co_authors.is_empty(), |element| {
-                element.child(co_authors(&detail.co_authors))
+                element.child(co_authors(&detail.co_authors, p))
             })
             .when(distinct_committer, |element| {
                 element.child(person_row(
@@ -72,12 +77,13 @@ impl Client {
                     &committer.name,
                     &committer.email,
                     tr!("app.commit.committed", date = &detail.committed_date),
+                    p,
                 ))
             })
     }
 }
 
-fn person_row(id: &'static str, name: &str, email: &str, timestamp: String) -> Div {
+fn person_row(id: &'static str, name: &str, email: &str, timestamp: String, p: Palette) -> Div {
     div()
         .min_w_0()
         .flex()
@@ -101,14 +107,14 @@ fn person_row(id: &'static str, name: &str, email: &str, timestamp: String) -> D
                 .child(
                     div()
                         .truncate()
-                        .text_color(rgb(MUTED))
+                        .text_color(rgb(p.text_muted))
                         .text_size(px(11.))
                         .child(timestamp),
                 ),
         )
 }
 
-fn co_authors(authors: &[CommitPerson]) -> Div {
+fn co_authors(authors: &[CommitPerson], p: Palette) -> Div {
     div()
         .flex()
         .items_start()
@@ -119,7 +125,7 @@ fn co_authors(authors: &[CommitPerson]) -> Div {
                 .items_center()
                 .flex_shrink_0()
                 .h(px(20.))
-                .text_color(rgb(MUTED))
+                .text_color(rgb(p.text_muted))
                 .text_size(px(11.))
                 .child(tr!("app.commit.co_authors")),
         )

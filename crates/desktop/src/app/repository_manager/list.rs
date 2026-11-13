@@ -17,7 +17,8 @@ use unicase::UniCase;
 use crate::{
     app::{
         Client,
-        widgets::{HOVER, LINE, MUTED, Tone, button, icon, note},
+        theme::{Palette, palette},
+        widgets::{Tone, button, icon, note},
     },
     i18n::tr,
 };
@@ -68,6 +69,7 @@ fn repository_rows<'a>(
 
 impl Client {
     pub(super) fn open_list(&self, window: &Window, cx: &mut Context<Self>) -> Div {
+        let p = palette(cx);
         let (label, repositories) = match &self.manager.list {
             RepoList::Recent => (tr!("app.repositories.recent"), &self.saved.recent),
             RepoList::Favorites => (tr!("app.repositories.favorites"), &self.saved.favorites),
@@ -95,18 +97,19 @@ impl Client {
                 div()
                     .flex()
                     .items_center()
-                    .gap(px(7.))
-                    .px(px(9.))
-                    .h(px(40.))
+                    .gap(px(8.))
+                    .px(px(12.))
+                    .h(px(44.))
                     .flex_shrink_0()
                     .border_b_1()
-                    .border_color(rgb(LINE))
+                    .border_color(rgb(p.border))
                     .child(
                         div()
                             .flex_1()
                             .min_w_0()
                             .truncate()
-                            .text_size(px(16.))
+                            .text_size(px(15.))
+                            .font_weight(FontWeight::MEDIUM)
                             .child(label),
                     )
                     .child(div().w(px(190.)).min_w_0().child(search))
@@ -115,6 +118,7 @@ impl Client {
                         project,
                         control_height,
                         compact_text_size,
+                        p,
                         cx,
                     )),
             )
@@ -124,14 +128,15 @@ impl Client {
                         .size_full()
                         .flex()
                         .flex_col()
+                        .gap(px(2.))
                         .p(px(8.))
                         .when(repositories.is_empty(), |e| {
-                            e.child(note(tr!("app.repositories.empty_list")))
+                            e.child(note(tr!("app.repositories.empty_list"), cx))
                         })
                         .children(
                             repository_rows(repositories, &filter, order)
                                 .into_iter()
-                                .map(|row| self.repository_row(row, cx)),
+                                .map(|row| self.repository_row(row, p, cx)),
                         )
                         .overflow_y_scrollbar(),
                 ),
@@ -140,27 +145,37 @@ impl Client {
                 div()
                     .flex()
                     .items_center()
-                    .gap(px(5.))
-                    .p(px(9.))
+                    .gap(px(8.))
+                    .p(px(10.))
                     .border_t_1()
-                    .border_color(rgb(LINE))
+                    .border_color(rgb(p.border))
                     .child(
                         div()
                             .flex_1()
                             .min_w_0()
                             .child(Input::new(&self.manager.path).small()),
                     )
-                    .child(button(
-                        "open-path",
-                        tr!("app.common.open"),
-                        Tone::Green,
-                        !self.session.opening,
-                        cx.listener(|this, _, window, cx| this.open_from_input(window, cx)),
-                    )),
+                    .child(
+                        button(
+                            "open-path",
+                            tr!("app.common.open"),
+                            Tone::Green,
+                            !self.session.opening,
+                            cx,
+                            cx.listener(|this, _, window, cx| this.open_from_input(window, cx)),
+                        )
+                        .rounded_full()
+                        .px(px(14.)),
+                    ),
             )
     }
 
-    fn repository_row(&self, row: RepositoryRow<'_>, cx: &Context<Self>) -> Stateful<Div> {
+    fn repository_row(
+        &self,
+        row: RepositoryRow<'_>,
+        p: Palette,
+        cx: &Context<Self>,
+    ) -> Stateful<Div> {
         let RepositoryRow {
             index, path, name, ..
         } = row;
@@ -169,14 +184,15 @@ impl Client {
         let star_path = path.clone();
         div()
             .id(("open-recent", index))
-            .h(px(47.))
+            .h(px(48.))
             .flex_shrink_0()
             .flex()
             .items_center()
-            .px(px(8.))
+            .px(px(10.))
             .gap(px(8.))
+            .rounded(px(10.))
             .cursor_pointer()
-            .hover(|s| s.bg(rgb(HOVER)))
+            .hover(|s| s.bg(rgb(p.hover)))
             .on_click(cx.listener(move |this, _, window, cx| {
                 this.open_repo(OpenRepo::Open(root.clone()), window, cx);
             }))
@@ -192,7 +208,7 @@ impl Client {
                         div()
                             .truncate()
                             .text_size(px(11.))
-                            .text_color(rgb(MUTED))
+                            .text_color(rgb(p.text_muted))
                             .child(path.to_string_lossy().into_owned()),
                     ),
             )
@@ -202,11 +218,15 @@ impl Client {
                     if favorite { "★" } else { "☆" },
                     Tone::Plain,
                     true,
+                    cx,
                     cx.listener(move |this, _, _, cx| {
                         cx.stop_propagation();
                         this.toggle_favorite(star_path.clone(), cx);
                     }),
                 )
+                .size(px(28.))
+                .px(px(0.))
+                .rounded_full()
                 .text_size(ICON_SIZE),
             )
     }
@@ -217,6 +237,7 @@ fn name_sort_picker(
     project: bool,
     height: Pixels,
     text_size: Pixels,
+    p: Palette,
     cx: &Context<Client>,
 ) -> impl IntoElement {
     let view = cx.weak_entity();
@@ -232,7 +253,7 @@ fn name_sort_picker(
         .flex_shrink_0()
         .accessibility_label(tr!("app.repositories.sort"))
         .child(div().text_size(text_size).child(label))
-        .child(icon("icons/chevron-down.svg", MUTED).size(ICON_SIZE))
+        .child(icon("icons/chevron-down.svg", p.text_muted).size(ICON_SIZE))
         .dropdown_menu_with_anchor(Anchor::TopRight, move |menu, _, _| {
             [
                 (None, "app.repositories.sort_default"),

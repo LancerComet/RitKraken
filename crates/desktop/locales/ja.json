@@ -203,6 +203,9 @@
       "remember_tabs_hint": "次回起動時に、開いていたリポジトリと選択中のタブを復元します。",
       "show_all_history": "グラフにすべてのコミットを表示",
       "show_all_history_hint": "リポジトリを開いたときに、到達可能なコミットをすべて読み込みます。",
+      "theme": "カラーテーマ",
+      "theme_dark": "ダーク",
+      "theme_light": "ライト",
       "title": "設定",
       "wrap_lines": "長い行を折り返す",
       "wrap_lines_hint": "ファイルのプレビューと差分表示で長い行を折り返します。"
@@ -287,7 +290,6 @@
       "fetch_all": "すべてフェッチ",
       "fetch_options": "フェッチのオプション",
       "fetch_remote": "%{remote} をフェッチ",
-      "local_git": "ローカル Git",
       "pop": "復元",
       "pop_hint": "最新のスタッシュを復元して削除",
       "push": "プッシュ",

@@ -2,7 +2,7 @@ use std::sync::{Arc, OnceLock};
 
 use gpui_kit::{prelude::*, *};
 
-use super::PAPER;
+use super::super::theme::palette;
 use crate::i18n::tr;
 
 // The executable icon and loading page share the original colour SVG.
@@ -16,6 +16,7 @@ pub(in crate::app) fn opening_message() -> Div {
 }
 
 pub(in crate::app) fn loading_page(content: impl IntoElement, cx: &App) -> Div {
+    let p = palette(cx);
     // Decode this small bundled asset once, before painting. An asynchronous
     // image loader can otherwise miss the entire repository-loading screen.
     let logo = LOGO.get_or_init(|| {
@@ -28,7 +29,8 @@ pub(in crate::app) fn loading_page(content: impl IntoElement, cx: &App) -> Div {
         .flex()
         .items_center()
         .justify_center()
-        .bg(rgb(PAPER))
+        .bg(rgb(p.surface_dim))
+        .text_color(rgb(p.text))
         .child(
             div()
                 .w(px(560.))

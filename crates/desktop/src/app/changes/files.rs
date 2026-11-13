@@ -15,40 +15,56 @@ use crate::i18n::tr;
 use super::{StageAction, StageTarget, change_mark, menu::FileMenu};
 use crate::app::{
     Client, RepoOperation, RepoTab,
-    widgets::{HOVER, MUTED, PAPER, SELECT, Tone, button, icon, menu::ContextMenuExt, note},
+    theme::palette,
+    widgets::{Tone, button, icon, menu::ContextMenuExt, note},
 };
 
 pub(super) const FILE_ROW_HEIGHT: Pixels = px(32.);
 
 impl Client {
     pub(super) fn file_mode(&self, tab: &RepoTab, cx: &mut Context<Self>) -> Div {
+        let p = palette(cx);
         let id = tab.id;
         div()
-            .h(px(34.))
+            .h(px(36.))
             .flex_shrink_0()
             .flex()
             .items_center()
             .justify_center()
-            .children(
-                [
-                    (false, "path-mode", "app.changes.path_mode"),
-                    (true, "tree-mode", "app.changes.tree_mode"),
-                ]
-                .into_iter()
-                .map(|(tree, name, label)| {
-                    button(
-                        (name, id),
-                        tr!(label),
-                        Tone::Outline.selected_when(tab.changes.tree == tree),
-                        true,
-                        cx.listener(move |this, _, _, cx| {
-                            if let Some(tab) = this.tab_mut(id) {
-                                tab.changes.tree = tree;
-                                cx.notify();
-                            }
+            .child(
+                div()
+                    .flex()
+                    .items_center()
+                    .gap(px(2.))
+                    .p(px(2.))
+                    .rounded_full()
+                    .bg(rgb(p.surface))
+                    .border_1()
+                    .border_color(rgb(p.border))
+                    .children(
+                        [
+                            (false, "path-mode", "app.changes.path_mode"),
+                            (true, "tree-mode", "app.changes.tree_mode"),
+                        ]
+                        .into_iter()
+                        .map(|(tree, name, label)| {
+                            button(
+                                (name, id),
+                                tr!(label),
+                                Tone::Plain.selected_when(tab.changes.tree == tree),
+                                true,
+                                cx,
+                                cx.listener(move |this, _, _, cx| {
+                                    if let Some(tab) = this.tab_mut(id) {
+                                        tab.changes.tree = tree;
+                                        cx.notify();
+                                    }
+                                }),
+                            )
+                            .rounded_full()
+                            .h(px(22.))
                         }),
-                    )
-                }),
+                    ),
             )
     }
 
@@ -68,7 +84,7 @@ impl Client {
             return div()
                 .flex_1()
                 .min_h_0()
-                .child(note(tr!("app.changes.no_files")));
+                .child(note(tr!("app.changes.no_files"), cx));
         }
         let id = tab.id;
         let selected = tab.review.active.as_ref().map(|diff| diff.file.clone());
@@ -79,13 +95,14 @@ impl Client {
         let rows = file_rows(&files, tree);
         let view = cx.weak_entity();
         let scroll = &tab.changes.scroll[scroll_index];
-        let list = uniform_list((label, id), rows.len(), move |range, _, _| {
+        let list = uniform_list((label, id), rows.len(), move |range, _, cx| {
+            let p = palette(cx);
             range
                 .map(|index| match &rows[index] {
                     FileRow::Folder { path, depth } => file_row(*depth)
                         .id(("folder", index))
-                        .text_color(rgb(MUTED))
-                        .child(file_row_icon(Some("icons/folder.svg"), MUTED))
+                        .text_color(rgb(p.text_muted))
+                        .child(file_row_icon(Some("icons/folder.svg"), p.text_muted))
                         .child(path_label(
                             path_name(path),
                             path.to_string_lossy().into_owned(),
@@ -112,7 +129,7 @@ impl Client {
                             change: change.clone(),
                         };
                         let active = selected.as_ref() == Some(&file);
-                        let mark = change_mark(change.code);
+                        let mark = change_mark(change.code, p);
                         let open_view = view.clone();
                         let stage_view = view.clone();
                         let stage_change = change.clone();
@@ -126,9 +143,20 @@ impl Client {
                                 "{label}-{id}-{}",
                                 hex::encode(change.path.as_os_str().as_encoded_bytes())
                             )))
+                            .rounded(px(8.))
                             .cursor_pointer()
-                            .bg(rgb(if active { SELECT } else { PAPER }))
-                            .hover(|style| style.bg(rgb(HOVER)))
+                            .bg(rgb(if active {
+                                p.accent_soft
+                            } else {
+                                p.surface_dim
+                            }))
+                            .hover(|style| {
+                                style.bg(rgb(if active {
+                                    p.accent_soft_hover
+                                } else {
+                                    p.hover
+                                }))
+                            })
                             .on_click(move |_, window, cx| {
                                 let _ = open_view.update(cx, |this, cx| {
                                     this.open_diff(id, file.clone(), window, cx)
@@ -143,6 +171,7 @@ impl Client {
                                         action.label(StageTarget::Row),
                                         Tone::Plain,
                                         !busy,
+                                        cx,
                                         move |_, window, cx| {
                                             cx.stop_propagation();
                                             let _ = stage_view.update(cx, |this, cx| {
@@ -154,9 +183,10 @@ impl Client {
                                             });
                                         },
                                     )
+                                    .rounded_full()
                                     .h(px(21.))
                                     .text_size(px(11.))
-                                    .text_color(rgb(action.tone().foreground())),
+                                    .text_color(rgb(action.tone().foreground(p))),
                                 )
                             })
                             .context_menu(move |popup, window, cx| menu.build(popup, window, cx))
@@ -170,7 +200,7 @@ impl Client {
         div()
             .flex_1()
             .min_h_0()
-            .mx(px(10.))
+            .mx(px(8.))
             .relative()
             .child(list)
             .vertical_scrollbar(scroll)
@@ -186,7 +216,7 @@ fn file_row(depth: usize) -> Div {
         .pl(px(10. + depth as f32 * 13.))
         .pr(px(10.))
         .gap(px(5.))
-        .text_size(px(14.))
+        .text_size(px(13.))
 }
 
 fn file_row_icon(path: Option<&'static str>, color: u32) -> Div {

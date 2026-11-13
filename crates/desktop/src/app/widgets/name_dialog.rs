@@ -109,26 +109,36 @@ impl Render for NameDialog {
                         })),
                 )
             })
-            .when_some(self.hint.clone(), |element, hint| element.child(note(hint)))
+            .when_some(self.hint.clone(), |element, hint| element.child(note(hint, cx)))
             .child(
                 div()
                     .flex()
                     .justify_end()
                     .gap(px(8.))
-                    .child(button(
-                        "cancel-reference-name",
-                        tr!("app.common.cancel"),
-                        Tone::Outline,
-                        true,
-                        cx.listener(|this, _, window, cx| this.modal.close(window, cx)),
-                    ))
-                    .child(button(
-                        "apply-reference-name",
-                        tr!("app.commit_menu.apply"),
-                        Tone::Green,
-                        !self.name.read(cx).value().trim().is_empty(),
-                        cx.listener(|this, _, window, cx| this.submit(window, cx)),
-                    )),
+                    .child(
+                        button(
+                            "cancel-reference-name",
+                            tr!("app.common.cancel"),
+                            Tone::Outline,
+                            true,
+                            cx,
+                            cx.listener(|this, _, window, cx| this.modal.close(window, cx)),
+                        )
+                        .rounded_full()
+                        .px(px(14.)),
+                    )
+                    .child(
+                        button(
+                            "apply-reference-name",
+                            tr!("app.commit_menu.apply"),
+                            Tone::Green,
+                            !self.name.read(cx).value().trim().is_empty(),
+                            cx,
+                            cx.listener(|this, _, window, cx| this.submit(window, cx)),
+                        )
+                        .rounded_full()
+                        .px(px(14.)),
+                    ),
             )
     }
 }
