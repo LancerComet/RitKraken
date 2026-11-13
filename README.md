@@ -1,67 +1,51 @@
-# RitKraken
+<p align="center">
+  <img src="crates/desktop/assets/ritkraken.svg" width="96" height="96" alt="RitKraken Logo" />
+</p>
 
-Rust 桌面 Git 客户端。界面以 GitKraken Desktop 9.11.0 的三栏布局为参照，使用 GPUI Kit 0.9.0 渲染，通过本机 Git 读取和更新仓库。
+<h1 align="center">RitKraken</h1>
 
-## 使用
+<p align="center">
+  A fast desktop Git client written in Rust, powered by <a href="https://github.com/longbridge/gpui-kit">GPUI Kit</a> and your local Git CLI.
+</p>
 
-打开构建后的 RitKraken，在 **Repository Management** 选择 **Open a Repository**，也可以在底部输入仓库路径。顶部标签页可在多个仓库间切换。
+## Requirements & Notes
 
-1. 点提交图里的 `// WIP` 查看工作区，或点历史提交查看说明和文件。
-2. 点右栏的文件打开文件页。分支栏会收成图标栏，关闭文件时恢复。在 **File View** 查看对应版本，在 **Diff View** 切换 **Hunk**、**Inline** 或 **Split**，用箭头跳到上一个或下一个改动。**Split** 默认平分可见区域，拖动中线可以调整比例。
-   Diff 工具栏的 **¶** 切换是否忽略行首和行尾空白，旁边的折行图标独立切换自动换行。
-   右侧滚动条旁的红绿标记显示全部修改的位置，点击可跳转；文件视图也保留这些标记。并排视图的左右窗格各自横向滚动。
-3. 用 **Stage File** 暂存整文件。Diff 中每个区块的标题都有 **Stage Hunk**，悬停变更行时可点 `+` 暂存该行。从 **Staged Files** 打开已暂存的差异，用 **Unstage Hunk** 或行旁的 `−` 取消暂存。
-4. 填写 **Summary** 并提交。选择 **View changes** 回到剩余工作区改动。
+- **Git 2.37 or newer** must be installed and available on your `PATH`. RitKraken delegates all repository reads and writes to the system `git` executable.
+- **Rust 1.92 or newer** is required to build from source.
+- **Windows**: Requires the MSVC Rust toolchain, Visual Studio C++ Build Tools, and the Windows SDK. If `ritkraken.exe` is currently running, close it before rebuilding so the executable is not locked.
+- **macOS**: Requires macOS 15 or newer and Xcode Command Line Tools (`xcode-select --install`). The generated `.app` bundle uses ad hoc signing for local use.
+- **Preview limits**: File and diff previews are capped at 8 MiB. Hunk and single-line staging apply to modified text files; added, deleted, renamed, and binary files can be staged as a whole.
+- **Settings**: Language (`English`, `简体中文`, `繁體中文`, `日本語`) and color themes (`Nawal`, `One Dark Pro`, `Tokyo Night`, `Dracula`, `Nord`, `RitKraken Classic`, `GitHub Light`, `Catppuccin Latte`) can be switched in **Preferences** (`Ctrl+,` / `Cmd+,`) and take effect immediately.
 
-单击分支可定位提交，双击本地分支可切换分支。`F5` 刷新，`Ctrl+O` 打开仓库管理。
-拖动提交图表头的列边界可以调整列宽，图形列最窄可收至一个提交节点的宽度。
+## Building
 
-右键提交行可在指定提交创建分支或标签、比较、导出补丁，以及执行适用的 Cherry-pick、Revert、合并、Rebase、Amend 和 Reset。菜单按 HEAD、祖先关系、分离 HEAD、工作区及正在进行的 Git 操作调整；禁用项悬停会说明原因。
-**Interactive Rebase** 整理所选提交之后至 HEAD 的线性提交，支持排序、Pick、Reword、Edit、Squash、Fixup 和 Drop；HEAD 上不显示该入口。Edit 或冲突暂停后，可右键当前提交继续、跳过或中止；Edit 暂停期间也可 Amend。修改已发布历史和 Hard Reset 会显示确认。
+Run the build script for your platform from the repository root:
 
-**Fetch** 更新所有远端的跟踪引用，右侧箭头可选单个远端。**Push** 推送当前分支，首次推送可从菜单选远端并建立跟踪。**Branch** 在当前提交的分支列显示输入框，按 `Enter` 创建并切换分支，按 `Esc` 取消；右键提交创建分支也在对应行输入。**Stash** 收起暂存、未暂存和未跟踪的改动，**Pop** 恢复最近一次 stash 和它的暂存状态。
-
-右上角齿轮或 `Ctrl+,` 打开偏好设置弹窗，点右上角关闭按钮或按 `Esc` 保存并退出；输入有误时会留在弹窗中提示。默认先加载 2,000 条提交，到达提交图底部时继续加载，并在下次启动恢复打开的仓库标签。
-
-在 **Preferences → General → Language** 选择英语、简体中文、繁体中文或日语。所选语言会立即生效并保存。首次启动和旧版设置默认使用英语。
-
-## 构建
-
-在项目根目录运行对应平台的脚本。两个脚本都按当前 Rust 工具链的架构做 release 构建，并使用 `Cargo.lock`。
-
-| 平台 | 命令 | 产物 |
+| Platform | Command | Output |
 | --- | --- | --- |
-| Windows | `.\build-windows.cmd` | `target/windows/<Rust 目标>/release/ritkraken.exe` |
-| macOS | `bash ./build-macos.sh` | `target/macos/<Rust 目标>/release/RitKraken.app` |
+| Windows | `.\build-windows.cmd` | `target/windows/<target>/release/ritkraken.exe` |
+| macOS | `bash ./build-macos.sh` | `target/macos/<target>/release/RitKraken.app` |
 
-重复构建始终复用表中的目录和编译缓存，不按任务另建输出目录或复制可执行文件。Windows 下如果程序占用了构建产物，先关闭该程序，再在原目录重新构建。
+You can also launch a repository directly via `cargo run --release` with `--target`, `--target-dir`, and `-- <repo-path>`.
 
-使用 Rust 1.92 或更新版本，并将系统安装的 Git 加入 PATH。RitKraken 以 Git 2.37 为兼容基线。[GPUI Kit 平台要求](https://gpui-kit.com/docs/installation/)
-
-- Windows 需要 MSVC Rust 工具链、Visual Studio 的 C++ Build Tools 和 Windows SDK。脚本会复用项目内已有的 `.build/rustup` 和 `.build/cargo`，也可通过 `RUSTUP_HOME` 和 `CARGO_HOME` 指定。
-- macOS 需要 macOS 15 或更新版本及 Xcode Command Line Tools，可用 `xcode-select --install` 安装。生成的 `.app` 使用 ad hoc 签名，可在构建机上打开。
-
-文件行数检查需要 Python 3.11 或更新版本。
-
-Windows x64 的测试复用同一构建目录；Windows ARM64 将目标改为 `aarch64-pc-windows-msvc`。
+## Testing & Checks
 
 ```powershell
+# Windows (x64)
 cargo test --workspace --release --locked --target x86_64-pc-windows-msvc --target-dir target/windows
 python tools/check_project.py
 ```
 
-macOS 的测试使用当前 Rust 工具链目标，并复用 `target/macos`：
-
 ```bash
+# macOS
 cargo test --workspace --release --locked --target "$(rustc -vV | sed -n 's/^host: //p')" --target-dir target/macos
+python3 tools/check_project.py
 ```
 
-也可用 `cargo run --release` 配合上述平台的 `--target`、`--target-dir` 和 `-- <仓库路径>` 直接打开仓库。文件和 diff 预览上限为 8 MiB。区块和单行暂存适用于普通文本修改，新增、删除、重命名和二进制文件可整文件暂存。
+`tools/check_project.py` (Python 3.11+) enforces the 1,000-line limit across all tracked/unignored files, including `Cargo.lock`.
 
-## 代码组织
+## Project Layout
 
-- `crates/git` 提供仓库、历史、工作区、diff 和远端操作。这个包独立于 GPUI，集成测试使用临时仓库和本地 bare 远端。
-- `crates/diff` 复用锁定版本的 GPUI Diff 渲染器，扩展 Split View 窗格布局、区块和行操作、空白过滤及修改分布标记。Cargo 在构建目录应用 `crates/diff` 中的补丁。升级 GPUI Kit 时需要一起核对这些补丁。[GPUI Kit 源码与许可证](https://github.com/longbridge/gpui-kit)
-- `crates/desktop` 负责窗口与交互。仓库管理、引用、提交图、暂存与提交详情、文件审阅、工具栏和设置各自维护功能代码。`shell.rs` 组合应用外壳，`session.rs` 管理标签，`operations.rs` 调度后台 Git 操作。
-
-项目文件的硬上限是 1000 行。`tools/check_project.py` 检查已跟踪和未被 Git 忽略的文件。依赖变更后，可运行 `python tools/check_project.py --compact-lock <Cargo生成的锁文件>` 保存紧凑的锁文件，然后用 `--locked` 验证构建。
+- `crates/git`: Git operations, history, worktree, diffing, and remotes (independent of GPUI).
+- `crates/diff`: Patched GPUI Diff renderer with split-view layout, hunk/line controls, edge-whitespace filtering, and change overview markers.
+- `crates/desktop`: Desktop UI, themes, session tabs, commit graph, file review, and preferences.
