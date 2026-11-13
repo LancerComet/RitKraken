@@ -10,9 +10,7 @@ use ritkraken_git as git;
 
 use crate::i18n::tr;
 
-use super::{
-    Client, RepoOperation, RepoTab, session::ActiveOp, theme::palette, widgets::icon,
-};
+use super::{Client, RepoOperation, RepoTab, session::ActiveOp, theme::palette, widgets::icon};
 
 impl Client {
     pub(super) fn toolbar_actions(&self, tab: &RepoTab, cx: &mut Context<Self>) -> Div {

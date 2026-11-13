@@ -106,6 +106,7 @@
     },
     "error": {
       "auto_fetch_minutes": "请输入 0 到 60 之间的整数分钟数。",
+      "auto_fetch_timeout": "请输入大于 0 的整数秒数。",
       "confirmation_failed": "确认窗口未能完成，操作尚未执行，请重试。",
       "binary_file": "二进制文件无法以文本方式预览。",
       "branch_changed": "当前分支已切换。请确认分支后再推送。",
@@ -120,6 +121,7 @@
       "file_encoding": "此文件不是 UTF-8 文本。",
       "file_preview_limit": "此文件超过 8 MiB 的预览上限。",
       "git_exited": "Git 已退出（%{status}）。",
+      "git_timeout": "Git 操作在 %{seconds} 秒后超时。",
       "git_failed": "Git 操作失败。\n%{detail}",
       "global_config_missing": "找不到 Git 全局配置文件。",
       "history_busy": "请等待当前 Git 操作完成，再修改历史记录上限。",
@@ -169,9 +171,12 @@
       "remote_added": "远端已添加"
     },
     "preferences": {
+      "about": "关于",
       "appearance": "界面自定义",
       "auto_fetch_interval": "自动抓取间隔",
       "auto_fetch_interval_hint": "设置当前仓库的自动抓取间隔，范围为 0 到 60 分钟。填 0 可关闭。",
+      "auto_fetch_timeout": "自动抓取超时",
+      "auto_fetch_timeout_hint": "自动抓取超过设定的秒数后，取消本次操作。",
       "branch_placeholder": "使用 Git 配置",
       "collapse_review_sidebar": "查看文件时折叠侧栏",
       "collapse_review_sidebar_hint": "打开文件时显示精简的分支栏，关闭文件后恢复原侧栏。",
@@ -199,6 +204,7 @@
       "lazy_history": "按需加载历史提交",
       "lazy_history_hint": "滚动到已加载历史的末尾时，继续加载更早的提交。",
       "minutes": "分钟",
+      "seconds": "秒",
       "remember_tabs": "记住标签页",
       "remember_tabs_hint": "下次启动时恢复打开的仓库和选中的标签页。",
       "show_all_history": "在提交图中显示所有提交",
@@ -207,6 +213,7 @@
       "theme_dark": "深色",
       "theme_light": "浅色",
       "title": "偏好设置",
+      "version": "版本",
       "wrap_lines": "长行自动换行",
       "wrap_lines_hint": "在文件预览和差异视图中自动折行。"
     },

@@ -15,15 +15,20 @@ pub(in crate::app) fn opening_message() -> Div {
         .child(tr!("app.status.opening"))
 }
 
-pub(in crate::app) fn loading_page(content: impl IntoElement, cx: &App) -> Div {
-    let p = palette(cx);
+pub(in crate::app) fn app_logo(cx: &App) -> Arc<RenderImage> {
     // Decode this small bundled asset once, before painting. An asynchronous
     // image loader can otherwise miss the entire repository-loading screen.
-    let logo = LOGO.get_or_init(|| {
+    LOGO.get_or_init(|| {
         cx.svg_renderer()
             .render_single_frame(include_bytes!("../../../assets/ritkraken.svg"), 0.25)
             .expect("The embedded application logo must be valid SVG")
-    });
+    })
+    .clone()
+}
+
+pub(in crate::app) fn loading_page(content: impl IntoElement, cx: &App) -> Div {
+    let p = palette(cx);
+    let logo = app_logo(cx);
     div()
         .size_full()
         .flex()

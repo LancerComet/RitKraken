@@ -69,11 +69,7 @@ impl FileInspection {
                             .w_full()
                             .h(px(32.))
                             .rounded(px(8.))
-                            .bg(rgb(if is_selected {
-                                p.accent_soft
-                            } else {
-                                p.canvas
-                            }))
+                            .bg(rgb(if is_selected { p.accent_soft } else { p.canvas }))
                             .hover(|style| {
                                 style.bg(rgb(if is_selected {
                                     p.accent_soft_hover
@@ -96,9 +92,9 @@ impl FileInspection {
                                     .into_iter()
                                     .enumerate()
                                     .map(|(index, value)| {
-                                        widths
-                                            .cell(index, cell(value))
-                                            .when(index != 1, |cell| cell.text_color(rgb(p.text_muted)))
+                                        widths.cell(index, cell(value)).when(index != 1, |cell| {
+                                            cell.text_color(rgb(p.text_muted))
+                                        })
                                     }),
                                 ),
                             )

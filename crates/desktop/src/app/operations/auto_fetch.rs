@@ -42,7 +42,9 @@ impl Client {
         }
         self.start_repo_update(
             tab.id,
-            Some(RepoOperation::AutoFetch),
+            Some(RepoOperation::AutoFetch(
+                self.saved.preferences.auto_fetch_timeout(),
+            )),
             tab.history.limit,
             false,
             None,

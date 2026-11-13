@@ -17,12 +17,7 @@ use super::{
     view::{preference_check, preference_row, unit_suffix},
 };
 use crate::{
-    app::{
-        Client, Message,
-        review::DiffLayout,
-        theme::palette,
-        widgets::heading,
-    },
+    app::{Client, Message, review::DiffLayout, theme::palette, widgets::heading},
     i18n::{LocalizedInput, tr},
 };
 

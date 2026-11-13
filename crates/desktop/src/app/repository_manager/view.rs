@@ -45,13 +45,7 @@ impl Client {
                             .font_weight(FontWeight::SEMIBOLD)
                             .child(tr!("app.repositories.title")),
                     )
-                    .child(
-                        div()
-                            .h(px(4.))
-                            .w(px(96.))
-                            .rounded_full()
-                            .bg(rgb(p.accent)),
-                    )
+                    .child(div().h(px(4.)).w(px(96.)).rounded_full().bg(rgb(p.accent)))
                     .child(
                         div()
                             .text_color(rgb(p.text_muted))

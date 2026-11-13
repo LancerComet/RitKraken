@@ -106,6 +106,7 @@
     },
     "error": {
       "auto_fetch_minutes": "請輸入 0 到 60 之間的整數分鐘數。",
+      "auto_fetch_timeout": "請輸入大於 0 的整數秒數。",
       "confirmation_failed": "確認視窗未能完成，操作尚未執行，請重試。",
       "binary_file": "二進位檔案無法以文字方式預覽。",
       "branch_changed": "目前分支已切換。請確認分支後再推送。",
@@ -120,6 +121,7 @@
       "file_encoding": "此檔案不是 UTF-8 文字。",
       "file_preview_limit": "此檔案超過 8 MiB 的預覽上限。",
       "git_exited": "Git 已結束（%{status}）。",
+      "git_timeout": "Git 操作在 %{seconds} 秒後逾時。",
       "git_failed": "Git 操作失敗。\n%{detail}",
       "global_config_missing": "找不到 Git 全域設定檔。",
       "history_busy": "請等待目前的 Git 操作完成，再調整歷史記錄上限。",
@@ -169,9 +171,12 @@
       "remote_added": "遠端已新增"
     },
     "preferences": {
+      "about": "關於",
       "appearance": "介面自訂",
       "auto_fetch_interval": "自動擷取間隔",
       "auto_fetch_interval_hint": "設定目前儲存庫的自動擷取間隔，範圍為 0 到 60 分鐘。填 0 可關閉。",
+      "auto_fetch_timeout": "自動擷取逾時",
+      "auto_fetch_timeout_hint": "自動擷取超過設定的秒數後，取消本次操作。",
       "branch_placeholder": "使用 Git 設定",
       "collapse_review_sidebar": "檢視檔案時收合側欄",
       "collapse_review_sidebar_hint": "開啟檔案時顯示精簡的分支列，關閉檔案後還原原有側欄。",
@@ -199,6 +204,7 @@
       "lazy_history": "按需載入歷史提交",
       "lazy_history_hint": "捲動到已載入歷史的末端時，繼續載入更早的提交。",
       "minutes": "分鐘",
+      "seconds": "秒",
       "remember_tabs": "記住分頁",
       "remember_tabs_hint": "下次啟動時還原開啟的儲存庫及所選分頁。",
       "show_all_history": "在提交圖中顯示所有提交",
@@ -207,6 +213,7 @@
       "theme_dark": "深色",
       "theme_light": "淺色",
       "title": "偏好設定",
+      "version": "版本",
       "wrap_lines": "長行自動換行",
       "wrap_lines_hint": "在檔案預覽和差異檢視中自動換行。"
     },

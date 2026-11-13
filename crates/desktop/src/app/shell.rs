@@ -65,18 +65,13 @@ impl Render for Client {
                     .child(body)
                     .when(is_busy, |container| {
                         container.child(
-                            div()
-                                .absolute()
-                                .top_0()
-                                .left_0()
-                                .right_0()
-                                .child(
-                                    Progress::new("workspace-busy-progress")
-                                        .loading(true)
-                                        .h(px(2.5))
-                                        .rounded(px(0.))
-                                        .color(rgb(p.accent)),
-                                ),
+                            div().absolute().top_0().left_0().right_0().child(
+                                Progress::new("workspace-busy-progress")
+                                    .loading(true)
+                                    .h(px(2.5))
+                                    .rounded(px(0.))
+                                    .color(rgb(p.accent)),
+                            ),
                         )
                     }),
             )
@@ -229,9 +224,7 @@ impl Client {
                                 .px(px(0.))
                                 .rounded_full()
                                 .child(icon("icons/plus.svg", p.chrome_text).size(px(13.)))
-                                .when(!self.session.tabs.is_empty(), |button| {
-                                    button.ml(px(2.))
-                                }),
+                                .when(!self.session.tabs.is_empty(), |button| button.ml(px(2.))),
                         ),
                 ),
             )

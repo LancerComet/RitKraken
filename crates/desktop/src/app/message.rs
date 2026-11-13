@@ -41,6 +41,7 @@ fn git_error(error: &Error) -> String {
     match error {
         Error::MissingGit(_) => tr!("app.error.missing_git"),
         Error::Invocation(error) => tr!("app.error.run_git", detail = error),
+        Error::Timeout(duration) => tr!("app.error.git_timeout", seconds = duration.as_secs()),
         Error::Git { message, .. } => tr!("app.error.git_failed", detail = message),
         Error::Exited(status) => tr!("app.error.git_exited", status = status),
         Error::PreviewRead(status) => tr!("app.error.preview_read", status = status),

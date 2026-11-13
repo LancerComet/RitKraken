@@ -8,3 +8,6 @@ notify = "=8.2.1"
 similar = "2.7"
 tempfile = "3"
 thiserror = "2"
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"

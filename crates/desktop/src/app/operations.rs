@@ -1,7 +1,7 @@
 mod auto_fetch;
 mod confirm;
 
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 use gpui_kit::*;
 use ritkraken_git::{self as git, Change, FileTarget, Patch, PatchSelection, Repo, Scope};
@@ -28,7 +28,7 @@ pub(super) enum RepoOperation {
     Switch(String),
     Fetch(Option<String>),
     AddRemote(git::NewRemote),
-    AutoFetch,
+    AutoFetch(Duration),
     Push {
         branch: String,
         upstream: git::Upstream,
@@ -81,7 +81,7 @@ impl RepoOperation {
             Self::Switch(branch) => repo.switch(branch),
             Self::Fetch(remote) => repo.fetch(remote.as_deref()),
             Self::AddRemote(remote) => repo.add_remote(remote),
-            Self::AutoFetch => repo.auto_fetch(),
+            Self::AutoFetch(timeout) => repo.auto_fetch_with_timeout(*timeout),
             Self::Push {
                 branch,
                 upstream,
@@ -110,7 +110,7 @@ impl RepoOperation {
             },
             Self::Commit(..) => "app.notice.committed",
             Self::Switch(_) => "app.notice.switched",
-            Self::Fetch(_) | Self::AutoFetch => "app.notice.fetched",
+            Self::Fetch(_) | Self::AutoFetch(_) => "app.notice.fetched",
             Self::AddRemote(_) => "app.notice.remote_added",
             Self::Push { .. } => "app.notice.pushed",
             Self::Stash => "app.notice.stashed",
@@ -120,7 +120,7 @@ impl RepoOperation {
 
     fn activity(&self) -> ActiveOp {
         match self {
-            Self::Fetch(_) | Self::AutoFetch => ActiveOp::Fetch,
+            Self::Fetch(_) | Self::AutoFetch(_) => ActiveOp::Fetch,
             Self::Push { .. } => ActiveOp::Push,
             Self::Commit(..) => ActiveOp::Commit,
             Self::Stash => ActiveOp::Stash,
@@ -218,7 +218,10 @@ impl Client {
             return false;
         };
         tab.busy = true;
-        tab.active_op = Some(edit.as_ref().map_or(ActiveOp::Other, RepoOperation::activity));
+        tab.active_op = Some(
+            edit.as_ref()
+                .map_or(ActiveOp::Other, RepoOperation::activity),
+        );
         if report_operation {
             tab.notice = None;
         }

@@ -23,6 +23,7 @@ pub(super) struct Preferences {
     pub(super) theme: ThemeId,
     pub(super) default_branch: String,
     auto_fetch_minutes: u64,
+    auto_fetch_timeout_seconds: u64,
     pub(super) initial_commits: usize,
     pub(super) show_all_commits: bool,
     pub(super) lazy_history: bool,
@@ -40,6 +41,7 @@ impl Default for Preferences {
             theme: ThemeId::default(),
             default_branch: "main".into(),
             auto_fetch_minutes: git::DEFAULT_AUTO_FETCH_MINUTES,
+            auto_fetch_timeout_seconds: ritkraken_git::DEFAULT_AUTO_FETCH_TIMEOUT.as_secs(),
             initial_commits: 2000,
             show_all_commits: false,
             lazy_history: true,
@@ -71,6 +73,10 @@ impl Preferences {
                 .as_u64()
                 .and_then(git::valid_auto_fetch_minutes)
                 .unwrap_or(defaults.auto_fetch_minutes),
+            auto_fetch_timeout_seconds: value["auto_fetch_timeout_seconds"]
+                .as_u64()
+                .and_then(git::valid_auto_fetch_timeout_seconds)
+                .unwrap_or(defaults.auto_fetch_timeout_seconds),
             initial_commits: value["initial_commits"]
                 .as_u64()
                 .and_then(|count| usize::try_from(count).ok())
@@ -103,6 +109,7 @@ impl Preferences {
             "theme": self.theme.id(),
             "default_branch": self.default_branch,
             "auto_fetch_minutes": self.auto_fetch_minutes,
+            "auto_fetch_timeout_seconds": self.auto_fetch_timeout_seconds,
             "initial_commits": self.initial_commits,
             "show_all_commits": self.show_all_commits,
             "lazy_history": self.lazy_history,
@@ -125,6 +132,7 @@ pub(super) enum PreferencePage {
     Git,
     Appearance,
     Editor,
+    About,
 }
 
 impl PreferencePage {
@@ -134,6 +142,7 @@ impl PreferencePage {
             Self::Git => "app.preferences.git",
             Self::Appearance => "app.preferences.appearance",
             Self::Editor => "app.preferences.editor",
+            Self::About => "app.preferences.about",
         }
     }
 }
@@ -144,6 +153,7 @@ pub(super) struct PreferenceDraft {
     pub(super) branch: LocalizedInput,
     pub(super) count: Entity<InputState>,
     auto_fetch: Entity<InputState>,
+    auto_fetch_timeout: Entity<InputState>,
     editor: EditorDraft,
     pub(super) error: Option<Message>,
 }
@@ -165,6 +175,8 @@ impl Client {
             InputState::new(window, cx).default_value(options.initial_commits.to_string())
         });
         let auto_fetch = cx.new(|cx| unsigned_input(Some(options.auto_fetch_minutes), window, cx));
+        let auto_fetch_timeout =
+            cx.new(|cx| unsigned_input(Some(options.auto_fetch_timeout_seconds), window, cx));
         let editor = EditorDraft::new(&options, window, cx);
         self.manager.mode = None;
         self.branch_editor.clear();
@@ -174,6 +186,7 @@ impl Client {
             branch,
             count,
             auto_fetch,
+            auto_fetch_timeout,
             editor,
             error: None,
         });
@@ -246,6 +259,21 @@ impl Client {
             return;
         };
         options.auto_fetch_minutes = auto_fetch_minutes;
+        let Some(timeout) = draft
+            .auto_fetch_timeout
+            .read(cx)
+            .value()
+            .trim()
+            .parse::<u64>()
+            .ok()
+            .and_then(git::valid_auto_fetch_timeout_seconds)
+        else {
+            draft.page = PreferencePage::Git;
+            draft.error = Some(Message::Key("app.error.auto_fetch_timeout"));
+            cx.notify();
+            return;
+        };
+        options.auto_fetch_timeout_seconds = timeout;
         options.default_branch = draft.branch.read(cx).value().trim().to_owned();
         match draft.editor.typography(cx) {
             Ok(typography) => options.editor = typography,
@@ -362,6 +390,34 @@ mod tests {
             assert_eq!(options.initial_commits, 750);
             assert_eq!(options.json()["language"], language.code());
             assert_eq!(options.json()["diff_layout"], "Inline");
+        }
+    }
+
+    #[test]
+    fn auto_fetch_timeout_defaults_round_trips_and_rejects_invalid_values() {
+        let legacy = Preferences::read(&serde_json::json!({"auto_fetch_minutes": 0}));
+        assert_eq!(legacy.auto_fetch_timeout(), Duration::from_secs(30));
+        assert_eq!(legacy.auto_fetch_interval(), None);
+        for seconds in [1, 45, 3600, u64::from(u32::MAX)] {
+            let options =
+                Preferences::read(&serde_json::json!({"auto_fetch_timeout_seconds": seconds}));
+            let saved = options.json();
+            assert_eq!(saved["auto_fetch_timeout_seconds"], seconds);
+            assert_eq!(
+                Preferences::read(&saved).auto_fetch_timeout(),
+                Duration::from_secs(seconds)
+            );
+        }
+        for invalid in [
+            serde_json::json!(0),
+            serde_json::json!(-1),
+            serde_json::json!(1.5),
+            serde_json::json!("45"),
+            serde_json::json!(u64::MAX),
+        ] {
+            let options =
+                Preferences::read(&serde_json::json!({"auto_fetch_timeout_seconds": invalid}));
+            assert_eq!(options.auto_fetch_timeout(), Duration::from_secs(30));
         }
     }
 

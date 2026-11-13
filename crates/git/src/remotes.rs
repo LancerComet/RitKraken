@@ -1,4 +1,12 @@
-use crate::{Error, Repo, Result, RuleError, command::run_write, protocol::text};
+use std::time::Duration;
+
+use crate::{
+    Error, Repo, Result, RuleError,
+    command::{run_write, run_write_with_timeout},
+    protocol::text,
+};
+
+pub const DEFAULT_AUTO_FETCH_TIMEOUT: Duration = Duration::from_secs(30);
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct NewRemote {
@@ -71,16 +79,20 @@ impl Repo {
     }
 
     pub fn fetch(&self, remote: Option<&str>) -> Result<()> {
-        self.fetch_remotes(remote, false)
+        self.fetch_remotes(remote, None)
     }
 
     pub fn auto_fetch(&self) -> Result<()> {
-        self.fetch_remotes(None, true)
+        self.auto_fetch_with_timeout(DEFAULT_AUTO_FETCH_TIMEOUT)
     }
 
-    fn fetch_remotes(&self, remote: Option<&str>, unattended: bool) -> Result<()> {
+    pub fn auto_fetch_with_timeout(&self, timeout: Duration) -> Result<()> {
+        self.fetch_remotes(None, Some(timeout))
+    }
+
+    fn fetch_remotes(&self, remote: Option<&str>, timeout: Option<Duration>) -> Result<()> {
         let mut git = self.git();
-        if unattended {
+        if timeout.is_some() {
             git.args(["-c", "credential.interactive=false"])
                 .env("GCM_INTERACTIVE", "0");
         }
@@ -91,7 +103,11 @@ impl Repo {
         } else {
             git.arg("--all");
         }
-        run_write(&mut git)
+        if let Some(timeout) = timeout {
+            run_write_with_timeout(git, timeout)
+        } else {
+            run_write(&mut git)
+        }
     }
 
     pub fn push(&self, branch: &str, upstream: &Upstream, set_upstream: bool) -> Result<()> {

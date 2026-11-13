@@ -8,14 +8,20 @@
   A fast desktop Git client written in Rust, powered by <a href="https://github.com/longbridge/gpui-kit">GPUI Kit</a> and your local Git CLI.
 </p>
 
-## Requirements & Notes
+## User Requirements & Notes
 
 - **Git 2.37 or newer** must be installed and available on your `PATH`. RitKraken delegates all repository reads and writes to the system `git` executable.
-- **Rust 1.92 or newer** is required to build from source.
-- **Windows**: Requires the MSVC Rust toolchain, Visual Studio C++ Build Tools, and the Windows SDK. If `ritkraken.exe` is currently running, close it before rebuilding so the executable is not locked.
-- **macOS**: Requires macOS 15 or newer and Xcode Command Line Tools (`xcode-select --install`). The generated `.app` bundle uses ad hoc signing for local use.
+- **macOS 15 or newer** is required to run the macOS application.
 - **Preview limits**: File and diff previews are capped at 8 MiB. Hunk and single-line staging apply to modified text files; added, deleted, renamed, and binary files can be staged as a whole.
+- **Automatic fetching**: Set its timeout in seconds under **Preferences → Git** (default: 30). A timed-out attempt is cancelled; automatic fetching resumes on the next scheduled interval.
 - **Settings**: Language (`English`, `简体中文`, `繁體中文`, `日本語`) and color themes (`Nawal`, `One Dark Pro`, `Tokyo Night`, `Dracula`, `Nord`, `RitKraken Classic`, `GitHub Light`, `Catppuccin Latte`) can be switched in **Preferences** (`Ctrl+,` / `Cmd+,`) and take effect immediately.
+
+## Developer Requirements & Notes
+
+- **Rust 1.92 or newer** is required to build from source.
+- **Windows**: Requires the MSVC Rust toolchain, Visual Studio C++ Build Tools, and the Windows SDK. Close a running `ritkraken.exe` before rebuilding so the executable is not locked.
+- **macOS**: Requires Xcode Command Line Tools (`xcode-select --install`). The generated `.app` bundle uses ad hoc signing for local use.
+- **Python 3.11 or newer** is required to run the project checks.
 
 ## Building
 

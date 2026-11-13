@@ -109,7 +109,9 @@ impl Render for NameDialog {
                         })),
                 )
             })
-            .when_some(self.hint.clone(), |element, hint| element.child(note(hint, cx)))
+            .when_some(self.hint.clone(), |element, hint| {
+                element.child(note(hint, cx))
+            })
             .child(
                 div()
                     .flex()

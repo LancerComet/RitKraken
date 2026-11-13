@@ -106,6 +106,7 @@
     },
     "error": {
       "auto_fetch_minutes": "分単位で 0～60 の整数を入力してください。",
+      "auto_fetch_timeout": "秒単位で 1 以上の整数を入力してください。",
       "confirmation_failed": "確認ダイアログを完了できませんでした。操作は実行されていません。もう一度お試しください。",
       "binary_file": "バイナリファイルはテキストとしてプレビューできません。",
       "branch_changed": "チェックアウト中のブランチが変わりました。現在のブランチを確認してからプッシュしてください。",
@@ -120,6 +121,7 @@
       "file_encoding": "このファイルは UTF-8 テキストではありません。",
       "file_preview_limit": "ファイルがプレビュー上限の 8 MiB を超えています。",
       "git_exited": "Git が終了しました（%{status}）。",
+      "git_timeout": "Git 操作は %{seconds} 秒でタイムアウトしました。",
       "git_failed": "Git 操作に失敗しました。\n%{detail}",
       "global_config_missing": "Git のグローバル設定ファイルが見つかりません。",
       "history_busy": "現在の Git 操作が終わってから、履歴の上限を変更してください。",
@@ -169,9 +171,12 @@
       "remote_added": "リモートを追加しました"
     },
     "preferences": {
+      "about": "このアプリについて",
       "appearance": "UI カスタマイズ",
       "auto_fetch_interval": "自動フェッチ間隔",
       "auto_fetch_interval_hint": "現在のリポジトリを自動フェッチする間隔を 0～60 分で設定します。0 にすると無効になります。",
+      "auto_fetch_timeout": "自動フェッチのタイムアウト",
+      "auto_fetch_timeout_hint": "自動フェッチが指定した秒数を超えると、その操作をキャンセルします。",
       "branch_placeholder": "Git の設定を使用",
       "collapse_review_sidebar": "ファイル表示時にサイドバーを折りたたむ",
       "collapse_review_sidebar_hint": "ファイルを開くと分岐一覧が簡易表示になり、閉じると元のサイドバーに戻ります。",
@@ -199,6 +204,7 @@
       "lazy_history": "古いコミットを必要に応じて読み込む",
       "lazy_history_hint": "表示中の履歴の末尾に達すると、古いコミットを読み込みます。",
       "minutes": "分",
+      "seconds": "秒",
       "remember_tabs": "タブを記憶する",
       "remember_tabs_hint": "次回起動時に、開いていたリポジトリと選択中のタブを復元します。",
       "show_all_history": "グラフにすべてのコミットを表示",
@@ -207,6 +213,7 @@
       "theme_dark": "ダーク",
       "theme_light": "ライト",
       "title": "設定",
+      "version": "バージョン",
       "wrap_lines": "長い行を折り返す",
       "wrap_lines_hint": "ファイルのプレビューと差分表示で長い行を折り返します。"
     },

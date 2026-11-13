@@ -16,8 +16,10 @@ use super::{PreferenceDraft, PreferencePage, Preferences, git::git_preferences};
 use crate::app::{
     Client,
     theme::{Palette, ThemeId, palette},
-    widgets::{error_text, icon, modal::Modal},
+    widgets::{Tone, button_content, error_text, icon, loading::app_logo, modal::Modal},
 };
+
+const REPOSITORY_URL: &str = "https://github.com/LancerComet/RitKarken";
 
 impl Client {
     pub(in crate::app) fn preferences_view(
@@ -32,6 +34,7 @@ impl Client {
             PreferencePage::Git => git_preferences(draft, cx),
             PreferencePage::Appearance => self.appearance_preferences(draft, p, cx),
             PreferencePage::Editor => self.editor_preferences(draft, cx),
+            PreferencePage::About => about_preferences(p, cx),
         };
         Modal::new(
             "preferences-modal",
@@ -67,6 +70,7 @@ impl Client {
                                 (PreferencePage::Git, "icons/git-branch.svg"),
                                 (PreferencePage::Appearance, "icons/panel-left.svg"),
                                 (PreferencePage::Editor, "icons/file-diff.svg"),
+                                (PreferencePage::About, "icons/info.svg"),
                             ]
                             .into_iter()
                             .map(|(page, glyph)| {
@@ -81,16 +85,8 @@ impl Client {
                                     .h(px(38.))
                                     .rounded_full()
                                     .cursor_pointer()
-                                    .bg(rgb(if active {
-                                        p.accent_soft
-                                    } else {
-                                        p.surface_dim
-                                    }))
-                                    .text_color(rgb(if active {
-                                        p.accent_soft_fg
-                                    } else {
-                                        p.text
-                                    }))
+                                    .bg(rgb(if active { p.accent_soft } else { p.surface_dim }))
+                                    .text_color(rgb(if active { p.accent_soft_fg } else { p.text }))
                                     .hover(|s| {
                                         s.bg(rgb(if active {
                                             p.accent_soft_hover
@@ -260,7 +256,12 @@ impl Client {
             .gap(px(20.))
             .child(preference_row(
                 "app.preferences.theme",
-                div().w_full().flex().flex_col().gap(px(10.)).children(cards),
+                div()
+                    .w_full()
+                    .flex()
+                    .flex_col()
+                    .gap(px(10.))
+                    .children(cards),
                 None,
                 p,
             ))
@@ -280,6 +281,103 @@ impl Client {
     }
 }
 
+fn about_preferences(p: Palette, cx: &App) -> Div {
+    let version = format!(
+        "{} v{}",
+        tr!("app.preferences.version"),
+        env!("CARGO_PKG_VERSION")
+    );
+    div()
+        .w_full()
+        .max_w(px(520.))
+        .flex()
+        .flex_col()
+        .gap(px(16.))
+        .child(
+            div()
+                .w_full()
+                .py(px(8.))
+                .flex()
+                .items_center()
+                .gap(px(18.))
+                .child(img(app_logo(cx)).size(px(72.)).flex_shrink_0())
+                .child(
+                    div()
+                        .min_w_0()
+                        .flex()
+                        .flex_col()
+                        .items_start()
+                        .gap(px(8.))
+                        .child(
+                            div()
+                                .text_size(px(22.))
+                                .font_weight(FontWeight::SEMIBOLD)
+                                .text_color(rgb(p.text))
+                                .child("RitKraken"),
+                        )
+                        .child(
+                            div()
+                                .px(px(10.))
+                                .py(px(3.))
+                                .rounded_full()
+                                .bg(rgb(p.accent_soft))
+                                .text_size(px(12.))
+                                .font_weight(FontWeight::MEDIUM)
+                                .text_color(rgb(p.accent_soft_fg))
+                                .child(version),
+                        ),
+                ),
+        )
+        .child(
+            button_content(
+                "about-github-link",
+                div()
+                    .w_full()
+                    .flex()
+                    .items_center()
+                    .justify_between()
+                    .gap(px(10.))
+                    .child(
+                        div()
+                            .min_w_0()
+                            .flex()
+                            .items_center()
+                            .gap(px(10.))
+                            .child(icon("icons/github.svg", p.text).size(px(16.)))
+                            .child(
+                                div()
+                                    .min_w_0()
+                                    .flex()
+                                    .flex_col()
+                                    .gap(px(2.))
+                                    .child(
+                                        div()
+                                            .font_weight(FontWeight::MEDIUM)
+                                            .text_color(rgb(p.text))
+                                            .child("GitHub"),
+                                    )
+                                    .child(
+                                        div()
+                                            .truncate()
+                                            .text_size(px(12.))
+                                            .text_color(rgb(p.accent))
+                                            .child(REPOSITORY_URL),
+                                    ),
+                            ),
+                    )
+                    .child(icon("icons/external-link.svg", p.text_muted).size(px(14.))),
+                Tone::Plain,
+                true,
+                cx,
+                |_, _, cx| cx.open_url(REPOSITORY_URL),
+            )
+            .w_full()
+            .h(px(52.))
+            .px(px(10.))
+            .rounded(px(10.)),
+        )
+}
+
 fn theme_card(theme: ThemeId, active: bool, p: Palette, cx: &mut Context<Client>) -> Stateful<Div> {
     let swatch = theme.palette();
     let mode_label = tr!(if swatch.is_dark {
@@ -296,18 +394,8 @@ fn theme_card(theme: ThemeId, active: bool, p: Palette, cx: &mut Context<Client>
         .rounded(px(14.))
         .border_1()
         .border_color(rgb(if active { p.accent } else { p.border }))
-        .bg(rgb(if active {
-            p.accent_soft
-        } else {
-            p.surface_dim
-        }))
-        .hover(|style| {
-            style.bg(rgb(if active {
-                p.accent_soft_hover
-            } else {
-                p.hover
-            }))
-        })
+        .bg(rgb(if active { p.accent_soft } else { p.surface_dim }))
+        .hover(|style| style.bg(rgb(if active { p.accent_soft_hover } else { p.hover })))
         .cursor_pointer()
         .on_click(cx.listener(move |this, _, _, cx| {
             this.choose_theme(theme, cx);
@@ -392,18 +480,13 @@ fn theme_card(theme: ThemeId, active: bool, p: Palette, cx: &mut Context<Client>
                 .justify_between()
                 .gap(px(6.))
                 .child(
-                    div()
-                        .flex()
-                        .items_center()
-                        .gap(px(6.))
-                        .min_w_0()
-                        .child(
-                            div()
-                                .truncate()
-                                .font_weight(FontWeight::MEDIUM)
-                                .text_color(rgb(if active { p.accent_soft_fg } else { p.text }))
-                                .child(theme.name()),
-                        ),
+                    div().flex().items_center().gap(px(6.)).min_w_0().child(
+                        div()
+                            .truncate()
+                            .font_weight(FontWeight::MEDIUM)
+                            .text_color(rgb(if active { p.accent_soft_fg } else { p.text }))
+                            .child(theme.name()),
+                    ),
                 )
                 .child(
                     div()
@@ -416,11 +499,7 @@ fn theme_card(theme: ThemeId, active: bool, p: Palette, cx: &mut Context<Client>
                                 .px(px(7.))
                                 .py(px(1.))
                                 .rounded_full()
-                                .bg(rgb(if active {
-                                    p.surface
-                                } else {
-                                    p.surface_high
-                                }))
+                                .bg(rgb(if active { p.surface } else { p.surface_high }))
                                 .text_size(px(10.))
                                 .text_color(rgb(p.text_muted))
                                 .child(mode_label),

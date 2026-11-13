@@ -1,4 +1,4 @@
-use std::{io, process::ExitStatus};
+use std::{io, process::ExitStatus, time::Duration};
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -6,6 +6,8 @@ pub enum Error {
     MissingGit(#[source] io::Error),
     #[error("Could not run Git: {0}")]
     Invocation(#[source] io::Error),
+    #[error("Git operation timed out after {0:?}.")]
+    Timeout(Duration),
     #[error("{message}")]
     Git { status: ExitStatus, message: String },
     #[error("Git exited with {0}.")]

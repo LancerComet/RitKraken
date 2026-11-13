@@ -1,3 +1,7 @@
+mod timeout;
+
+pub(crate) use timeout::run_write_with_timeout;
+
 use std::{
     io::Write,
     path::Path,

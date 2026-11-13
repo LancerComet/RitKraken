@@ -145,17 +145,9 @@ impl Client {
                             )))
                             .rounded(px(8.))
                             .cursor_pointer()
-                            .bg(rgb(if active {
-                                p.accent_soft
-                            } else {
-                                p.surface_dim
-                            }))
+                            .bg(rgb(if active { p.accent_soft } else { p.surface_dim }))
                             .hover(|style| {
-                                style.bg(rgb(if active {
-                                    p.accent_soft_hover
-                                } else {
-                                    p.hover
-                                }))
+                                style.bg(rgb(if active { p.accent_soft_hover } else { p.hover }))
                             })
                             .on_click(move |_, window, cx| {
                                 let _ = open_view.update(cx, |this, cx| {

@@ -106,6 +106,7 @@
     },
     "error": {
       "auto_fetch_minutes": "Enter a whole number from 0 to 60 minutes.",
+      "auto_fetch_timeout": "Enter a positive whole number of seconds.",
       "confirmation_failed": "The confirmation dialog could not be completed. The operation was not performed. Please try again.",
       "binary_file": "Binary file contents cannot be previewed as text.",
       "branch_changed": "The checked-out branch changed. Review the current branch before pushing.",
@@ -120,6 +121,7 @@
       "file_encoding": "This file does not contain UTF-8 text.",
       "file_preview_limit": "This file exceeds the 8 MiB preview limit.",
       "git_exited": "Git exited with %{status}.",
+      "git_timeout": "Git operation timed out after %{seconds} seconds.",
       "git_failed": "The Git operation failed.\n%{detail}",
       "global_config_missing": "No global Git configuration file was found.",
       "history_busy": "Wait for the current Git operation to finish before changing the history limit.",
@@ -169,9 +171,12 @@
       "remote_added": "Remote added"
     },
     "preferences": {
+      "about": "About",
       "appearance": "UI Customization",
       "auto_fetch_interval": "Auto-Fetch Interval",
       "auto_fetch_interval_hint": "Fetches remotes for the active repository. Set an interval from 0 to 60 minutes. Use 0 to turn off automatic fetching.",
+      "auto_fetch_timeout": "Auto-Fetch Timeout",
+      "auto_fetch_timeout_hint": "Cancels an automatic fetch if it exceeds this number of seconds.",
       "branch_placeholder": "Use Git config",
       "collapse_review_sidebar": "Collapse sidebar in File View",
       "collapse_review_sidebar_hint": "Shows the compact branch rail when opening a file. The previous sidebar is restored when the file closes.",
@@ -199,6 +204,7 @@
       "lazy_history": "Lazy Load Commits in Graph",
       "lazy_history_hint": "Loads older commits when you reach the end of the visible history.",
       "minutes": "min",
+      "seconds": "sec",
       "remember_tabs": "Remember tabs",
       "remember_tabs_hint": "Restores open repositories and the selected tab on the next launch.",
       "show_all_history": "Show All Commits in Graph",
@@ -207,6 +213,7 @@
       "theme_dark": "Dark",
       "theme_light": "Light",
       "title": "PREFERENCES",
+      "version": "Version",
       "wrap_lines": "Wrap long lines",
       "wrap_lines_hint": "Wraps long lines in file previews and diffs."
     },

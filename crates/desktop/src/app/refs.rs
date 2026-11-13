@@ -223,11 +223,9 @@ impl Client {
                         .flex()
                         .flex_col()
                         .size_full()
-                        .children(
-                            REF_GROUPS.into_iter().map(|(kind, title, _)| {
-                                self.ref_group(tab, kind, title, &filter, p, cx)
-                            }),
-                        )
+                        .children(REF_GROUPS.into_iter().map(|(kind, title, _)| {
+                            self.ref_group(tab, kind, title, &filter, p, cx)
+                        }))
                         .overflow_y_scrollbar(),
                 ),
             )

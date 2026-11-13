@@ -44,9 +44,16 @@ pub(super) fn attach_controls(
     );
     let control = move |id: ElementId, label: SharedString, selection, cx: &App| {
         let submit = submit.clone();
-        button(id, label, action.tone(), enabled, cx, move |_, window, cx| {
-            submit(&selection, window, cx);
-        })
+        button(
+            id,
+            label,
+            action.tone(),
+            enabled,
+            cx,
+            move |_, window, cx| {
+                submit(&selection, window, cx);
+            },
+        )
         .rounded_full()
         .flex_shrink_0()
     };

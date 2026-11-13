@@ -109,14 +109,8 @@ impl RenderOnce for RefStack {
                 let width = width.clone();
                 move |bounds, _, _| width.set(bounds.size.width)
             });
-        let trigger_row = compact_refs(
-            menu.target(primary, first),
-            count,
-            self.color,
-            expanded,
-            p,
-        )
-        .on_prepaint(move |bounds, _, _| trigger.set(bounds));
+        let trigger_row = compact_refs(menu.target(primary, first), count, self.color, expanded, p)
+            .on_prepaint(move |bounds, _, _| trigger.set(bounds));
         let trigger_row =
             trigger_row.on_hover(window.listener_for(&layout, |layout, hovered, window, cx| {
                 layout.hover(false, *hovered, window, cx);
@@ -197,40 +191,37 @@ fn expanded_refs(
     menu: &RefMenu,
     p: Palette,
 ) -> Stateful<Div> {
-    div()
-        .id("expanded-refs")
-        .pt(px(2.))
-        .child(
-            div()
-                .flex()
-                // Let the scroll content retain its full height.
-                .self_start()
-                .h(height)
-                .min_w(min_width)
-                .max_w(max_width)
-                .child(
-                    div()
-                        .flex()
-                        .flex_col()
-                        .gap(px(2.))
-                        .flex_shrink_0()
-                        .min_w(min_width)
-                        .children(labels.iter().enumerate().map(|(index, label)| {
-                            let badge = ref_badge(label, color, false, p)
-                                .id(("expanded-ref", index))
-                                .flex_shrink_0()
-                                .when(!label.remote_refs.is_empty(), |badge| {
-                                    with_tooltip(badge, label)
-                                });
-                            div()
-                                .rounded_full()
-                                .bg(rgb(p.canvas))
-                                .self_start()
-                                .child(menu.target(badge, label))
-                        })),
-                )
-                .overflow_scrollbar(),
-        )
+    div().id("expanded-refs").pt(px(2.)).child(
+        div()
+            .flex()
+            // Let the scroll content retain its full height.
+            .self_start()
+            .h(height)
+            .min_w(min_width)
+            .max_w(max_width)
+            .child(
+                div()
+                    .flex()
+                    .flex_col()
+                    .gap(px(2.))
+                    .flex_shrink_0()
+                    .min_w(min_width)
+                    .children(labels.iter().enumerate().map(|(index, label)| {
+                        let badge = ref_badge(label, color, false, p)
+                            .id(("expanded-ref", index))
+                            .flex_shrink_0()
+                            .when(!label.remote_refs.is_empty(), |badge| {
+                                with_tooltip(badge, label)
+                            });
+                        div()
+                            .rounded_full()
+                            .bg(rgb(p.canvas))
+                            .self_start()
+                            .child(menu.target(badge, label))
+                    })),
+            )
+            .overflow_scrollbar(),
+    )
 }
 
 fn ref_badge(label: &RefBadge, color: u32, compact: bool, p: Palette) -> Div {
