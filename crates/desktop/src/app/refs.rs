@@ -114,7 +114,7 @@ impl Client {
                 .child(icon("icons/chevron-right.svg", p.text)),
             )
             .children(REF_GROUPS.into_iter().map(|(kind, _, title)| {
-                let count = tab.history.data.snapshot.refs_of_kind(kind).count();
+                let count = tab.active_history().snapshot.refs_of_kind(kind).count();
                 div()
                     .id(title)
                     .aria_label(tr!(title))
@@ -145,7 +145,7 @@ impl Client {
         let p = palette(cx);
         let filter = tab.refs.filter.read(cx).value().to_lowercase();
         let id = tab.id;
-        let refs = &tab.history.data.snapshot.refs;
+        let refs = &tab.active_history().snapshot.refs;
         let count = refs
             .iter()
             .filter(|reference| matches_ref_filter(reference, &filter))
@@ -240,7 +240,7 @@ impl Client {
         p: Palette,
         cx: &mut Context<Self>,
     ) -> Div {
-        let snapshot = &tab.history.data.snapshot;
+        let snapshot = &tab.active_history().snapshot;
         let refs: Vec<_> = snapshot.refs_of_kind(kind).collect();
         let matches: Vec<_> = refs
             .iter()

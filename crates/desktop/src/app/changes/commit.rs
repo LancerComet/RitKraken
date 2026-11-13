@@ -29,41 +29,57 @@ impl Client {
         let p = palette(cx);
         let id = tab.id;
         let oid = tab.history.selected.as_deref().unwrap_or_default();
-        let Some(commit) = tab
-            .history
-            .data
+        let real_id = crate::app::history::rebase::real_oid(oid);
+        let history = tab.active_history();
+        let Some(commit) = history
             .position
             .get(oid)
-            .and_then(|index| tab.history.data.snapshot.commits.get(*index))
+            .and_then(|index| history.snapshot.commits.get(*index))
         else {
             return div().child(note(tr!("app.error.commit_outside_history"), cx));
         };
+        let planned_meta = tab
+            .rebase
+            .as_ref()
+            .and_then(|session| session.meta_for(oid));
+        let scope_parent = planned_meta
+            .and_then(|meta| {
+                tab.rebase
+                    .as_ref()
+                    .and_then(|session| session.plan.entries.get(meta.entry_index))
+                    .and_then(|entry| entry.commit.parents.first().cloned())
+            })
+            .or_else(|| commit.parents.first().cloned());
         let detail = match &tab.changes.detail {
             Load::Pending => note(tr!("app.commit.loading"), cx).into_any_element(),
             Load::Failed(error) => error_text(error, cx).into_any_element(),
             Load::Ready(detail) => {
                 let scope = Scope::Commit {
-                    id: oid.to_owned(),
-                    parent: commit.parents.first().cloned(),
+                    id: real_id.to_owned(),
+                    parent: scope_parent,
                 };
                 let message_height =
                     (window.viewport_size().height * 0.32).clamp(px(125.), px(375.));
-                let message = div().size_full().p(px(8.)).child(
-                    div()
-                        .size_full()
-                        .rounded(px(12.))
-                        .border_1()
-                        .border_color(rgb(p.border))
-                        .bg(rgb(p.surface))
-                        .child(
-                            div()
-                                .p(px(12.))
-                                .text_size(px(14.))
-                                .text_color(rgb(p.text))
-                                .child(detail.message.clone()),
-                        )
-                        .overflow_y_scrollbar(),
-                );
+                let message = if let (Some(session), Some(meta)) = (&tab.rebase, planned_meta) {
+                    crate::app::history::rebase::planned_message_pane(tab, session, meta, cx)
+                } else {
+                    div().size_full().p(px(8.)).child(
+                        div()
+                            .size_full()
+                            .rounded(px(12.))
+                            .border_1()
+                            .border_color(rgb(p.border))
+                            .bg(rgb(p.surface))
+                            .child(
+                                div()
+                                    .p(px(12.))
+                                    .text_size(px(14.))
+                                    .text_color(rgb(p.text))
+                                    .child(detail.message.clone()),
+                            )
+                            .overflow_y_scrollbar(),
+                    )
+                };
                 let files = if tab.changes.show_all_files {
                     match &tab.changes.commit_files {
                         Some(Load::Ready(files)) => self.file_list(tab, files, scope, cx),
@@ -131,7 +147,7 @@ impl Client {
             .min_h_0()
             .flex()
             .flex_col()
-            .when(tab.has_changes(), |element| {
+            .when(tab.rebase.is_none() && tab.has_changes(), |element| {
                 element.child(
                     div()
                         .h(px(36.))
@@ -174,7 +190,7 @@ impl Client {
                     .justify_center()
                     .border_b_1()
                     .border_color(rgb(p.border))
-                    .child(commit_hash_button(id, oid, cx)),
+                    .child(commit_hash_button(id, real_id, cx)),
             )
             .child(detail)
     }

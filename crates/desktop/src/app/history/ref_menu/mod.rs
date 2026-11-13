@@ -116,6 +116,8 @@ impl RefMenu {
             Some(tr!("app.commit_menu.busy"))
         } else if snapshot.sequence.is_some() {
             Some(tr!("app.commit_menu.in_progress"))
+        } else if tab.rebase.is_some() {
+            Some(tr!("app.rebase.planning_active"))
         } else if other_worktree {
             Some(tr!("app.ref_menu.in_use"))
         } else {

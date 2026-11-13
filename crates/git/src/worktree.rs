@@ -24,7 +24,7 @@ pub struct Status {
 }
 
 impl Status {
-    pub(crate) fn has_conflicts(&self) -> bool {
+    pub fn has_conflicts(&self) -> bool {
         self.staged
             .iter()
             .chain(&self.unstaged)

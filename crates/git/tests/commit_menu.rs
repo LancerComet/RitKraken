@@ -59,7 +59,7 @@ fn diverged_descendant_unrelated_and_detached_states_have_different_actions() {
     assert_eq!(diverged.availability(Action::Rebase), Availability::Enabled);
     assert_eq!(
         diverged.availability(Action::InteractiveRebase),
-        Availability::Hidden
+        Availability::Enabled
     );
     assert_eq!(diverged.availability(Action::Revert), Availability::Hidden);
     git(&repo, &["switch", "--detach", &base]);
@@ -71,6 +71,7 @@ fn diverged_descendant_unrelated_and_detached_states_have_different_actions() {
     for action in [
         Action::Merge,
         Action::Rebase,
+        Action::InteractiveRebase,
         Action::CherryPick,
         Action::Reset,
     ] {
@@ -83,6 +84,10 @@ fn diverged_descendant_unrelated_and_detached_states_have_different_actions() {
     assert_eq!(context.relation, CommitRelation::Unrelated);
     assert_eq!(context.availability(Action::Merge), Availability::Hidden);
     assert_eq!(context.availability(Action::Rebase), Availability::Hidden);
+    assert_eq!(
+        context.availability(Action::InteractiveRebase),
+        Availability::Hidden
+    );
     assert_eq!(
         context.availability(Action::CherryPick),
         Availability::Enabled
@@ -121,23 +126,36 @@ fn dirty_worktree_disables_integration_but_keeps_branch_and_tag_creation() {
 }
 
 #[test]
-fn merge_targets_and_merge_ranges_do_not_offer_linear_interactive_rebase() {
+fn merge_targets_and_linear_ranges_follow_interactive_rebase_rules() {
     let (_directory, repo) = fixture();
     let base = commit_file(&repo, "base", "base", "Base");
-    git(&repo, &["switch", "-c", "feature"]);
+    git(&repo, &["switch", "-c", "side"]);
+    let side = commit_file(&repo, "side", "side", "Side");
+    git(&repo, &["switch", "-c", "feature", &base]);
     commit_file(&repo, "feature", "feature", "Feature");
     git(&repo, &["switch", "main"]);
     commit_file(&repo, "main", "main", "Main");
     git(&repo, &["merge", "--no-edit", "feature"]);
     let merge = head(&repo);
     commit_file(&repo, "later", "later", "Later");
-    for id in [base, merge] {
-        let context = repo.commit_context(&id).unwrap();
-        assert_eq!(
-            context.availability(Action::InteractiveRebase),
-            Availability::Hidden
-        );
-    }
+    assert_eq!(
+        repo.commit_context(&base)
+            .unwrap()
+            .availability(Action::InteractiveRebase),
+        Availability::Hidden
+    );
+    assert_eq!(
+        repo.commit_context(&merge)
+            .unwrap()
+            .availability(Action::InteractiveRebase),
+        Availability::Enabled
+    );
+    assert_eq!(
+        repo.commit_context(&side)
+            .unwrap()
+            .availability(Action::InteractiveRebase),
+        Availability::Hidden
+    );
 }
 
 #[test]

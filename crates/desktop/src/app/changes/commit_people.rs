@@ -47,9 +47,12 @@ impl Client {
                         element.child(
                             button(
                                 ("parent", id),
-                                tr!("app.commit.parent", sha = short_id(&parent)),
+                                tr!(
+                                    "app.commit.parent",
+                                    sha = short_id(crate::app::history::rebase::real_oid(&parent))
+                                ),
                                 Tone::Plain,
-                                tab.history.data.position.contains_key(&parent),
+                                tab.active_history().position.contains_key(&parent),
                                 cx,
                                 cx.listener(move |this, _, window, cx| {
                                     this.select(

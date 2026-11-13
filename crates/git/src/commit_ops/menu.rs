@@ -43,9 +43,10 @@ pub struct MenuMetadata {
     pub(crate) version: GraphVersion,
     pub(crate) remote_url: Option<String>,
     pub(crate) editing_head: Option<String>,
+    pub(crate) progress: Option<crate::SequenceProgress>,
 }
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Default, Eq, PartialEq)]
 struct MenuKey {
     version: GraphVersion,
     head: Option<String>,
@@ -54,7 +55,7 @@ struct MenuKey {
 
 /// Immutable relationship facts prepared along with repository history. Only
 /// visible rows are retained; a status-only refresh reuses the same index.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct CommitMenuSnapshot {
     key: MenuKey,
     relations: HashMap<String, RelationInfo>,

@@ -115,6 +115,8 @@ impl Client {
                 context.ensure_available(operation.action())?;
                 if let CommitOperation::Amend { message, .. } = &mut operation {
                     *message = context.message.clone();
+                } else if let CommitOperation::InteractiveRebase(plan) = &mut operation {
+                    *plan = repo.rebase_plan(&context)?;
                 }
                 Ok((Arc::new(context), operation))
             },
@@ -127,15 +129,13 @@ impl Client {
                     return;
                 }
                 match result {
+                    Ok((context, CommitOperation::InteractiveRebase(plan))) if !reviewed => {
+                        this.start_rebase_session(id, context, plan, window, cx)
+                    }
                     Ok((context, operation))
-                        if !reviewed
-                            && matches!(
-                                operation,
-                                CommitOperation::Amend { .. }
-                                    | CommitOperation::InteractiveRebase(_)
-                            ) =>
+                        if !reviewed && matches!(operation, CommitOperation::Amend { .. }) =>
                     {
-                        CommitDialog::open(id, tab.repo.clone(), context, operation, window, cx)
+                        CommitDialog::open(id, context, operation, window, cx)
                     }
                     Ok((context, operation)) => {
                         this.prepare_graph_operation(id, context, operation, reviewed, window, cx)
@@ -148,7 +148,7 @@ impl Client {
         cx.notify();
     }
 
-    pub(in crate::app::history::commit_menu) fn prepare_graph_operation(
+    pub(in crate::app::history) fn prepare_graph_operation(
         &mut self,
         id: u64,
         context: Arc<CommitContext>,

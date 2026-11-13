@@ -3,6 +3,7 @@ mod commit_menu;
 mod graph;
 mod labels;
 mod layout;
+pub(in crate::app) mod rebase;
 mod ref_menu;
 mod view;
 
@@ -26,6 +27,31 @@ pub(super) struct History {
 }
 
 impl History {
+    pub(super) fn projected(
+        snapshot: Snapshot,
+        menu: Arc<CommitMenuSnapshot>,
+        worktree_summary: ChangeSummary,
+    ) -> Arc<Self> {
+        let graph = GraphLayout::new(&snapshot.commits);
+        let position = snapshot
+            .commits
+            .iter()
+            .enumerate()
+            .map(|(index, commit)| (commit.id.clone(), index))
+            .collect();
+        let labels = group_refs(&snapshot);
+        Arc::new(Self {
+            snapshot,
+            menu,
+            position,
+            worktree_summary,
+            graph,
+            labels,
+        })
+    }
+}
+
+impl History {
     pub(super) fn load(repo: &Repo, limit: Option<usize>) -> ritkraken_git::Result<Arc<Self>> {
         Self::reload(repo, limit, None)
     }
@@ -40,23 +66,8 @@ impl History {
             return Ok(previous.clone());
         }
         let menu = repo.commit_menu_snapshot(&snapshot, previous.map(|history| &history.menu))?;
-        let graph = GraphLayout::new(&snapshot.commits);
         let worktree_summary = ChangeSummary::new(snapshot.status.distinct_changes());
-        let position = snapshot
-            .commits
-            .iter()
-            .enumerate()
-            .map(|(index, commit)| (commit.id.clone(), index))
-            .collect();
-        let labels = group_refs(&snapshot);
-        Ok(Arc::new(Self {
-            snapshot,
-            menu,
-            position,
-            worktree_summary,
-            graph,
-            labels,
-        }))
+        Ok(Self::projected(snapshot, menu, worktree_summary))
     }
 
     fn labels_for(&self, id: &str) -> Option<&Arc<[RefBadge]>> {
@@ -120,19 +131,36 @@ impl Client {
         tab.history.selected = selected;
         tab.review.close();
         let request = tab.changes.select_commit();
-        let index = tab
-            .history
-            .selected
-            .as_ref()
-            .and_then(|oid| tab.history.data.position.get(oid).copied());
+        let show_wip = tab.show_wip();
+        let (index, commit, has_selected) = {
+            let history = tab.active_history();
+            let index = tab
+                .history
+                .selected
+                .as_ref()
+                .and_then(|oid| history.position.get(oid).copied());
+            let commit = tab
+                .history
+                .selected
+                .as_deref()
+                .and_then(|sel| {
+                    tab.rebase.as_ref().and_then(|session| {
+                        session
+                            .meta_for(sel)
+                            .and_then(|meta| session.plan.entries.get(meta.entry_index))
+                            .map(|entry| entry.commit.clone())
+                    })
+                })
+                .or_else(|| index.map(|idx| history.snapshot.commits[idx].clone()));
+            (index, commit, tab.history.selected.is_some())
+        };
         if let Some(scroll) = scroll {
             tab.history.scroll.scroll_to_item(
-                index.map_or(0, |index| index + usize::from(tab.show_wip())),
+                index.map_or(0, |index| index + usize::from(show_wip)),
                 scroll,
             );
         }
-        if let Some(index) = index {
-            let commit = tab.history.data.snapshot.commits[index].clone();
+        if let Some(commit) = commit {
             let repo = tab.repo.clone();
             Self::spawn_background(
                 window,
@@ -145,9 +173,10 @@ impl Client {
                     }
                 },
             );
-        } else if tab.history.selected.is_some() {
+        } else if has_selected {
             tab.changes.detail = Load::Failed(Message::Key("app.error.ref_outside_history"));
         }
+        self.sync_rebase_editor_for_selection(id, window, cx);
         cx.notify();
     }
 
@@ -159,19 +188,20 @@ impl Client {
     ) {
         let Some(tab) = self.current() else { return };
         let offset = usize::from(tab.show_wip());
-        let count = tab.history.data.snapshot.commits.len() + offset;
+        let history = tab.active_history();
+        let count = history.snapshot.commits.len() + offset;
         let position = tab
             .history
             .selected
             .as_ref()
-            .and_then(|oid| tab.history.data.position.get(oid))
+            .and_then(|oid| history.position.get(oid))
             .map_or(0, |index| *index + offset);
         let index = position
             .saturating_add_signed(delta)
             .min(count.saturating_sub(1));
         let selected = index
             .checked_sub(offset)
-            .and_then(|index| tab.history.data.snapshot.commits.get(index))
+            .and_then(|index| history.snapshot.commits.get(index))
             .map(|commit| commit.id.clone());
         self.select(tab.id, selected, Some(ScrollStrategy::Nearest), window, cx);
     }
@@ -187,6 +217,7 @@ impl Client {
         }
         let Some(tab) = self.current().filter(|tab| {
             tab.id == id
+                && tab.rebase.is_none()
                 && tab.review.active.is_none()
                 && !tab.busy
                 && tab.history.data.snapshot.history_limited

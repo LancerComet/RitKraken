@@ -88,6 +88,7 @@ impl SummaryStyle {
     }
 }
 
+#[derive(Clone)]
 pub(in crate::app) struct ChangeSummary([usize; ChangeKind::COUNT]);
 
 impl ChangeSummary {

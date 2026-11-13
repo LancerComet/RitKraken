@@ -289,11 +289,17 @@ impl Client {
         tab.active_op = None;
         let mut committed = false;
         let mut reset_selection = false;
+        let mut finished_rebase = false;
         if let Some((result, edit)) = result {
             match result {
                 Ok(()) => {
                     tab.notice = Some((false, Message::Key(edit.status_key())));
                     committed = matches!(edit, RepoOperation::Commit(..));
+                    finished_rebase = matches!(
+                        &edit,
+                        RepoOperation::CommitGraph(prepared)
+                            if matches!(prepared.operation, git::CommitOperation::InteractiveRebase(_))
+                    );
                     reset_selection = edit.resets_selection();
                     if committed {
                         tab.changes
@@ -326,6 +332,30 @@ impl Client {
                 tab.notice = Some((true, message));
                 cx.notify();
                 return;
+            }
+        }
+        if let Some(mut session) = tab.rebase.take() {
+            changed = true;
+            if finished_rebase || tab.history.data.snapshot.sequence.is_some() {
+                reset_selection = true;
+            } else {
+                let snapshot = &tab.history.data.snapshot;
+                let same_checkout = snapshot.branch == session.context.branch
+                    && snapshot.head.as_deref() == Some(session.context.head.as_str())
+                    && snapshot.status.is_empty();
+                let entries_valid = tab.history.data.position.contains_key(&session.plan.base)
+                    && session
+                        .plan
+                        .entries
+                        .iter()
+                        .all(|entry| tab.history.data.position.contains_key(&entry.commit.id));
+                if same_checkout && entries_valid {
+                    session.reproject(&tab.history.data);
+                    tab.rebase = Some(session);
+                } else {
+                    tab.notice = Some((true, Message::Key("app.commit_menu.stale")));
+                    reset_selection = true;
+                }
             }
         }
         if tab.history.data.snapshot.sequence.is_some()
@@ -377,7 +407,7 @@ impl Client {
             .history
             .selected
             .as_ref()
-            .is_some_and(|oid| !tab.history.data.position.contains_key(oid))
+            .is_some_and(|oid| !tab.active_history().position.contains_key(oid))
         {
             self.select(id, initial_selection, None, window, cx);
         }

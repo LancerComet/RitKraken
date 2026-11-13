@@ -171,6 +171,7 @@ impl Client {
         else {
             return;
         };
+        let oid = crate::app::history::rebase::real_oid(&oid).to_owned();
         let changes = detail.changes.clone();
         let repo = tab.repo.clone();
         let request = tab.changes.request;
@@ -205,6 +206,14 @@ impl Client {
             return;
         }
         if self.modal_is_present() {
+            return;
+        }
+        if let Some(id) = self
+            .current()
+            .filter(|tab| tab.rebase.is_some())
+            .map(|tab| tab.id)
+        {
+            self.submit_rebase(id, window, cx);
             return;
         }
         if let Some(tab) = self.current().filter(|tab| tab.commit_enabled(cx)) {

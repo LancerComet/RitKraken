@@ -14,6 +14,16 @@ pub(super) const CONNECTOR_OPACITY: f32 = 0.38;
 // One 22 px commit node with 4 px of space on each side.
 pub(super) const MIN_GRAPH_WIDTH: Pixels = px(30.);
 
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub(super) enum RebaseNodeStyle {
+    #[default]
+    Normal,
+    PlannedKeep,
+    PlannedFold,
+    PlannedDrop,
+    TargetBase,
+}
+
 const LANE_INSET: Pixels = px(36.);
 const LANE_GAP: Pixels = px(22.);
 const TRAILING_SPACE: Pixels = px(24.);
@@ -29,13 +39,16 @@ pub(super) fn graph_cell(
     width: Pixels,
     show_wip: bool,
     has_labels: bool,
+    node_style: RebaseNodeStyle,
     p: Palette,
 ) -> Div {
     let data = history.clone();
     let drawing = canvas(
         |_, _, _| (),
         move |bounds, _, window, cx| {
-            paint_graph(&data, index, show_wip, has_labels, bounds, window, cx);
+            paint_graph(
+                &data, index, show_wip, has_labels, node_style, bounds, window, cx,
+            );
         },
     )
     .size_full();
@@ -49,18 +62,71 @@ pub(super) fn graph_cell(
         .when_some(index, |element, index| {
             let node = history.graph.rows[index].node;
             let commit = &history.snapshot.commits[index];
-            element.child(
-                div()
-                    .absolute()
-                    .left(lane_offset(node.lane) - graph_shift(width) - BAND_HEIGHT / 2.)
-                    .top((ROW_HEIGHT - BAND_HEIGHT) / 2.)
+            let left = lane_offset(node.lane) - graph_shift(width) - BAND_HEIGHT / 2.;
+            let top = (ROW_HEIGHT - BAND_HEIGHT) / 2.;
+            let node_view = match node_style {
+                RebaseNodeStyle::PlannedDrop => div()
+                    .size(BAND_HEIGHT)
+                    .rounded_full()
+                    .bg(rgb(p.canvas))
+                    .border_1()
+                    .border_color(rgb(p.danger))
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .text_size(px(12.))
+                    .font_weight(FontWeight::BOLD)
+                    .text_color(rgb(p.danger))
+                    .child("×"),
+                RebaseNodeStyle::PlannedFold => div()
+                    .size(BAND_HEIGHT)
+                    .rounded_full()
+                    .bg(rgb(p.info_bg))
+                    .border_1()
+                    .border_color(rgb(p.accent))
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .text_size(px(12.))
+                    .font_weight(FontWeight::BOLD)
+                    .text_color(rgb(p.info_fg))
+                    .child("↓"),
+                RebaseNodeStyle::PlannedKeep => div()
+                    .size(BAND_HEIGHT)
+                    .rounded_full()
+                    .border_1()
+                    .border_color(rgb(p.accent))
+                    .flex()
+                    .items_center()
+                    .justify_center()
                     .child(PersonAvatar::new(
                         &commit.author,
                         &commit.author_email,
-                        BAND_HEIGHT,
+                        BAND_HEIGHT - px(2.),
                         Some(p.rail_color(node.color_index)),
                     )),
-            )
+                RebaseNodeStyle::TargetBase => div()
+                    .size(BAND_HEIGHT)
+                    .rounded_full()
+                    .border_1()
+                    .border_color(rgb(p.border_strong))
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .child(PersonAvatar::new(
+                        &commit.author,
+                        &commit.author_email,
+                        BAND_HEIGHT - px(2.),
+                        Some(p.rail_color(node.color_index)),
+                    )),
+                RebaseNodeStyle::Normal => div().child(PersonAvatar::new(
+                    &commit.author,
+                    &commit.author_email,
+                    BAND_HEIGHT,
+                    Some(p.rail_color(node.color_index)),
+                )),
+            };
+            element.child(div().absolute().left(left).top(top).child(node_view))
         })
 }
 
@@ -77,6 +143,7 @@ fn paint_graph(
     index: Option<usize>,
     show_wip: bool,
     has_labels: bool,
+    node_style: RebaseNodeStyle,
     bounds: Bounds<Pixels>,
     window: &mut Window,
     cx: &App,
@@ -103,14 +170,25 @@ fn paint_graph(
     let node = point(bounds.left() + lane_offset(row.node.lane), middle);
     let color = rgb(p.rail_color(row.node.color_index));
     let mark_x = bounds.right() - px(2.);
+    let band_opacity = if node_style == RebaseNodeStyle::PlannedDrop {
+        0.05
+    } else if p.is_dark {
+        0.16
+    } else {
+        0.12
+    };
+    paint_band(node.x, mark_x, middle, color.opacity(band_opacity), window);
     paint_band(
-        node.x,
         mark_x,
+        bounds.right(),
         middle,
-        color.opacity(if p.is_dark { 0.16 } else { 0.12 }),
+        if node_style == RebaseNodeStyle::PlannedDrop {
+            color.opacity(0.35)
+        } else {
+            color
+        },
         window,
     );
-    paint_band(mark_x, bounds.right(), middle, color, window);
     if has_labels {
         window.paint_quad(fill(
             Bounds::new(

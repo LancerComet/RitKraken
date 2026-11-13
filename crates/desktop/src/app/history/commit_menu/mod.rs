@@ -2,7 +2,6 @@ mod commands;
 mod compare;
 mod dialog;
 mod links;
-mod planner;
 mod references;
 
 use std::sync::Arc;
@@ -212,10 +211,9 @@ impl CommitMenu {
             ),
             (
                 tr!("app.commit_menu.interactive"),
-                CommitOperation::InteractiveRebase(git::RebasePlan {
-                    base: context.commit.id.clone(),
-                    entries: Vec::new(),
-                }),
+                CommitOperation::InteractiveRebase(git::RebasePlan::placeholder(
+                    context.commit.id.clone(),
+                )),
             ),
             (
                 tr!("app.commit_menu.amend"),
@@ -418,7 +416,7 @@ pub(in crate::app::history) fn worktree_menu(
         return menu;
     };
     let snapshot = &tab.history.data.snapshot;
-    let available = !tab.busy;
+    let available = !tab.busy && tab.rebase.is_none();
     let stash = available
         && tab.has_changes()
         && snapshot.head.is_some()

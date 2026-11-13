@@ -110,6 +110,7 @@ pub(super) struct RepoTab {
     pub(super) refs: ReferenceState,
     pub(super) changes: ChangesState,
     pub(super) review: ReviewState,
+    pub(super) rebase: Option<super::history::rebase::RebaseSession>,
     pub(super) busy: bool,
     pub(super) active_op: Option<ActiveOp>,
     pub(super) updates: RepoUpdates,
@@ -117,12 +118,18 @@ pub(super) struct RepoTab {
 }
 
 impl RepoTab {
+    pub(super) fn active_history(&self) -> &std::sync::Arc<super::history::History> {
+        self.rebase
+            .as_ref()
+            .map_or(&self.history.data, |session| &session.projected.history)
+    }
+
     pub(super) fn has_changes(&self) -> bool {
         !self.history.data.snapshot.status.is_empty()
     }
 
     pub(super) fn show_wip(&self) -> bool {
-        self.has_changes() || self.history.selected.is_none()
+        self.rebase.is_none() && (self.has_changes() || self.history.selected.is_none())
     }
 }
 
@@ -233,6 +240,7 @@ impl Client {
             refs: ReferenceState::new(window, cx),
             changes: ChangesState::new(window, cx),
             review: ReviewState::new(&self.saved.preferences),
+            rebase: None,
             busy: false,
             active_op: None,
             updates: RepoUpdates::default(),

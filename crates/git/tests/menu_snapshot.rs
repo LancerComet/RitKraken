@@ -99,7 +99,9 @@ fn divergence_is_correct_when_the_common_ancestor_is_beyond_the_loaded_history()
 fn merge_boundaries_and_linear_rebase_bases_match_live_git_rules() {
     let (_directory, repo) = fixture();
     let base = commit_file(&repo, "base", "base", "Base");
-    git(&repo, &["switch", "-c", "feature"]);
+    git(&repo, &["switch", "-c", "diverged-before-merge"]);
+    let before_merge = commit_file(&repo, "before", "before", "Before merge");
+    git(&repo, &["switch", "-c", "feature", &base]);
     commit_file(&repo, "feature", "feature", "Feature");
     git(&repo, &["switch", "main"]);
     commit_file(&repo, "main", "main", "Main");
@@ -107,8 +109,11 @@ fn merge_boundaries_and_linear_rebase_bases_match_live_git_rules() {
     let merge = head(&repo);
     let linear = commit_file(&repo, "linear", "linear", "Linear");
     commit_file(&repo, "tip", "tip", "Tip");
+    git(&repo, &["switch", "-c", "diverged-after-merge", &merge]);
+    let after_merge = commit_file(&repo, "after", "after", "After merge");
+    git(&repo, &["switch", "main"]);
     let snapshot = repo.snapshot(None).unwrap();
-    for id in [base, merge, linear] {
+    for id in [base, merge, linear, before_merge, after_merge] {
         agrees_with_git(&repo, &snapshot, &id);
     }
 }

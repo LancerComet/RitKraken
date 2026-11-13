@@ -120,42 +120,50 @@ fn classify(
                 .filter_map(|parent| positions.get(parent))
                 .any(|&parent| related[parent]);
     }
-    let mut linear = vec![false; nodes.len()];
+    let mut linear_ancestor = vec![false; nodes.len()];
     let mut cursor = head_index;
+    let mut spine_complete = true;
     while nodes[cursor].parents.len() == 1 {
         let Some(&parent) = positions.get(nodes[cursor].parents[0]) else {
+            spine_complete = false;
             break;
         };
-        if nodes[parent].parents.len() > 1 {
-            break;
-        }
-        linear[parent] = true;
+        linear_ancestor[parent] = true;
         cursor = parent;
+    }
+    let mut reaches_spine = vec![false; nodes.len()];
+    for (index, node) in nodes.iter().enumerate().rev() {
+        reaches_spine[index] = linear_ancestor[index]
+            || node
+                .parents
+                .iter()
+                .filter_map(|parent| positions.get(parent))
+                .any(|&parent| reaches_spine[parent]);
     }
     let mut complete = true;
     let relations = visible
         .iter()
         .map(|id| {
             let &index = positions.get(id.as_str()).ok_or(RuleError::InvalidCommit)?;
+            let mut linear = false;
             let relation = if index == head_index {
                 CommitRelation::Head
             } else if ancestors[index] {
+                linear = linear_ancestor[index];
                 CommitRelation::Ancestor
             } else if descendants[index] {
                 CommitRelation::Descendant
             } else if related[index] {
+                if !reaches_spine[index] {
+                    complete &= spine_complete && complete_ancestry[index];
+                }
+                linear = reaches_spine[index];
                 CommitRelation::Diverged
             } else {
                 complete &= complete_ancestry[index] && complete_ancestry[head_index];
                 CommitRelation::Unrelated
             };
-            Ok((
-                id.clone(),
-                RelationInfo {
-                    relation,
-                    linear: linear[index],
-                },
-            ))
+            Ok((id.clone(), RelationInfo { relation, linear }))
         })
         .collect::<Result<HashMap<_, _>>>()?;
     Ok((relations, complete))

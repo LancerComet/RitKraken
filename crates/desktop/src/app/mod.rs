@@ -24,7 +24,13 @@ use std::path::PathBuf;
 
 use gpui_kit::*;
 
-use history::BranchEditor;
+use history::{
+    BranchEditor,
+    rebase::{
+        RebaseDrop, RebaseEdit, RebaseFixup, RebaseMoveDown, RebaseMoveUp, RebasePick,
+        RebaseReword, RebaseSquash,
+    },
+};
 use message::Message;
 use modals::{ClosingModal, ContentModal};
 use operations::RepoOperation;
@@ -67,6 +73,14 @@ fn bind_keys(cx: &mut App) {
         KeyBinding::new("escape", Escape, Some("RitKraken")),
         KeyBinding::new("down", NextRow, Some("CommitGraph")),
         KeyBinding::new("up", PreviousRow, Some("CommitGraph")),
+        KeyBinding::new("p", RebasePick, Some("CommitGraph")),
+        KeyBinding::new("r", RebaseReword, Some("CommitGraph")),
+        KeyBinding::new("e", RebaseEdit, Some("CommitGraph")),
+        KeyBinding::new("s", RebaseSquash, Some("CommitGraph")),
+        KeyBinding::new("f", RebaseFixup, Some("CommitGraph")),
+        KeyBinding::new("d", RebaseDrop, Some("CommitGraph")),
+        KeyBinding::new("alt-up", RebaseMoveUp, Some("CommitGraph")),
+        KeyBinding::new("alt-down", RebaseMoveDown, Some("CommitGraph")),
         KeyBinding::new(submit, Submit, Some("RitKraken")),
         KeyBinding::new(submit, Submit, Some("CommitOperation")),
     ]);
@@ -186,6 +200,13 @@ impl Client {
                 .is_some_and(|tab| tab.review.active.is_some())
         {
             self.close_diff(window, cx);
+        } else if self.closing_modal.is_none()
+            && let Some(id) = self
+                .current()
+                .filter(|tab| tab.rebase.is_some() && !tab.busy)
+                .map(|tab| tab.id)
+        {
+            self.cancel_rebase(id, window, cx);
         }
         cx.notify();
     }

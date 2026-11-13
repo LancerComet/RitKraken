@@ -177,3 +177,62 @@ fn cherry_pick_conflicts_support_continue_after_resolution_and_skip() {
         assert!(repo.sequence_kind().unwrap().is_none());
     }
 }
+
+#[test]
+fn interactive_rebase_onto_diverged_and_merge_targets_and_edits_squash_message() {
+    let (directory, repo) = fixture();
+    commit_file(&repo, "base", "base\n", "Base");
+    git(&repo, &["switch", "-c", "topic"]);
+    commit_file(&repo, "t1", "one\n", "Topic one");
+    commit_file(&repo, "t2", "two\n", "Topic two");
+    commit_file(&repo, "t3", "three\n", "Topic three");
+    git(&repo, &["switch", "main"]);
+    git(&repo, &["switch", "-c", "side"]);
+    commit_file(&repo, "side", "side\n", "Side");
+    git(&repo, &["switch", "main"]);
+    commit_file(&repo, "main", "main\n", "Main");
+    git(&repo, &["merge", "--no-edit", "side"]);
+    let target_merge = head(&repo);
+
+    git(&repo, &["switch", "topic"]);
+    let context = repo.commit_context(&target_merge).unwrap();
+    let mut plan = repo.rebase_plan(&context).unwrap();
+    assert_eq!(plan.entries.len(), 3);
+    plan.entries[1].action = RebaseAction::Squash;
+    plan.entries[1].message = "Custom squashed part".into();
+    plan.entries[2].action = RebaseAction::Fixup;
+    let prepared = repo
+        .prepare_commit_operation(&context, Op::InteractiveRebase(plan))
+        .unwrap();
+    repo.apply_commit_operation(&prepared, &reword_editor(&directory.path().join(".git")))
+        .unwrap();
+    let tip = head(&repo);
+    assert_eq!(git(&repo, &["rev-parse", "HEAD^"]).trim(), target_merge);
+    assert_eq!(
+        repo.commit_context(&tip).unwrap().message,
+        "Topic one\n\nCustom squashed part"
+    );
+    assert!(repo.root().join("t1").exists());
+    assert!(repo.root().join("t2").exists());
+    assert!(repo.root().join("t3").exists());
+    assert!(repo.root().join("side").exists());
+
+    // Add a linear commit after a merge base and interactive rebase onto that merge base.
+    commit_file(&repo, "t4", "four\n", "Topic four");
+    let merge_ctx = repo.commit_context(&target_merge).unwrap();
+    let mut merge_plan = repo.rebase_plan(&merge_ctx).unwrap();
+    assert_eq!(merge_plan.entries.len(), 2);
+    merge_plan.entries[1].action = RebaseAction::Edit;
+    let prepared = repo
+        .prepare_commit_operation(&merge_ctx, Op::InteractiveRebase(merge_plan))
+        .unwrap();
+    repo.apply_commit_operation(&prepared, &editor()).unwrap();
+    assert_eq!(repo.sequence_kind().unwrap(), Some(SequenceKind::Rebase));
+    let snapshot = repo.snapshot(None).unwrap();
+    let progress = snapshot.sequence_progress().unwrap();
+    assert_eq!(progress.current_step, Some(2));
+    assert_eq!(progress.total_steps, Some(2));
+    assert_eq!(progress.branch.as_deref(), Some("topic"));
+    apply(&repo, &head(&repo), Op::Continue);
+    assert!(repo.sequence_kind().unwrap().is_none());
+}

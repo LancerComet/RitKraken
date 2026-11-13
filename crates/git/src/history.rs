@@ -42,7 +42,7 @@ pub struct Reference {
     pub checked_out: bool,
 }
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Snapshot {
     pub branch: Option<String>,
     pub head: Option<String>,
@@ -66,6 +66,16 @@ impl Snapshot {
 
     pub fn is_current_branch(&self, reference: &Reference) -> bool {
         reference.kind == RefKind::Local && self.branch.as_deref() == Some(reference.name.as_str())
+    }
+
+    pub fn sequence_progress(&self) -> Option<&crate::SequenceProgress> {
+        self.menu_metadata.progress.as_ref()
+    }
+
+    pub fn is_editing_rebase_commit(&self) -> bool {
+        self.head
+            .as_deref()
+            .is_some_and(|head| self.menu_metadata.editing_head.as_deref() == Some(head))
     }
 }
 
@@ -106,6 +116,7 @@ impl Repo {
                     version,
                     remote_url,
                     editing_head: operation.editing_head,
+                    progress: operation.progress,
                 },
                 commits,
                 history_limited,

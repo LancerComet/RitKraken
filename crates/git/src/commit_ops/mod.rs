@@ -9,7 +9,17 @@ use crate::{Commit, Reference};
 
 pub use execute::PreparedCommitOperation;
 pub use menu::{CommitMenuSnapshot, MenuMetadata};
-pub use rebase::{GitEditor, RebaseAction, RebaseEntry, RebasePlan, run_git_editor};
+pub use rebase::{
+    GitEditor, RebaseAction, RebaseEntry, RebasePlan, compose_squash_message, run_git_editor,
+};
+
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct SequenceProgress {
+    pub current_step: Option<usize>,
+    pub total_steps: Option<usize>,
+    pub branch: Option<String>,
+    pub onto: Option<String>,
+}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum CommitRelation {
@@ -164,7 +174,9 @@ impl CommitMenuState {
             Revert => local && matches!(self.relation, Head | Ancestor),
             Merge => local && matches!(self.relation, Descendant | Diverged),
             Rebase => local && self.relation == Diverged,
-            InteractiveRebase => local && self.relation == Ancestor && self.linear_rebase,
+            InteractiveRebase => {
+                local && matches!(self.relation, Ancestor | Diverged) && self.linear_rebase
+            }
             Amend => (local || self.editing_rebase_commit) && self.relation == Head,
             Reset => local && self.relation != Head,
             Continue | Abort => self

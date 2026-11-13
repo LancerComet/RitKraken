@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::rc::Rc;
 use std::sync::Arc;
 
@@ -12,8 +13,12 @@ use ritkraken_git as git;
 use super::{
     History,
     commit_menu::CommitMenu,
-    graph::{BAND_HEIGHT, MIN_GRAPH_WIDTH, ROW_HEIGHT, column_width, graph_cell},
+    graph::{BAND_HEIGHT, MIN_GRAPH_WIDTH, ROW_HEIGHT, RebaseNodeStyle, column_width, graph_cell},
     labels::ref_labels,
+    rebase::{
+        DraggedRebaseRow, PlannedRowMeta, RebaseDrop, RebaseEdit, RebaseFixup, RebaseMoveDown,
+        RebaseMoveUp, RebasePick, RebaseReword, RebaseSquash, RebaseViewMode,
+    },
 };
 use crate::app::{
     Client, NextRow, PreviousRow, RepoTab,
@@ -70,7 +75,7 @@ impl Client {
     ) -> Stateful<Div> {
         let p = palette(cx);
         let id = tab.id;
-        let history = tab.history.data.clone();
+        let history = tab.active_history().clone();
         let selected = tab.history.selected.clone();
         let show_wip = tab.show_wip();
         let columns = columns(history.graph.lane_count());
@@ -78,11 +83,56 @@ impl Client {
         let count = history.graph.rows.len() + usize::from(show_wip);
         let view = cx.weak_entity();
         let focus = tab.history.focus.clone();
-        let allow_ref_hover = self.manager.mode.is_none() && !self.branch_editor.is_editing();
+        let allow_ref_hover =
+            self.manager.mode.is_none() && !self.branch_editor.is_editing() && tab.rebase.is_none();
         let inline_branch = self.branch_editor.for_tab(id);
         let busy = tab.busy;
-        let lazy =
-            self.saved.preferences.lazy_history && history.snapshot.history_limited && !tab.busy;
+        let rebase_mode = tab.rebase.as_ref().map(|session| session.mode);
+        let rebase_base = tab.rebase.as_ref().map(|session| session.plan.base.clone());
+        let rebase_count = tab
+            .rebase
+            .as_ref()
+            .map_or(0, |session| session.plan.entries.len());
+        let rebase_meta = tab
+            .rebase
+            .as_ref()
+            .map(|session| Arc::new(session.projected.row_meta.clone()));
+        let rebase_edited = tab.rebase.as_ref().map(|session| {
+            let initial_messages: std::collections::HashMap<&str, &str> = session
+                .initial_plan
+                .entries
+                .iter()
+                .map(|entry| (entry.commit.id.as_str(), entry.message.as_str()))
+                .collect();
+            Arc::new(
+                session
+                    .plan
+                    .entries
+                    .iter()
+                    .filter(|entry| {
+                        initial_messages
+                            .get(entry.commit.id.as_str())
+                            .is_some_and(|orig| *orig != entry.message)
+                    })
+                    .map(|entry| entry.commit.id.clone())
+                    .collect::<HashSet<String>>(),
+            )
+        });
+        let banner = if let Some(session) = &tab.rebase {
+            Some(super::rebase::rebase_planning_bar(tab, session, cx))
+        } else if let Some(kind) = history
+            .snapshot
+            .sequence
+            .filter(|kind| *kind != git::SequenceKind::Other)
+        {
+            Some(super::rebase::sequence_control_bar(tab, kind, cx))
+        } else {
+            None
+        };
+        let lazy = self.saved.preferences.lazy_history
+            && history.snapshot.history_limited
+            && !tab.busy
+            && tab.rebase.is_none();
         let mut list = uniform_list(("history", id), count, move |range, window, cx| {
             if lazy && range.start > 0 && range.end == count {
                 let view = view.clone();
@@ -94,6 +144,33 @@ impl Client {
                 .map(|row| {
                     let index = row.checked_sub(usize::from(show_wip));
                     let selection = index.map(|index| history.snapshot.commits[index].id.clone());
+                    let planned_meta = selection
+                        .as_deref()
+                        .and_then(|sel| rebase_meta.as_ref().and_then(|map| map.get(sel).cloned()));
+                    let is_target_base = selection
+                        .as_deref()
+                        .is_some_and(|sel| rebase_base.as_deref() == Some(sel));
+                    let node_style = match &planned_meta {
+                        Some(meta) if meta.action == git::RebaseAction::Drop => {
+                            RebaseNodeStyle::PlannedDrop
+                        }
+                        Some(meta)
+                            if matches!(
+                                meta.action,
+                                git::RebaseAction::Squash | git::RebaseAction::Fixup
+                            ) =>
+                        {
+                            RebaseNodeStyle::PlannedFold
+                        }
+                        Some(_) => RebaseNodeStyle::PlannedKeep,
+                        None if is_target_base => RebaseNodeStyle::TargetBase,
+                        None => RebaseNodeStyle::Normal,
+                    };
+                    let edited = planned_meta.as_ref().is_some_and(|meta| {
+                        rebase_edited
+                            .as_ref()
+                            .is_some_and(|set| set.contains(&meta.oid))
+                    });
                     let element = history_row(
                         &history,
                         index,
@@ -104,8 +181,14 @@ impl Client {
                         id,
                         view.clone(),
                         inline_branch.as_ref(),
+                        planned_meta.as_ref(),
+                        rebase_mode,
+                        rebase_count,
+                        edited,
+                        node_style,
                         busy,
                         p,
+                        cx,
                     );
                     let menu = selection.clone().map(|target| CommitMenu {
                         id,
@@ -113,26 +196,114 @@ impl Client {
                         owner: view.clone(),
                     });
                     let view_for_wip = view.clone();
+                    let view_for_drop = view.clone();
+                    let view_for_menu = view.clone();
                     let view = view.clone();
                     let focus = focus.clone();
+                    let selection_for_click = selection.clone();
                     let activate = Rc::new(move |window: &mut Window, cx: &mut App| {
                         let _ = view.update(cx, |this, cx| {
                             focus.focus(window, cx);
                             if this
                                 .tab(id)
-                                .is_some_and(|tab| tab.history.selected != selection)
+                                .is_some_and(|tab| tab.history.selected != selection_for_click)
                             {
-                                this.select(id, selection.clone(), None, window, cx);
+                                this.select(id, selection_for_click.clone(), None, window, cx);
                             }
                         });
                     });
                     let right_click = activate.clone();
-                    let element = element
+                    let mut element = element
                         .on_mouse_down(MouseButton::Right, move |_, window, cx| {
                             right_click(window, cx)
                         })
                         .on_click(move |_, window, cx| activate(window, cx));
-                    if let Some(menu) = menu {
+                    if let (Some(meta), Some(mode)) = (planned_meta, rebase_mode) {
+                        if !busy && mode == RebaseViewMode::TreeEdit {
+                            let drag_row = DraggedRebaseRow {
+                                entry_index: meta.entry_index,
+                                oid: meta.oid.clone(),
+                                action: meta.action,
+                                subject: meta
+                                    .message
+                                    .lines()
+                                    .find(|line| !line.trim().is_empty())
+                                    .unwrap_or_default()
+                                    .trim()
+                                    .to_owned(),
+                            };
+                            let target_entry = meta.entry_index;
+                            let accent = p.accent;
+                            let accent_soft = p.accent_soft;
+                            element = element
+                                .on_drag(drag_row, |row, _, _, cx| {
+                                    super::rebase::drag_preview(row, cx)
+                                })
+                                .drag_over::<DraggedRebaseRow>(move |style, dragged, _, _| {
+                                    if dragged.entry_index == target_entry {
+                                        style
+                                    } else if dragged.entry_index < target_entry {
+                                        style
+                                            .border_t_2()
+                                            .border_color(rgb(accent))
+                                            .bg(rgb(accent_soft))
+                                    } else {
+                                        style
+                                            .border_b_2()
+                                            .border_color(rgb(accent))
+                                            .bg(rgb(accent_soft))
+                                    }
+                                })
+                                .on_drop::<DraggedRebaseRow>(move |dragged, window, cx| {
+                                    let _ = view_for_drop.update(cx, |this, cx| {
+                                        this.move_rebase_entry_to(
+                                            id,
+                                            dragged.entry_index,
+                                            target_entry,
+                                            window,
+                                            cx,
+                                        )
+                                    });
+                                });
+                        }
+                        element
+                            .context_menu(move |popup, window, _| {
+                                super::rebase::planned_context_menu(
+                                    id,
+                                    view_for_menu.clone(),
+                                    meta.clone(),
+                                    mode,
+                                    rebase_count,
+                                    busy,
+                                    popup,
+                                    window,
+                                )
+                            })
+                            .into_any_element()
+                    } else if rebase_mode.is_some() {
+                        let copy_id = selection.map(|sel| super::rebase::real_oid(&sel).to_owned());
+                        element
+                            .context_menu(move |popup, window, _| {
+                                let menu = crate::app::widgets::menu::menu_style(popup, window);
+                                if let Some(oid) = copy_id.clone() {
+                                    menu.item(
+                                        crate::app::widgets::menu::PopupMenuItem::new(tr!(
+                                            "app.commit_menu.copy_hash"
+                                        ))
+                                        .on_click(
+                                            move |_, _, cx| {
+                                                cx.write_to_clipboard(ClipboardItem::new_string(
+                                                    oid.clone(),
+                                                ));
+                                            },
+                                        ),
+                                    )
+                                } else {
+                                    menu
+                                }
+                            })
+                            .into_any_element()
+                    } else if let Some(menu) = menu {
                         element
                             .context_menu(move |popup, window, cx| menu.build(popup, window, cx))
                             .into_any_element()
@@ -161,22 +332,10 @@ impl Client {
             .flex_col()
             .child(header)
             .child(div().flex_1().min_h_0().child(list));
-        div()
-            .id(("graph-view", id))
-            .key_context("CommitGraph")
-            .track_focus(&tab.history.focus)
-            .on_action(
-                cx.listener(|this, _: &NextRow, window, cx| this.move_selection(1, window, cx)),
-            )
-            .on_action(
-                cx.listener(|this, _: &PreviousRow, window, cx| {
-                    this.move_selection(-1, window, cx)
-                }),
-            )
-            .size_full()
+        let body = div()
             .relative()
-            .bg(rgb(p.canvas))
-            .text_color(rgb(p.text))
+            .flex_1()
+            .min_h_0()
             .child(
                 div()
                     .id("history-columns")
@@ -195,7 +354,50 @@ impl Client {
                     .right_0()
                     .vertical_scrollbar(&tab.history.scroll),
             )
-            .horizontal_scrollbar(&tab.history.horizontal_scroll)
+            .horizontal_scrollbar(&tab.history.horizontal_scroll);
+        div()
+            .id(("graph-view", id))
+            .key_context("CommitGraph")
+            .track_focus(&tab.history.focus)
+            .on_action(
+                cx.listener(|this, _: &NextRow, window, cx| this.move_selection(1, window, cx)),
+            )
+            .on_action(
+                cx.listener(|this, _: &PreviousRow, window, cx| {
+                    this.move_selection(-1, window, cx)
+                }),
+            )
+            .on_action(cx.listener(move |this, _: &RebasePick, window, cx| {
+                this.apply_rebase_shortcut(id, git::RebaseAction::Pick, window, cx);
+            }))
+            .on_action(cx.listener(move |this, _: &RebaseReword, window, cx| {
+                this.apply_rebase_shortcut(id, git::RebaseAction::Reword, window, cx);
+            }))
+            .on_action(cx.listener(move |this, _: &RebaseEdit, window, cx| {
+                this.apply_rebase_shortcut(id, git::RebaseAction::Edit, window, cx);
+            }))
+            .on_action(cx.listener(move |this, _: &RebaseSquash, window, cx| {
+                this.apply_rebase_shortcut(id, git::RebaseAction::Squash, window, cx);
+            }))
+            .on_action(cx.listener(move |this, _: &RebaseFixup, window, cx| {
+                this.apply_rebase_shortcut(id, git::RebaseAction::Fixup, window, cx);
+            }))
+            .on_action(cx.listener(move |this, _: &RebaseDrop, window, cx| {
+                this.apply_rebase_shortcut(id, git::RebaseAction::Drop, window, cx);
+            }))
+            .on_action(cx.listener(move |this, _: &RebaseMoveUp, window, cx| {
+                this.move_selected_rebase_visual(id, -1, window, cx);
+            }))
+            .on_action(cx.listener(move |this, _: &RebaseMoveDown, window, cx| {
+                this.move_selected_rebase_visual(id, 1, window, cx);
+            }))
+            .size_full()
+            .flex()
+            .flex_col()
+            .bg(rgb(p.canvas))
+            .text_color(rgb(p.text))
+            .when_some(banner, |element, bar| element.child(bar))
+            .child(body)
     }
 }
 
@@ -210,8 +412,14 @@ fn history_row(
     id: u64,
     owner: WeakEntity<Client>,
     inline_branch: Option<&(String, Entity<InputState>)>,
+    planned_meta: Option<&PlannedRowMeta>,
+    rebase_mode: Option<RebaseViewMode>,
+    rebase_count: usize,
+    edited: bool,
+    node_style: RebaseNodeStyle,
     busy: bool,
     p: Palette,
+    cx: &App,
 ) -> Stateful<Div> {
     let commit = index.map(|index| &history.snapshot.commits[index]);
     let labels = commit.and_then(|commit| {
@@ -227,7 +435,7 @@ fn history_row(
     {
         super::branch_editor::field(input, busy)
     } else {
-        ref_labels(labels, color, allow_ref_hover, id, owner, p)
+        ref_labels(labels, color, allow_ref_hover, id, owner.clone(), p)
     };
     let element = div()
         .id(SharedString::from(format!(
@@ -256,15 +464,38 @@ fn history_row(
                 widths.get(1).expect("graph column has a width"),
                 show_wip,
                 labels.is_some(),
+                node_style,
                 p,
             ),
         ));
     if let Some(commit) = commit {
+        let message_cell = if let (Some(meta), Some(mode)) = (planned_meta, rebase_mode) {
+            super::rebase::planned_message_column(
+                id,
+                owner,
+                meta,
+                mode,
+                rebase_count,
+                commit.subject.clone(),
+                edited,
+                busy,
+                p,
+                cx,
+            )
+        } else {
+            message_column(div()).child(commit.subject.clone())
+        };
         element
-            .child(widths.cell(2, message_column(div()).child(commit.subject.clone())))
+            .child(widths.cell(2, message_cell))
             .child(widths.cell(3, metadata(commit.author.clone(), p)))
             .child(widths.cell(4, metadata(commit.date.clone(), p)))
-            .child(widths.cell(5, metadata(git::short_id(&commit.id).to_owned(), p)))
+            .child(widths.cell(
+                5,
+                metadata(
+                    git::short_id(super::rebase::real_oid(&commit.id)).to_owned(),
+                    p,
+                ),
+            ))
     } else {
         element.child(widths.cell(2, wip_message(history, p)))
     }

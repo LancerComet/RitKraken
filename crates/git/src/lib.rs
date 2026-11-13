@@ -18,7 +18,7 @@ pub use commit_ops::{
     CommitAction, CommitAvailability, CommitBlock, CommitContext, CommitMenuSnapshot,
     CommitMenuState, CommitOperation, CommitRelation, GitEditor, MenuMetadata,
     PreparedCommitOperation, RebaseAction, RebaseEntry, RebasePlan, ResetMode, SequenceKind,
-    run_git_editor,
+    SequenceProgress, compose_squash_message, run_git_editor,
 };
 pub use config::global_config_path;
 pub use diff::{

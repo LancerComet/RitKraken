@@ -1,17 +1,21 @@
-use std::{path::PathBuf, process::Output};
+use std::{
+    path::{Path, PathBuf},
+    process::Output,
+};
 
 use crate::{
     Commit, Error, Repo, Result, RuleError,
     command::{checked, read_output},
     history::{COMMIT_DATE_FORMAT, COMMIT_LOG_FORMAT, parse_log},
-    protocol::{path_from_bytes, without_final_newline},
+    protocol::{path_from_bytes, text, without_final_newline},
 };
 
-use super::{CommitContext, CommitMenuState, CommitRelation, SequenceKind};
+use super::{CommitContext, CommitMenuState, CommitRelation, SequenceKind, SequenceProgress};
 
 pub(crate) struct OperationState {
     pub kind: Option<SequenceKind>,
     pub editing_head: Option<String>,
+    pub progress: Option<SequenceProgress>,
     pub directory: PathBuf,
 }
 
@@ -58,17 +62,18 @@ impl Repo {
         } else {
             CommitRelation::Unrelated
         };
-        let linear_rebase = relation == CommitRelation::Ancestor
-            && commit.parents.len() <= 1
-            && self
+        let linear_rebase = match self.rebase_upstream(&head, &commit.id, relation)? {
+            Some(upstream) => self
                 .read(&[
                     "rev-list",
                     "--max-count=1",
                     "--min-parents=2",
-                    &format!("{}..{head}", commit.id),
+                    &format!("{upstream}..{head}"),
                     "--",
                 ])?
-                .is_empty();
+                .is_empty(),
+            None => false,
+        };
         let status = self.status()?;
         let conflicted = status.has_conflicts();
         let (references, upstream) = self.references(branch.as_deref())?;
@@ -117,6 +122,33 @@ impl Repo {
         })
     }
 
+    pub(crate) fn rebase_upstream(
+        &self,
+        head: &str,
+        target: &str,
+        relation: CommitRelation,
+    ) -> Result<Option<String>> {
+        match relation {
+            CommitRelation::Ancestor => Ok(Some(target.to_owned())),
+            CommitRelation::Diverged => {
+                let output = read_output(self.git().args(["merge-base", "--all", head, target]))?;
+                if output.status.code() == Some(1) {
+                    return Ok(None);
+                }
+                let bases = text(&checked(output)?);
+                let mut lines = bases.lines();
+                let Some(first) = lines.next() else {
+                    return Ok(None);
+                };
+                if lines.next().is_some() {
+                    return Ok(None);
+                }
+                Ok(Some(first.to_owned()))
+            }
+            _ => Ok(None),
+        }
+    }
+
     pub(crate) fn is_ancestor(&self, ancestor: &str, descendant: &str) -> Result<bool> {
         succeeds_or_absent(read_output(self.git().args([
             "merge-base",
@@ -137,9 +169,7 @@ impl Repo {
 
     pub(crate) fn operation_state(&self) -> Result<OperationState> {
         let directory = self.git_path(".")?;
-        let editing_head = std::fs::read_to_string(directory.join("rebase-merge").join("amend"))
-            .ok()
-            .map(|head| head.trim().to_owned());
+        let editing_head = read_trimmed(directory.join("rebase-merge").join("amend"));
         for (name, kind) in [
             ("rebase-merge", SequenceKind::Rebase),
             ("rebase-apply", SequenceKind::Rebase),
@@ -148,11 +178,15 @@ impl Repo {
             ("REVERT_HEAD", SequenceKind::Revert),
             ("BISECT_LOG", SequenceKind::Other),
         ] {
-            if directory.join(name).exists() {
+            let marker = directory.join(name);
+            if marker.exists() {
+                let progress =
+                    (kind == SequenceKind::Rebase).then(|| read_rebase_progress(&marker));
                 return Ok(OperationState {
                     kind: Some(kind),
                     directory,
                     editing_head,
+                    progress,
                 });
             }
         }
@@ -167,13 +201,38 @@ impl Repo {
                 kind: Some(kind),
                 directory,
                 editing_head,
+                progress: None,
             });
         }
         Ok(OperationState {
             kind: None,
             directory,
             editing_head,
+            progress: None,
         })
+    }
+}
+
+fn read_trimmed(path: PathBuf) -> Option<String> {
+    std::fs::read_to_string(path)
+        .ok()
+        .map(|text| text.trim().to_owned())
+        .filter(|text| !text.is_empty())
+}
+
+fn read_rebase_progress(directory: &Path) -> SequenceProgress {
+    let branch = read_trimmed(directory.join("head-name"))
+        .and_then(|name| name.strip_prefix("refs/heads/").map(str::to_owned));
+    let (step_file, total_file) = if directory.join("msgnum").exists() {
+        ("msgnum", "end")
+    } else {
+        ("next", "last")
+    };
+    SequenceProgress {
+        current_step: read_trimmed(directory.join(step_file)).and_then(|s| s.parse().ok()),
+        total_steps: read_trimmed(directory.join(total_file)).and_then(|s| s.parse().ok()),
+        branch,
+        onto: read_trimmed(directory.join("onto")),
     }
 }
 

@@ -35,7 +35,7 @@ pub fn editor() -> GitEditor {
 
 pub fn reword_editor(directory: &Path) -> GitEditor {
     let script = directory.join("message editor.sh");
-    fs::write(&script, "destination=$1\naction=\nid=\nwhile read -r next_action next_id rest; do\n  if test -n \"$next_action\"; then action=$next_action; id=$next_id; fi\ndone < \"$RITKRAKEN_REBASE_DONE\"\nif test \"$action\" = reword; then cp \"$RITKRAKEN_REBASE_DATA/$id.message\" \"$destination\"; fi\n").unwrap();
+    fs::write(&script, "destination=$1\naction=\nid=\nwhile read -r next_action next_id rest; do\n  if test -n \"$next_action\"; then action=$next_action; id=$next_id; fi\ndone < \"$RITKRAKEN_REBASE_DONE\"\ncase \"$action\" in reword|squash|fixup) if test -f \"$RITKRAKEN_REBASE_DATA/$id.message\"; then cp \"$RITKRAKEN_REBASE_DATA/$id.message\" \"$destination\"; fi ;; esac\n").unwrap();
     let path = script.to_string_lossy().replace('\'', "'\\''");
     GitEditor {
         message: format!("sh '{path}'"),

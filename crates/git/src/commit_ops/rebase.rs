@@ -49,7 +49,31 @@ pub struct RebaseEntry {
 #[derive(Clone, Debug)]
 pub struct RebasePlan {
     pub base: String,
+    pub upstream: String,
     pub entries: Vec<RebaseEntry>,
+}
+
+impl RebasePlan {
+    pub fn placeholder(base: String) -> Self {
+        Self {
+            upstream: base.clone(),
+            base,
+            entries: Vec::new(),
+        }
+    }
+}
+
+pub fn compose_squash_message<'a>(
+    primary: &'a str,
+    followers: impl IntoIterator<Item = (RebaseAction, &'a str)>,
+) -> String {
+    std::iter::once(primary.trim_end())
+        .chain(followers.into_iter().filter_map(|(action, message)| {
+            (action == RebaseAction::Squash).then_some(message.trim_end())
+        }))
+        .filter(|message| !message.is_empty())
+        .collect::<Vec<_>>()
+        .join("\n\n")
 }
 
 /// Git invokes the application's small editor mode without launching the GUI.
@@ -110,15 +134,17 @@ fn editor(args: Vec<OsString>) -> Result<()> {
                 .find(|line| !line.trim().is_empty() && !line.starts_with('#'))
         {
             let mut fields = line.split_ascii_whitespace();
-            if fields.next() == Some("reword")
+            if matches!(fields.next(), Some("reword" | "squash" | "fixup"))
                 && let Some(id) = fields.next()
                 && matches!(id.len(), 40 | 64)
                 && id.bytes().all(|byte| byte.is_ascii_hexdigit())
             {
-                fs::copy(directory.join(format!("{id}.message")), destination)?;
+                let path = directory.join(format!("{id}.message"));
+                if path.exists() {
+                    fs::copy(path, destination)?;
+                }
             }
         }
-        // Squash uses Git's composed message, with its normal cleanup rules.
     } else {
         return Err(RuleError::InvalidRebasePlan.into());
     }
@@ -130,6 +156,9 @@ impl Repo {
         if context.availability(CommitAction::InteractiveRebase) != CommitAvailability::Enabled {
             return Err(RuleError::CommitUnavailable.into());
         }
+        let upstream = self
+            .rebase_upstream(&context.head, &context.commit.id, context.relation)?
+            .ok_or(RuleError::CommitUnavailable)?;
         let bytes = self.read(&[
             "log",
             "--reverse",
@@ -138,7 +167,7 @@ impl Repo {
             COMMIT_DATE_FORMAT,
             &format!("{COMMIT_LOG_FORMAT}%x00%B"),
             "-z",
-            &format!("{}..{}", context.commit.id, context.head),
+            &format!("{upstream}..{}", context.head),
             "--",
         ])?;
         let fields: Vec<_> = bytes.split(|byte| *byte == 0).collect();
@@ -152,6 +181,7 @@ impl Repo {
             .collect();
         Ok(RebasePlan {
             base: context.commit.id.clone(),
+            upstream,
             entries,
         })
     }
@@ -162,12 +192,19 @@ impl Repo {
         plan: &RebasePlan,
     ) -> Result<()> {
         let invalid = || RuleError::InvalidRebasePlan;
-        if plan.base != context.commit.id || plan.entries.is_empty() || !context.linear_rebase {
+        let upstream = self
+            .rebase_upstream(&context.head, &context.commit.id, context.relation)?
+            .ok_or(RuleError::CommitUnavailable)?;
+        if plan.base != context.commit.id
+            || plan.upstream != upstream
+            || plan.entries.is_empty()
+            || !context.linear_rebase
+        {
             return Err(invalid().into());
         }
         let expected: HashSet<_> = String::from_utf8_lossy(&self.read(&[
             "rev-list",
-            &format!("{}..{}", plan.base, context.head),
+            &format!("{}..{}", plan.upstream, context.head),
             "--",
         ])?)
         .lines()
@@ -190,6 +227,23 @@ impl Repo {
             }
             kept |= entry.action != RebaseAction::Drop;
         }
+        for (primary, followers) in rebase_groups(&plan.entries) {
+            if primary.action != RebaseAction::Edit
+                && followers
+                    .iter()
+                    .any(|entry| entry.action == RebaseAction::Squash)
+                && compose_squash_message(
+                    &primary.message,
+                    followers
+                        .iter()
+                        .map(|entry| (entry.action, entry.message.as_str())),
+                )
+                .trim()
+                .is_empty()
+            {
+                return Err(invalid().into());
+            }
+        }
         Ok(())
     }
 
@@ -211,10 +265,29 @@ impl Repo {
                 )?;
             }
         }
+        for (primary, followers) in rebase_groups(&plan.entries) {
+            if primary.action != RebaseAction::Edit
+                && let Some(last) = followers.last()
+                && followers
+                    .iter()
+                    .any(|entry| entry.action == RebaseAction::Squash)
+            {
+                let composed = compose_squash_message(
+                    &primary.message,
+                    followers
+                        .iter()
+                        .map(|entry| (entry.action, entry.message.as_str())),
+                );
+                fs::write(
+                    directory.join(format!("{}.message", last.commit.id)),
+                    composed,
+                )?;
+            }
+        }
         fs::write(directory.join("todo"), todo)?;
         let mut command = self.git();
         editor.configure(self, &mut command)?;
-        let result = run_write(command.args([
+        command.args([
             "-c",
             "rebase.updateRefs=false",
             "rebase",
@@ -223,8 +296,13 @@ impl Repo {
             "--no-autosquash",
             "--no-autostash",
             "--no-fork-point",
-            &plan.base,
-        ]));
+        ]);
+        if plan.base != plan.upstream {
+            command.args(["--onto", &plan.base, &plan.upstream]);
+        } else {
+            command.arg(&plan.base);
+        }
+        let result = run_write(&mut command);
         if self
             .sequence_kind()
             .is_ok_and(|sequence| sequence.is_none())
@@ -259,4 +337,22 @@ impl Repo {
         fs::remove_dir(directory)?;
         Ok(())
     }
+}
+
+fn rebase_groups(entries: &[RebaseEntry]) -> Vec<(&RebaseEntry, Vec<&RebaseEntry>)> {
+    let mut groups: Vec<(&RebaseEntry, Vec<&RebaseEntry>)> = Vec::new();
+    for entry in entries {
+        match entry.action {
+            RebaseAction::Drop => {}
+            RebaseAction::Squash | RebaseAction::Fixup => {
+                if let Some((_, followers)) = groups.last_mut() {
+                    followers.push(entry);
+                }
+            }
+            RebaseAction::Pick | RebaseAction::Reword | RebaseAction::Edit => {
+                groups.push((entry, Vec::new()));
+            }
+        }
+    }
+    groups
 }

@@ -15,7 +15,7 @@ use super::{Client, RepoOperation, RepoTab, session::ActiveOp, theme::palette, w
 impl Client {
     pub(super) fn toolbar_actions(&self, tab: &RepoTab, cx: &mut Context<Self>) -> Div {
         let id = tab.id;
-        let available = !tab.busy;
+        let available = !tab.busy && tab.rebase.is_none();
         let active_op = tab.active_op;
         let snapshot = &tab.history.data.snapshot;
         let remote_available = available && !snapshot.remotes.is_empty();
