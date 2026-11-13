@@ -22,8 +22,24 @@ esac
 
 export MACOSX_DEPLOYMENT_TARGET=15.0
 target_dir="$project_dir/target/macos"
+build_log="$(mktemp "${TMPDIR:-/tmp}/ritkraken-build.XXXXXX")"
 cargo build --locked --release --package ritkraken --bin ritkraken \
-    --target "$target" --target-dir "$target_dir"
+    --target "$target" --target-dir "$target_dir" \
+    --message-format=json-render-diagnostics > "$build_log"
+out_dir="$(python3 -c '
+import json, sys
+for line in open(sys.argv[1], encoding="utf-8"):
+    try:
+        msg = json.loads(line)
+    except ValueError:
+        continue
+    if msg.get("reason") == "build-script-executed" and "#ritkraken@" in msg.get("package_id", ""):
+        print(msg["out_dir"])
+        break
+' "$build_log")"
+rm -f "$build_log"
+[[ -n "$out_dir" && -f "$out_dir/RitKraken.icns" ]] ||
+    fail 'Could not locate the generated macOS application icon RitKraken.icns.'
 
 package_id="$(cargo pkgid --locked --offline --package ritkraken)"
 version="${package_id##*#}"
@@ -48,8 +64,9 @@ cleanup() {
 trap cleanup EXIT
 trap 'exit 1' INT TERM
 
-mkdir -p "$candidate/Contents/MacOS"
+mkdir -p "$candidate/Contents/MacOS" "$candidate/Contents/Resources"
 install -m 755 "$release_dir/ritkraken" "$candidate/Contents/MacOS/ritkraken"
+install -m 644 "$out_dir/RitKraken.icns" "$candidate/Contents/Resources/RitKraken.icns"
 cat > "$candidate/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -61,6 +78,8 @@ cat > "$candidate/Contents/Info.plist" <<PLIST
     <string>org.ritkraken.desktop</string>
     <key>CFBundleExecutable</key>
     <string>ritkraken</string>
+    <key>CFBundleIconFile</key>
+    <string>RitKraken</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
