@@ -10,6 +10,7 @@ use super::{
     Client, Message,
     changes::StageAction,
     history::{History, HistoryState},
+    session::ActiveOp,
 };
 
 type Completion = Box<dyn FnOnce(&mut Client, bool, &mut Window, &mut Context<Client>)>;
@@ -116,6 +117,25 @@ impl RepoOperation {
             Self::Pop => "app.notice.popped",
         }
     }
+
+    fn activity(&self) -> ActiveOp {
+        match self {
+            Self::Fetch(_) | Self::AutoFetch => ActiveOp::Fetch,
+            Self::Push { .. } => ActiveOp::Push,
+            Self::Commit(..) => ActiveOp::Commit,
+            Self::Stash => ActiveOp::Stash,
+            Self::Pop => ActiveOp::Pop,
+            Self::CommitGraph(prepared)
+                if matches!(
+                    prepared.operation,
+                    git::CommitOperation::CreateBranch { .. }
+                ) =>
+            {
+                ActiveOp::Branch
+            }
+            _ => ActiveOp::Other,
+        }
+    }
 }
 
 impl Client {
@@ -198,6 +218,7 @@ impl Client {
             return false;
         };
         tab.busy = true;
+        tab.active_op = Some(edit.as_ref().map_or(ActiveOp::Other, RepoOperation::activity));
         if report_operation {
             tab.notice = None;
         }
@@ -244,6 +265,7 @@ impl Client {
         }
         let Some(tab) = self.tab_mut(id) else { return };
         tab.busy = false;
+        tab.active_op = None;
         let mut committed = false;
         let mut reset_selection = false;
         if let Some((result, edit)) = result {

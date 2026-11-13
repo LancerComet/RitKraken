@@ -2,6 +2,7 @@ use gpui_kit::component::{
     Disableable,
     button::{Button, ButtonCustomVariant, ButtonVariants},
     menu::{DropdownMenu, PopupMenuItem},
+    progress::ProgressCircle,
 };
 
 use gpui_kit::{prelude::*, *};
@@ -10,15 +11,14 @@ use ritkraken_git as git;
 use crate::i18n::tr;
 
 use super::{
-    Client, RepoOperation, RepoTab,
-    theme::palette,
-    widgets::icon,
+    Client, RepoOperation, RepoTab, session::ActiveOp, theme::palette, widgets::icon,
 };
 
 impl Client {
     pub(super) fn toolbar_actions(&self, tab: &RepoTab, cx: &mut Context<Self>) -> Div {
         let id = tab.id;
         let available = !tab.busy;
+        let active_op = tab.active_op;
         let snapshot = &tab.history.data.snapshot;
         let remote_available = available && !snapshot.remotes.is_empty();
         let remotes = snapshot.remotes.clone();
@@ -28,6 +28,7 @@ impl Client {
             "fetch-options",
             "app.toolbar.fetch_options",
             remote_available,
+            false,
             cx,
         )
         .w(px(20.))
@@ -70,6 +71,7 @@ impl Client {
                     "icons/arrow-down-to-line.svg",
                     "app.toolbar.fetch_all",
                     remote_available,
+                    active_op == Some(ActiveOp::Fetch),
                     cx,
                 )
                 .on_click(cx.listener(move |this, _, window, cx| {
@@ -85,6 +87,7 @@ impl Client {
                     "icons/git-branch.svg",
                     "app.toolbar.create_branch_hint",
                     available && snapshot.head.is_some(),
+                    active_op == Some(ActiveOp::Branch),
                     cx,
                 )
                 .on_click(cx.listener(move |this, _, window, cx| {
@@ -98,6 +101,7 @@ impl Client {
                     "icons/download.svg",
                     "app.toolbar.stash_hint",
                     can_stash,
+                    active_op == Some(ActiveOp::Stash),
                     cx,
                 )
                 .on_click(cx.listener(move |this, _, window, cx| {
@@ -111,6 +115,7 @@ impl Client {
                     "icons/upload.svg",
                     "app.toolbar.pop_hint",
                     available && snapshot.has_stash,
+                    active_op == Some(ActiveOp::Pop),
                     cx,
                 )
                 .on_click(cx.listener(move |this, _, window, cx| {
@@ -127,6 +132,7 @@ impl Client {
     ) -> AnyElement {
         let id = tab.id;
         let snapshot = &tab.history.data.snapshot;
+        let spinning = tab.active_op == Some(ActiveOp::Push);
         let can_push = remote_available
             && snapshot
                 .refs
@@ -138,6 +144,7 @@ impl Client {
             "icons/arrow-up-to-line.svg",
             "app.toolbar.push_hint",
             can_push,
+            spinning,
             cx,
         );
         let Some(branch) = snapshot.branch.clone().filter(|_| can_push) else {
@@ -200,17 +207,28 @@ fn edit_item(
     })
 }
 
-fn toolbar_button(id: &'static str, hint_key: &'static str, enabled: bool, cx: &App) -> Button {
+fn toolbar_button(
+    id: &'static str,
+    hint_key: &'static str,
+    enabled: bool,
+    spinning: bool,
+    cx: &App,
+) -> Button {
     let p = palette(cx);
     let hint: SharedString = tr!(hint_key).into();
     Button::new(id)
         .custom(
             ButtonCustomVariant::new(cx)
+                .color(if spinning {
+                    rgb(p.chrome_hover).into()
+                } else {
+                    transparent_black()
+                })
                 .foreground(rgb(p.chrome_text).into())
                 .hover(rgb(p.chrome_hover).into())
                 .active(rgb(p.chrome_hover).into()),
         )
-        .disabled(!enabled)
+        .disabled(!enabled || spinning)
         .accessibility_label(hint.clone())
         .tooltip(hint)
         .min_w_0()
@@ -218,7 +236,7 @@ fn toolbar_button(id: &'static str, hint_key: &'static str, enabled: bool, cx: &
         .rounded(px(10.))
         .h(px(44.))
         .flex_shrink_0()
-        .when(!enabled, |button| button.opacity(0.45))
+        .when(!enabled && !spinning, |button| button.opacity(0.45))
 }
 
 fn toolbar_tile(
@@ -227,23 +245,46 @@ fn toolbar_tile(
     glyph: &'static str,
     hint_key: &'static str,
     enabled: bool,
+    spinning: bool,
     cx: &App,
 ) -> Button {
     let p = palette(cx);
-    toolbar_button(id, hint_key, enabled, cx).w(px(54.)).child(
-        div()
-            .flex()
-            .flex_col()
-            .items_center()
-            .justify_center()
-            .gap(px(4.))
-            .child(
-                div()
-                    .text_size(px(11.))
-                    .line_height(px(12.))
-                    .text_color(rgb(p.chrome_muted))
-                    .child(tr!(label_key)),
-            )
-            .child(icon(glyph, p.chrome_text).size(px(17.))),
-    )
+    toolbar_button(id, hint_key, enabled, spinning, cx)
+        .w(px(54.))
+        .child(
+            div()
+                .flex()
+                .flex_col()
+                .items_center()
+                .justify_center()
+                .gap(px(4.))
+                .child(
+                    div()
+                        .text_size(px(11.))
+                        .line_height(px(12.))
+                        .text_color(rgb(if spinning {
+                            p.chrome_text
+                        } else {
+                            p.chrome_muted
+                        }))
+                        .child(tr!(label_key)),
+                )
+                .child(if spinning {
+                    div()
+                        .size(px(17.))
+                        .flex()
+                        .items_center()
+                        .justify_center()
+                        .child(
+                            ProgressCircle::new(SharedString::from(format!(
+                                "toolbar-spinner-{id}"
+                            )))
+                            .loading(true)
+                            .color(rgb(p.accent)),
+                        )
+                        .into_any_element()
+                } else {
+                    icon(glyph, p.chrome_text).size(px(17.)).into_any_element()
+                }),
+        )
 }

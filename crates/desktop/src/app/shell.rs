@@ -1,4 +1,12 @@
-use gpui_kit::{base::TextSelection, prelude::*, *};
+use gpui_kit::{
+    base::TextSelection,
+    component::{
+        Sizable as _,
+        progress::{Progress, ProgressCircle},
+    },
+    prelude::*,
+    *,
+};
 
 use crate::i18n::tr;
 
@@ -14,6 +22,7 @@ impl Render for Client {
         let p = palette(cx);
         let modal = self.render_modal(window, cx);
         let tab = self.session.active_tab();
+        let is_busy = tab.is_some_and(Tab::is_busy) || self.session.opening;
         let body = if let Some(Tab::Ready(tab)) = tab {
             self.workspace(tab, window, cx).into_any_element()
         } else if let Some(Tab::Saved(tab)) = tab {
@@ -53,7 +62,23 @@ impl Render for Client {
                     .flex_1()
                     .min_h_0()
                     .overflow_hidden()
-                    .child(body),
+                    .child(body)
+                    .when(is_busy, |container| {
+                        container.child(
+                            div()
+                                .absolute()
+                                .top_0()
+                                .left_0()
+                                .right_0()
+                                .child(
+                                    Progress::new("workspace-busy-progress")
+                                        .loading(true)
+                                        .h(px(2.5))
+                                        .rounded(px(0.))
+                                        .color(rgb(p.accent)),
+                                ),
+                        )
+                    }),
             )
             .child(self.status_bar(tab, p))
             .children(modal)
@@ -305,9 +330,10 @@ impl Client {
 
     fn status_bar(&self, tab: Option<&Tab>, p: Palette) -> Div {
         let ready = tab.and_then(Tab::ready);
-        let (color, message) = if self.session.opening
-            || matches!(tab, Some(Tab::Saved(saved)) if saved.is_loading())
-        {
+        let opening =
+            self.session.opening || matches!(tab, Some(Tab::Saved(saved)) if saved.is_loading());
+        let active_spinner = opening || ready.is_some_and(|tab| tab.busy);
+        let (color, message) = if opening {
             (p.text_muted, tr!("app.status.opening"))
         } else if let Some(tab) = ready {
             if tab.busy {
@@ -343,9 +369,25 @@ impl Client {
             .child(
                 div()
                     .flex_1()
-                    .truncate()
-                    .text_color(rgb(color))
-                    .child(message),
+                    .min_w_0()
+                    .flex()
+                    .items_center()
+                    .gap(px(6.))
+                    .when(active_spinner, |row| {
+                        row.child(
+                            ProgressCircle::new("status-busy-spinner")
+                                .loading(true)
+                                .small()
+                                .color(rgb(p.accent)),
+                        )
+                    })
+                    .child(
+                        div()
+                            .flex_1()
+                            .truncate()
+                            .text_color(rgb(color))
+                            .child(message),
+                    ),
             )
             .when_some(ready, |element, tab| {
                 let snapshot = &tab.history.data.snapshot;

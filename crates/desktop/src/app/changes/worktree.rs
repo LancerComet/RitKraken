@@ -2,6 +2,7 @@ use gpui_kit::{
     component::{
         Sizable, Size as InputSize,
         input::{Input, Textarea},
+        progress::ProgressCircle,
         resizable::{resizable_panel, v_resizable},
     },
     prelude::*,
@@ -15,8 +16,9 @@ use super::{StageAction, StageTarget, change_count, files::FILE_ROW_HEIGHT};
 use crate::app::{
     Client, RepoOperation, RepoTab,
     message::branch_label,
+    session::ActiveOp,
     theme::palette,
-    widgets::{Tone, button},
+    widgets::{Tone, button, button_content},
 };
 
 const FILE_SECTION_HEADER_HEIGHT: Pixels = px(39.);
@@ -145,9 +147,21 @@ impl Client {
                 ),
             )
             .child(
-                button(
+                button_content(
                     ("commit", tab.id),
-                    label,
+                    div()
+                        .flex()
+                        .items_center()
+                        .gap(px(6.))
+                        .when(tab.active_op == Some(ActiveOp::Commit), |row| {
+                            row.child(
+                                ProgressCircle::new(("commit-spinner", tab.id))
+                                    .loading(true)
+                                    .small()
+                                    .color(rgb(palette(cx).success)),
+                            )
+                        })
+                        .child(div().truncate().child(label)),
                     Tone::Green,
                     tab.commit_enabled(cx),
                     cx,

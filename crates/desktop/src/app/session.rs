@@ -91,6 +91,17 @@ impl Tab {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum ActiveOp {
+    Fetch,
+    Push,
+    Branch,
+    Stash,
+    Pop,
+    Commit,
+    Other,
+}
+
 pub(super) struct RepoTab {
     pub(super) id: u64,
     pub(super) repo: Repo,
@@ -99,6 +110,7 @@ pub(super) struct RepoTab {
     pub(super) changes: ChangesState,
     pub(super) review: ReviewState,
     pub(super) busy: bool,
+    pub(super) active_op: Option<ActiveOp>,
     pub(super) notice: Option<(bool, Message)>,
 }
 
@@ -220,6 +232,7 @@ impl Client {
             changes: ChangesState::new(window, cx),
             review: ReviewState::new(&self.saved.preferences),
             busy: false,
+            active_op: None,
             notice: None,
         }));
         if let Some(tab) = self.session.entry_mut(id) {
