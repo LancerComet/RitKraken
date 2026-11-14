@@ -14,12 +14,12 @@ use gpui_kit::{
     prelude::*,
     *,
 };
-use ritkraken_git::{RefKind, Reference};
+use ritkraken_git::{RefKind, RefRequest, Reference};
 
 use crate::i18n::{LocalizedInput, tr};
 
 use super::{
-    Client, RepoOperation, RepoTab,
+    Client, RepoTab,
     theme::{Palette, palette},
     widgets::{Tone, button, heading, icon},
 };
@@ -368,10 +368,12 @@ impl Client {
             }
             let checked = snapshot.is_current_branch(reference);
             let selected = tab.history.selected.as_ref() == Some(&reference.id);
-            let branch = reference.name.clone();
-            let oid = reference.id.clone();
+            let target = reference.clone();
             let row = div()
-                .id(SharedString::from(format!("{title}/ref/{branch}")))
+                .id(SharedString::from(format!(
+                    "{title}/ref/{}",
+                    reference.name
+                )))
                 .h(px(25.))
                 .mx(px(6.))
                 .pr(px(8.))
@@ -394,17 +396,18 @@ impl Client {
                     }))
                 })
                 .on_click(cx.listener(move |this, click: &ClickEvent, window, cx| {
-                    if click.click_count() == 2 && kind == RefKind::Local && !checked {
-                        this.update_repo(
-                            tab_id,
-                            Some(RepoOperation::Switch(branch.clone())),
-                            window,
-                            cx,
-                        );
+                    if click.click_count() == 2
+                        && matches!(kind, RefKind::Local | RefKind::Remote)
+                        && !checked
+                    {
+                        let Some(tab) = this.tab(tab_id) else { return };
+                        let request =
+                            RefRequest::checkout(&tab.history.data.snapshot, target.clone());
+                        this.run_ref_action(tab_id, request, window, cx);
                     } else {
                         this.select(
                             tab_id,
-                            Some(oid.clone()),
+                            Some(target.id.clone()),
                             Some(ScrollStrategy::Center),
                             window,
                             cx,

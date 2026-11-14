@@ -250,13 +250,22 @@ fn reference_checkout_and_tracking_branch_use_the_selected_reference() {
         repo.snapshot(None).unwrap().branch.as_deref(),
         Some("topic")
     );
-    repo.apply_ref_operation(&request(
-        &repo,
-        RefKind::Remote,
-        "origin/nested/topic",
-        RefOperation::Track("local/topic".into()),
-    ))
-    .unwrap();
+    let snapshot = repo.snapshot(None).unwrap();
+    let remote = snapshot
+        .refs
+        .iter()
+        .find(|reference| {
+            reference.kind == RefKind::Remote && reference.name == "origin/nested/topic"
+        })
+        .unwrap()
+        .clone();
+    let mut checkout = RefRequest::checkout(&snapshot, remote);
+    let RefOperation::Track(name) = &mut checkout.operation else {
+        panic!("remote checkout must request a local tracking branch")
+    };
+    assert_eq!(name, "nested/topic");
+    *name = "local/topic".into();
+    repo.apply_ref_operation(&checkout).unwrap();
     let snapshot = repo.snapshot(None).unwrap();
     assert_eq!(snapshot.branch.as_deref(), Some("local/topic"));
     assert_eq!(

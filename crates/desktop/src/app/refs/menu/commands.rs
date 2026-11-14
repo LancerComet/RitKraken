@@ -7,14 +7,18 @@ use crate::{
 };
 
 impl Client {
-    pub(super) fn run_ref_action(
+    pub(in crate::app::refs) fn run_ref_action(
         &mut self,
         id: u64,
         request: RefRequest,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if self.session.active != Some(id) || !self.tab(id).is_some_and(|tab| !tab.busy) {
+        if self.session.active != Some(id)
+            || !self.tab(id).is_some_and(|tab| {
+                !tab.busy && tab.rebase.is_none() && tab.history.data.snapshot.sequence.is_none()
+            })
+        {
             return;
         }
         match &request.operation {

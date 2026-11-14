@@ -22,6 +22,18 @@ pub struct RefRequest {
 }
 
 impl RefRequest {
+    pub fn checkout(snapshot: &Snapshot, reference: Reference) -> Self {
+        let operation = if reference.kind == RefKind::Remote {
+            let name = remote_branch(&reference.name, &snapshot.remotes)
+                .map_or(reference.name.as_str(), |(_, name)| name)
+                .to_owned();
+            RefOperation::Track(name)
+        } else {
+            RefOperation::Checkout
+        };
+        Self::new(snapshot, reference, operation)
+    }
+
     pub fn new(snapshot: &Snapshot, reference: Reference, operation: RefOperation) -> Self {
         Self {
             reference,

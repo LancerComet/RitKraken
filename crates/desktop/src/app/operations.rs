@@ -28,7 +28,6 @@ pub(super) enum RepoOperation {
     IgnoreFile(Change, git::IgnoreRule, bool),
     StashFile(Change),
     Commit(String, String),
-    Switch(String),
     Fetch(Option<String>),
     AddRemote(git::NewRemote),
     AutoFetch(Duration),
@@ -56,7 +55,7 @@ impl RepoOperation {
                         ..
                     }
             ),
-            Self::Switch(_) | Self::Stash | Self::Pop => true,
+            Self::Stash | Self::Pop => true,
             _ => false,
         }
     }
@@ -81,7 +80,6 @@ impl RepoOperation {
             }
             Self::StashFile(change) => repo.stash_file(change),
             Self::Commit(summary, description) => repo.commit(summary, description),
-            Self::Switch(branch) => repo.switch(branch),
             Self::Fetch(remote) => repo.fetch(remote.as_deref()),
             Self::AddRemote(remote) => repo.add_remote(remote),
             Self::AutoFetch(timeout) => repo.auto_fetch_with_timeout(*timeout),
@@ -112,7 +110,6 @@ impl RepoOperation {
                 (true, PatchSelection::Line { .. }) => "app.notice.line_unstaged",
             },
             Self::Commit(..) => "app.notice.committed",
-            Self::Switch(_) => "app.notice.switched",
             Self::Fetch(_) | Self::AutoFetch(_) => "app.notice.fetched",
             Self::AddRemote(_) => "app.notice.remote_added",
             Self::Push { .. } => "app.notice.pushed",

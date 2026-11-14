@@ -139,17 +139,16 @@ impl RefMenu {
                     .disabled(true),
             );
         } else {
-            let (label, operation) = match reference.kind {
-                RefKind::Remote => {
-                    let name = ritkraken_git::remote_branch(&reference.name, &snapshot.remotes)
-                        .map_or(reference.name.as_str(), |(_, name)| name)
-                        .to_owned();
-                    (tr!("app.ref_menu.track"), RefOperation::Track(name))
-                }
-                RefKind::Local => (tr!("app.ref_menu.checkout"), RefOperation::Checkout),
-                RefKind::Tag => (tr!("app.ref_menu.checkout_tag"), RefOperation::Checkout),
+            let label = match reference.kind {
+                RefKind::Remote => "app.ref_menu.track",
+                RefKind::Local => "app.ref_menu.checkout",
+                RefKind::Tag => "app.ref_menu.checkout_tag",
             };
-            menu = menu.item(self.operation_item(label, request(operation), reason.clone()));
+            menu = menu.item(self.operation_item(
+                tr!(label),
+                RefRequest::checkout(snapshot, reference.clone()),
+                reason.clone(),
+            ));
         }
         if reference.kind != RefKind::Remote {
             menu = menu.item(self.operation_item(

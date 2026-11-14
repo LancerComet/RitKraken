@@ -96,7 +96,7 @@ impl Repo {
             git.args(["-c", "credential.interactive=false"])
                 .env("GCM_INTERACTIVE", "0");
         }
-        git.arg("fetch");
+        git.args(["fetch", "--prune"]);
         if let Some(remote) = remote {
             self.ensure_remote(remote)?;
             git.arg("--").arg(remote);
