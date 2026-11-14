@@ -27,7 +27,7 @@ pub(super) struct FileMenu {
 enum FileAction {
     Stage,
     Discard,
-    Ignore(IgnoreRule),
+    Ignore(IgnoreRule, bool),
     Stash,
     Inspect(InspectionKind),
     Open,
@@ -63,57 +63,46 @@ impl FileMenu {
             .any(|change| change.path == self.file.change.path && change.code == b'A');
         let action = StageAction::for_scope(&self.file.scope);
         let ignore = self.clone();
-        let filename = self
-            .file
-            .change
-            .path
-            .file_name()
-            .unwrap_or_default()
-            .to_string_lossy()
-            .into_owned();
-        let extension = self
-            .file
-            .change
-            .path
-            .extension()
-            .map(|value| value.to_string_lossy().into_owned());
+        let stop_tracking = self.clone();
+        let tracked = self.file.scope == Scope::Index || self.file.change.code != b'?';
         menu_style(menu, window)
             .min_w(px(230.))
             .when_some(action, |menu, action| {
-                menu.item(self.item(action.label(StageTarget::Row), FileAction::Stage, enabled))
-                    .item(self.item(
-                        tr!("app.file_menu.discard"),
-                        FileAction::Discard,
-                        enabled && self.file.change.code != b'U',
-                    ))
-                    .submenu(
-                        tr!("app.file_menu.ignore"),
+                menu.item(self.item(
+                    if self.file.change.code == b'U' {
+                        tr!("app.conflicts.resolve")
+                    } else {
+                        action.label(StageTarget::Row)
+                    },
+                    FileAction::Stage,
+                    enabled,
+                ))
+                .item(self.item(
+                    tr!("app.file_menu.discard"),
+                    FileAction::Discard,
+                    enabled && self.file.change.code != b'U',
+                ))
+                .submenu(
+                    tr!("app.file_menu.ignore"),
+                    window,
+                    cx,
+                    move |menu, window, _| ignore.ignore_menu(menu, false, enabled, window),
+                )
+                .when(tracked, |menu| {
+                    menu.submenu(
+                        tr!("app.file_menu.ignore_stop_tracking"),
                         window,
                         cx,
                         move |menu, window, _| {
-                            menu_style(menu, window)
-                                .item(ignore.item(
-                                    tr!("app.file_menu.ignore_file", name = filename),
-                                    FileAction::Ignore(IgnoreRule::File),
-                                    enabled,
-                                ))
-                                .when_some(extension.as_ref(), |menu, extension| {
-                                    menu.item(ignore.item(
-                                        tr!(
-                                            "app.file_menu.ignore_extension",
-                                            extension = extension
-                                        ),
-                                        FileAction::Ignore(IgnoreRule::Extension),
-                                        enabled,
-                                    ))
-                                })
+                            stop_tracking.ignore_menu(menu, true, enabled, window)
                         },
                     )
-                    .item(self.item(
-                        tr!("app.file_menu.stash"),
-                        FileAction::Stash,
-                        enabled && has_head && self.file.change.code != b'U',
-                    ))
+                })
+                .item(self.item(
+                    tr!("app.file_menu.stash"),
+                    FileAction::Stash,
+                    enabled && has_head && self.file.change.code != b'U',
+                ))
             })
             .separator()
             .item(self.item(
@@ -165,6 +154,35 @@ impl FileMenu {
                 });
             })
     }
+
+    fn ignore_menu(
+        &self,
+        menu: PopupMenu,
+        stop_tracking: bool,
+        enabled: bool,
+        window: &Window,
+    ) -> PopupMenu {
+        let path = &self.file.change.path;
+        menu_style(menu, window)
+            .item(self.item(
+                tr!(
+                    "app.file_menu.ignore_file",
+                    name = path.file_name().unwrap_or_default().to_string_lossy()
+                ),
+                FileAction::Ignore(IgnoreRule::File, stop_tracking),
+                enabled,
+            ))
+            .when_some(path.extension(), |menu, extension| {
+                menu.item(self.item(
+                    tr!(
+                        "app.file_menu.ignore_extension",
+                        extension = extension.to_string_lossy()
+                    ),
+                    FileAction::Ignore(IgnoreRule::Extension, stop_tracking),
+                    enabled,
+                ))
+            })
+    }
 }
 
 impl Client {
@@ -186,6 +204,10 @@ impl Client {
             )),
             _ if tab.busy => {}
             FileAction::Stage => {
+                if file.change.code == b'U' {
+                    self.open_diff(id, file, window, cx);
+                    return;
+                }
                 if let Some(stage) = StageAction::for_scope(&file.scope) {
                     self.update_repo(
                         id,
@@ -195,8 +217,13 @@ impl Client {
                     );
                 }
             }
-            FileAction::Discard => self.confirm_discard_file(id, file, window, cx),
-            FileAction::Ignore(rule) => self.confirm_ignore_file(id, file, rule, window, cx),
+            FileAction::Discard => self.discard_file(id, file, window, cx),
+            FileAction::Ignore(rule, stop_tracking) => self.update_repo(
+                id,
+                Some(RepoOperation::IgnoreFile(file.change, rule, stop_tracking)),
+                window,
+                cx,
+            ),
             FileAction::Stash => {
                 self.update_repo(id, Some(RepoOperation::StashFile(file.change)), window, cx)
             }
@@ -214,7 +241,7 @@ impl Client {
         }
     }
 
-    fn confirm_discard_file(
+    fn discard_file(
         &mut self,
         id: u64,
         file: FileTarget,
@@ -229,11 +256,11 @@ impl Client {
         Self::spawn_background(
             window,
             cx,
-            move || repo.prepare_discard(&file).map(|expected| (expected, file)),
+            move || repo.prepare_discard(&file),
             move |this, result, window, cx| {
                 let Some(tab) = this.tab_mut(id) else { return };
                 tab.busy = false;
-                let (expected, file) = match result {
+                let expected = match result {
                     Ok(value) => value,
                     Err(error) => {
                         tab.notify(Notice::failure(error), window, cx);
@@ -241,88 +268,16 @@ impl Client {
                         return;
                     }
                 };
-                let detail = tr!(
-                    match file.scope {
-                        Scope::Index => "app.file_menu.discard_staged_detail",
-                        _ if file.change.code == b'?' => "app.file_menu.discard_untracked_detail",
-                        _ => "app.file_menu.discard_detail",
-                    },
-                    path = file.change.path.display()
-                );
-                let prompt = window.prompt(
-                    PromptLevel::Warning,
-                    &tr!("app.file_menu.discard_title"),
-                    Some(&detail),
-                    &[
-                        PromptButton::cancel(tr!("app.common.cancel")),
-                        PromptButton::ok(tr!("app.file_menu.discard")),
-                    ],
+                this.update_repo(
+                    id,
+                    Some(RepoOperation::DiscardFile(Arc::new(expected))),
+                    window,
                     cx,
                 );
-                cx.spawn_in(window, async move |view, cx| {
-                    if prompt.await == Ok(1) {
-                        let _ = view.update_in(cx, |this, window, cx| {
-                            this.update_repo(
-                                id,
-                                Some(RepoOperation::DiscardFile(Arc::new(expected))),
-                                window,
-                                cx,
-                            )
-                        });
-                    }
-                })
-                .detach();
                 cx.notify();
             },
         );
         cx.notify();
-    }
-
-    fn confirm_ignore_file(
-        &mut self,
-        id: u64,
-        file: FileTarget,
-        rule: IgnoreRule,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        if file.change.code == b'?' && file.scope == Scope::Worktree {
-            self.update_repo(
-                id,
-                Some(RepoOperation::IgnoreFile(file.change, rule, false)),
-                window,
-                cx,
-            );
-            return;
-        }
-        let detail = tr!(
-            "app.file_menu.ignore_tracked_detail",
-            path = file.change.path.display()
-        );
-        let prompt = window.prompt(
-            PromptLevel::Info,
-            &tr!("app.file_menu.ignore"),
-            Some(&detail),
-            &[
-                PromptButton::cancel(tr!("app.common.cancel")),
-                PromptButton::ok(tr!("app.file_menu.ignore")),
-                PromptButton::new(tr!("app.file_menu.ignore_stop_tracking")),
-            ],
-            cx,
-        );
-        cx.spawn_in(window, async move |view, cx| {
-            if let Ok(answer @ (1 | 2)) = prompt.await {
-                let _ = view.update_in(cx, |this, window, cx| {
-                    this.update_repo(
-                        id,
-                        Some(RepoOperation::IgnoreFile(file.change, rule, answer == 2)),
-                        window,
-                        cx,
-                    )
-                });
-            }
-        })
-        .detach();
     }
 
     fn export_file_patch(

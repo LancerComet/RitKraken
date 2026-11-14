@@ -33,8 +33,28 @@ impl FileReview {
         loaded: LoadedDiff,
         layout: DiffLayout,
         retained: Option<Entity<DiffState>>,
+        id: u64,
+        window: &mut Window,
         cx: &mut Context<Client>,
     ) {
+        if let Some(expected) = loaded.conflict {
+            self.patch = Load::Ready(loaded.patch);
+            self.viewer = None;
+            if let Some(view) = &self.conflict
+                && view.read(cx).dirty
+            {
+                view.update(cx, |view, cx| {
+                    view.stale = true;
+                    cx.notify();
+                });
+            } else {
+                self.conflict = Some(super::conflicts::ConflictReview::new(
+                    id, expected, window, cx,
+                ));
+            }
+            return;
+        }
+        self.conflict = None;
         let line = loaded.patch.first_context_line();
         let stageable = loaded.patch.hunk_count() > 0;
         self.patch = Load::Ready(loaded.patch);

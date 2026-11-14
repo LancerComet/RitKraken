@@ -4,6 +4,7 @@ extern crate self as ritkraken_git;
 mod command;
 mod commit_ops;
 mod config;
+mod conflicts;
 mod diff;
 mod error;
 mod history;
@@ -21,6 +22,7 @@ pub use commit_ops::{
     SequenceProgress, compose_squash_message, run_git_editor,
 };
 pub use config::global_config_path;
+pub use conflicts::{ConflictFile, ConflictResolution, ConflictVersion, has_conflict_markers};
 pub use diff::{
     ExportedFile, FileTarget, PATCH_VIEW_LIMIT, Patch, PatchSelection, PatchSide, Scope,
     align_changed_lines, edge_whitespace_key,

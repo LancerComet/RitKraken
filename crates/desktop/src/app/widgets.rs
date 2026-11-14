@@ -20,6 +20,7 @@ pub(super) enum Tone {
     Primary,
     Green,
     Red,
+    Warning,
     Dark,
 }
 
@@ -55,6 +56,7 @@ impl Tone {
                 Some(p.danger_border),
                 p.danger_hover,
             ),
+            Self::Warning => (Some(p.warning_bg), p.warning, Some(p.warning), p.warning_bg),
             Self::Dark => (None, p.chrome_text, None, p.chrome_hover),
         }
     }

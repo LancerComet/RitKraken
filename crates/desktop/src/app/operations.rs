@@ -1,5 +1,4 @@
 mod auto_fetch;
-mod confirm;
 mod updates;
 
 pub(super) use updates::RepoUpdates;
@@ -24,6 +23,7 @@ pub(super) enum RepoOperation {
     CommitGraph(Arc<git::PreparedCommitOperation>),
     StageFiles(StageAction, Option<Change>),
     StagePatch(FileTarget, Arc<Patch>, PatchSelection),
+    ResolveConflict(Arc<git::ConflictFile>, git::ConflictResolution),
     DiscardFile(Arc<git::DiscardFile>),
     IgnoreFile(Change, git::IgnoreRule, bool),
     StashFile(Change),
@@ -70,6 +70,7 @@ impl RepoOperation {
             Self::StageFiles(StageAction::Stage, change) => repo.stage(change.as_ref()),
             Self::StageFiles(StageAction::Unstage, change) => repo.unstage(change.as_ref()),
             Self::StagePatch(file, patch, selection) => repo.apply_partial(file, patch, *selection),
+            Self::ResolveConflict(file, resolution) => repo.resolve_conflict(file, resolution),
             Self::DiscardFile(expected) => repo.discard_file(expected),
             Self::IgnoreFile(change, rule, stop_tracking) => {
                 repo.ignore_file(change, *rule)?;
@@ -96,8 +97,14 @@ impl RepoOperation {
     fn status_key(&self) -> &'static str {
         match self {
             Self::Reference(_) => "app.ref_menu.completed",
+            Self::CommitGraph(operation)
+                if matches!(operation.operation, git::CommitOperation::CherryPick { .. }) =>
+            {
+                "app.notice.cherry_picked"
+            }
             Self::CommitGraph(_) => "app.commit_menu.completed",
             Self::StageFiles(StageAction::Stage, _) => "app.notice.staged",
+            Self::ResolveConflict(..) => "app.conflicts.resolved",
             Self::StageFiles(StageAction::Unstage, _) => "app.notice.unstaged",
             Self::DiscardFile(_) => "app.file_menu.discarded",
             Self::IgnoreFile(_, _, false) => "app.file_menu.ignored",
@@ -276,6 +283,38 @@ impl Client {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        let entering_conflict = result.as_ref().is_some_and(|(result, operation)| {
+            result.is_err()
+                && match operation {
+                    RepoOperation::CommitGraph(prepared) => matches!(
+                        prepared.operation,
+                        git::CommitOperation::CherryPick { .. }
+                            | git::CommitOperation::Revert { .. }
+                            | git::CommitOperation::Merge
+                            | git::CommitOperation::Rebase
+                            | git::CommitOperation::InteractiveRebase(_)
+                            | git::CommitOperation::Continue
+                    ),
+                    RepoOperation::Pop | RepoOperation::StashFile(_) => true,
+                    _ => false,
+                }
+        });
+        let conflict_file = if entering_conflict {
+            history
+                .as_ref()
+                .ok()
+                .and_then(|(history, _)| {
+                    history
+                        .snapshot
+                        .status
+                        .unstaged
+                        .iter()
+                        .find(|file| file.code == b'U')
+                })
+                .cloned()
+        } else {
+            None
+        };
         if let Some((Ok(()), RepoOperation::CommitGraph(prepared))) = &result
             && let git::CommitOperation::CreateBranch { name, .. } = &prepared.operation
         {
@@ -287,7 +326,7 @@ impl Client {
         tab.busy = false;
         tab.active_op = None;
         let mut committed = false;
-        let mut reset_selection = false;
+        let mut reset_selection = conflict_file.is_some();
         let mut finished_rebase = false;
         let mut notice = None;
         if let Some((result, edit)) = result {
@@ -310,7 +349,13 @@ impl Client {
                             .update(cx, |input, cx| input.set_value("", window, cx));
                     }
                 }
-                Err(error) => notice = Some(Notice::failure(error)),
+                Err(error) => {
+                    notice = Some(if conflict_file.is_some() {
+                        Notice::info(Message::Key("app.conflicts.paused"))
+                    } else {
+                        Notice::failure(error)
+                    })
+                }
             }
         }
         let mut changed = was_busy;
@@ -358,11 +403,8 @@ impl Client {
                 }
             }
         }
-        if tab.history.data.snapshot.sequence.is_some()
-            && !notice.as_ref().is_some_and(Notice::is_problem)
-            && (notice.is_some() || !was_paused)
-        {
-            notice = Some(Notice::warning(Message::Key("app.commit_menu.paused")));
+        if tab.history.data.snapshot.sequence.is_some() && notice.is_none() && !was_paused {
+            notice = Some(Notice::info(Message::Key("app.commit_menu.paused")));
         }
         if let Some(notice) = notice {
             tab.notify(notice, window, cx);
@@ -414,6 +456,17 @@ impl Client {
             .is_some_and(|oid| !tab.active_history().position.contains_key(oid))
         {
             self.select(id, initial_selection, None, window, cx);
+        }
+        if let Some(change) = conflict_file.filter(|_| self.session.active == Some(id)) {
+            self.open_diff(
+                id,
+                FileTarget {
+                    scope: Scope::Worktree,
+                    change,
+                },
+                window,
+                cx,
+            );
         }
         self.resume_toolbar_branch(id, window, cx);
         if changed {

@@ -16,6 +16,7 @@ mod settings;
 mod shell;
 mod shortcuts;
 mod system;
+mod tabs;
 mod theme;
 mod toolbar;
 mod watch;

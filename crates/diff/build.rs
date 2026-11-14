@@ -30,6 +30,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         fs::copy(source, generated.join(file))?;
     }
     for name in [
+        "conflict-output.patch",
         "split-viewport.patch",
         "change-controls.patch",
         "edge-whitespace.patch",

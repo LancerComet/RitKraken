@@ -322,7 +322,7 @@ pub(in crate::app) fn sequence_control_bar(
                     button(
                         ("seq-abort", id),
                         tr!("app.rebase.seq_abort"),
-                        Tone::Outline,
+                        Tone::Red,
                         !busy && has_head,
                         cx,
                         cx.listener(move |this, _, window, cx| {
@@ -339,7 +339,7 @@ pub(in crate::app) fn sequence_control_bar(
                         button(
                             ("seq-skip", id),
                             tr!("app.rebase.seq_skip"),
-                            Tone::Outline,
+                            Tone::Warning,
                             !busy && has_head,
                             cx,
                             cx.listener(move |this, _, window, cx| {

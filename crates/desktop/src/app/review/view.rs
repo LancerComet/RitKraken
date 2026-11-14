@@ -108,13 +108,29 @@ impl Client {
     ) -> Div {
         let p = palette(cx);
         let id = tab.id;
+        let sequence = tab
+            .history
+            .data
+            .snapshot
+            .sequence
+            .filter(|kind| *kind != ritkraken_git::SequenceKind::Other)
+            .map(|kind| crate::app::history::rebase::sequence_control_bar(tab, kind, cx));
+        if let Some(conflict) = &review.conflict {
+            return div()
+                .size_full()
+                .flex()
+                .flex_col()
+                .children(sequence)
+                .child(div().flex_1().min_h_0().child(conflict.clone()));
+        }
         let scope = tr!(match &review.file.scope {
             Scope::Worktree => "app.review.worktree",
             Scope::Index => "app.review.index",
             Scope::Commit { .. } => "app.review.commit",
         });
         let mark = change_mark(review.file.change.code, p);
-        let stage_action = StageAction::for_scope(&review.file.scope);
+        let stage_action =
+            StageAction::for_scope(&review.file.scope).filter(|_| review.file.change.code != b'U');
         let active_layout = (!review.show_source).then_some(tab.review.layout);
         let can_navigate = !review.show_source && review.viewer.is_some();
         let change = review.file.change.clone();
@@ -149,6 +165,7 @@ impl Client {
             .size_full()
             .flex()
             .flex_col()
+            .children(sequence)
             .bg(rgb(p.canvas))
             .text_color(rgb(p.text))
             .child(

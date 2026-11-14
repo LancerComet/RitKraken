@@ -6,7 +6,7 @@ use crate::{
 
 use super::{CommitContext, CommitOperation, CommitRelation, GitEditor, ResetMode, SequenceKind};
 
-/// Captures the repository state reviewed in the confirmation dialog. The
+/// Captures the repository state for the selected operation. The
 /// operation is checked again immediately before Git is allowed to mutate it.
 #[derive(Clone, Debug)]
 pub struct PreparedCommitOperation {
@@ -134,18 +134,22 @@ impl Repo {
                 git.args(["switch", "--detach", "--no-recurse-submodules", target]);
             }
             CommitOperation::CherryPick { mainline } | CommitOperation::Revert { mainline } => {
-                git.arg(
-                    if matches!(expected.operation, CommitOperation::CherryPick { .. }) {
-                        "cherry-pick"
-                    } else {
-                        "revert"
-                    },
-                )
-                .arg("--no-edit");
+                let cherry_pick = matches!(expected.operation, CommitOperation::CherryPick { .. });
+                git.args(if cherry_pick {
+                    ["cherry-pick", "--no-commit"]
+                } else {
+                    ["revert", "--no-edit"]
+                });
                 if let Some(parent) = mainline {
                     git.args(["--mainline", &parent.to_string()]);
                 }
-                git.arg(target);
+                if cherry_pick {
+                    // A one-commit revision walk retains Git's sequencer state
+                    // for conflict resolution, skipping, and aborting, even for a root.
+                    git.arg("--do-walk").arg(format!("{target}^!"));
+                } else {
+                    git.arg(target);
+                }
             }
             CommitOperation::Merge => {
                 git.args(["merge", "--no-edit", "--no-stat", "--no-autostash"]);
@@ -199,6 +203,12 @@ impl Repo {
             }
             CommitOperation::Continue | CommitOperation::Skip | CommitOperation::Abort => {
                 let sequence = context.sequence.ok_or(RuleError::CommitUnavailable)?;
+                if sequence == SequenceKind::CherryPick
+                    && matches!(expected.operation, CommitOperation::Continue)
+                    && self.finish_applied_cherry_pick()?
+                {
+                    return Ok(());
+                }
                 let command = match sequence {
                     SequenceKind::Merge => "merge",
                     SequenceKind::Rebase => "rebase",

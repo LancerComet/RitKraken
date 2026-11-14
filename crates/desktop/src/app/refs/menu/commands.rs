@@ -1,5 +1,5 @@
 use gpui_kit::*;
-use ritkraken_git::{RefKind, RefOperation, RefRequest};
+use ritkraken_git::{RefOperation, RefRequest};
 
 use crate::{
     app::{Client, RepoOperation, widgets::name_dialog::NameDialog},
@@ -57,27 +57,8 @@ impl Client {
                     },
                 );
             }
-            RefOperation::Checkout => {
+            RefOperation::Checkout | RefOperation::Delete => {
                 self.update_repo(id, Some(RepoOperation::Reference(request)), window, cx)
-            }
-            RefOperation::Delete => {
-                let title = super::delete_label(&request.reference);
-                let detail = tr!(
-                    if request.reference.kind == RefKind::Remote {
-                        "app.ref_menu.confirm_remote"
-                    } else {
-                        "app.ref_menu.confirm_delete"
-                    },
-                    name = &request.reference.name
-                );
-                self.confirm_repo_operation(
-                    id,
-                    RepoOperation::Reference(request),
-                    &title,
-                    &detail,
-                    window,
-                    cx,
-                );
             }
         }
     }

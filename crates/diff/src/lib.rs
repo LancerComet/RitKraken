@@ -50,8 +50,8 @@ mod highlighter {
 use gpui_component::Rope;
 
 pub use diff::{
-    Diff, DiffFile, DiffHunkSeparator, DiffLinePosition, DiffMode, DiffParseOptions, DiffSide,
-    DiffState,
+    Diff, DiffConflictResolution, DiffFile, DiffHunkSeparator, DiffLinePosition, DiffMode,
+    DiffParseOptions, DiffSide, DiffState,
 };
 pub use overview::{DiffChangeKind, DiffOverview, DiffOverviewSpan};
 pub use search::{DiffSearch, DiffSearchLabels, DiffSearchMatch};

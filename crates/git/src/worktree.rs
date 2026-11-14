@@ -52,6 +52,7 @@ impl Repo {
     }
 
     pub fn stage(&self, change: Option<&Change>) -> Result<()> {
+        self.check_conflict_staging(change)?;
         let mut git = self.git_with_literal_paths();
         git.args(["add", "-A", "--"]);
         if let Some(change) = change {

@@ -3,6 +3,7 @@ mod execute;
 mod inspect;
 pub(crate) mod menu;
 mod rebase;
+mod sequencer;
 mod topology;
 
 use crate::{Commit, Reference};

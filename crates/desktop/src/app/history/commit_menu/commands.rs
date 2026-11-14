@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use gpui_kit::*;
-use ritkraken_git::{self as git, CommitContext, CommitMenuState, CommitOperation, ResetMode};
+use ritkraken_git::{self as git, CommitContext, CommitMenuState, CommitOperation};
 
 use super::{GraphAction, compare::CommitComparison, dialog::CommitDialog, reset_label};
 use crate::{
@@ -138,7 +138,7 @@ impl Client {
                         CommitDialog::open(id, context, operation, window, cx)
                     }
                     Ok((context, operation)) => {
-                        this.prepare_graph_operation(id, context, operation, reviewed, window, cx)
+                        this.prepare_graph_operation(id, context, operation, window, cx)
                     }
                     Err(error) => tab.notify(Notice::failure(error), window, cx),
                 }
@@ -153,7 +153,6 @@ impl Client {
         id: u64,
         context: Arc<CommitContext>,
         operation: CommitOperation,
-        reviewed: bool,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
@@ -178,55 +177,8 @@ impl Client {
                         return;
                     }
                 };
-                let immediate = (reviewed
-                    || matches!(
-                        prepared.operation,
-                        CommitOperation::Switch(_) | CommitOperation::Continue
-                    ))
-                    && prepared.published.is_empty();
-                if immediate {
-                    tab.busy = false;
-                    this.update_repo(id, Some(RepoOperation::CommitGraph(prepared)), window, cx);
-                    return;
-                }
-                let title = operation_title(&prepared.operation, &prepared.context);
-                let branch = prepared.context.branch.as_deref().unwrap_or("HEAD");
-                let mut detail = tr!(
-                    "app.commit_menu.confirm_detail",
-                    repository = tab.repo.name(),
-                    branch = branch,
-                    head = git::short_id(&prepared.context.head),
-                    target = git::short_id(&prepared.context.commit.id),
-                    subject = &prepared.context.commit.subject
-                );
-                if prepared.affected_count > 0 {
-                    detail.push_str(&format!(
-                        "\n\n{}",
-                        tr!("app.commit_menu.affected", count = prepared.affected_count)
-                    ));
-                }
-                if !prepared.published.is_empty() {
-                    detail.push_str(&format!(
-                        "\n\n{}",
-                        tr!(
-                            "app.commit_menu.published",
-                            refs = prepared.published.join(", ")
-                        )
-                    ));
-                }
-                if matches!(prepared.operation, CommitOperation::Reset(ResetMode::Hard)) {
-                    detail.push_str(&format!("\n\n{}", tr!("app.commit_menu.hard_detail")));
-                }
-                // Transfer the preparation reservation to the shared confirmation in this UI turn.
                 tab.busy = false;
-                this.confirm_repo_operation(
-                    id,
-                    RepoOperation::CommitGraph(prepared),
-                    &title,
-                    &detail,
-                    window,
-                    cx,
-                );
+                this.update_repo(id, Some(RepoOperation::CommitGraph(prepared)), window, cx);
             },
         );
         cx.notify();

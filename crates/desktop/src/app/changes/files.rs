@@ -160,13 +160,29 @@ impl Client {
                                 row.child(
                                     button(
                                         ("file-stage", index),
-                                        action.label(StageTarget::Row),
+                                        if stage_change.code == b'U' {
+                                            tr!("app.conflicts.resolve")
+                                        } else {
+                                            action.label(StageTarget::Row)
+                                        },
                                         Tone::Plain,
                                         !busy,
                                         cx,
                                         move |_, window, cx| {
                                             cx.stop_propagation();
                                             let _ = stage_view.update(cx, |this, cx| {
+                                                if stage_change.code == b'U' {
+                                                    this.open_diff(
+                                                        id,
+                                                        FileTarget {
+                                                            scope: Scope::Worktree,
+                                                            change: stage_change.clone(),
+                                                        },
+                                                        window,
+                                                        cx,
+                                                    );
+                                                    return;
+                                                }
                                                 let edit = RepoOperation::StageFiles(
                                                     action,
                                                     Some(stage_change.clone()),

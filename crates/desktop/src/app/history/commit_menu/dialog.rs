@@ -89,7 +89,7 @@ impl CommitDialog {
         let id = self.id;
         self.modal.close(window, cx);
         let _ = self.owner.update(cx, |client, cx| {
-            client.prepare_graph_operation(id, context, operation, true, window, cx)
+            client.prepare_graph_operation(id, context, operation, window, cx)
         });
     }
 }

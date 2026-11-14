@@ -184,6 +184,7 @@ impl Client {
         let p = palette(cx);
         let id = tab.id;
         let action = StageAction::for_scope(&scope).filter(|_| !files.is_empty());
+        let conflict = files.iter().find(|file| file.code == b'U').cloned();
         div()
             .flex_1()
             .min_h_0()
@@ -211,11 +212,27 @@ impl Client {
                         e.child(
                             button(
                                 title_key,
-                                action.label(StageTarget::All),
+                                if conflict.is_some() {
+                                    tr!("app.conflicts.resolve")
+                                } else {
+                                    action.label(StageTarget::All)
+                                },
                                 action.tone(),
                                 !tab.busy,
                                 cx,
                                 cx.listener(move |this, _, window, cx| {
+                                    if let Some(change) = &conflict {
+                                        this.open_diff(
+                                            id,
+                                            ritkraken_git::FileTarget {
+                                                scope: Scope::Worktree,
+                                                change: change.clone(),
+                                            },
+                                            window,
+                                            cx,
+                                        );
+                                        return;
+                                    }
                                     let edit = RepoOperation::StageFiles(action, None);
                                     this.update_repo(id, Some(edit), window, cx);
                                 }),

@@ -56,10 +56,6 @@ impl Notice {
         Self { level, message }
     }
 
-    pub(super) fn is_problem(&self) -> bool {
-        self.level != Level::Info
-    }
-
     pub(super) fn is_error(&self) -> bool {
         self.level == Level::Error
     }

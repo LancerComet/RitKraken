@@ -172,7 +172,8 @@ fn cherry_pick_conflicts_support_continue_after_resolution_and_skip() {
                 fs::read_to_string(repo.root().join("a")).unwrap(),
                 "resolved\n"
             );
-            assert_ne!(head(&repo), main);
+            assert_eq!(head(&repo), main);
+            assert_eq!(git(&repo, &["show", ":a"]), "resolved\n");
         }
         assert!(repo.sequence_kind().unwrap().is_none());
     }

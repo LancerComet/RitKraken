@@ -18,6 +18,12 @@ pub struct DiscardFile {
     worktree: Vec<WorktreeVersion>,
 }
 
+impl DiscardFile {
+    pub(crate) fn index(&self) -> &[u8] {
+        &self.index
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 enum WorktreeVersion {
     Missing,
@@ -113,7 +119,7 @@ impl Repo {
         run_write(&mut git)
     }
 
-    pub(super) fn verify_discard(&self, expected: &DiscardFile) -> Result<()> {
+    pub(crate) fn verify_discard(&self, expected: &DiscardFile) -> Result<()> {
         if self.prepare_discard(&expected.file)? != *expected {
             return Err(RuleError::StaleFile.into());
         }

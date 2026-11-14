@@ -12,12 +12,14 @@ use super::{
     operations::RepoUpdates,
     refs::ReferenceState,
     review::ReviewState,
+    tabs::TabStripState,
 };
 
 #[derive(Default)]
 pub(super) struct Session {
     pub(super) tabs: Vec<Tab>,
     pub(super) active: Option<u64>,
+    pub(super) tab_strip: TabStripState,
     next_tab: u64,
     pub(super) opening: bool,
 }
@@ -135,10 +137,11 @@ impl RepoTab {
 
 impl Client {
     pub(super) fn show_tab(&mut self, id: u64, window: &mut Window, cx: &mut Context<Self>) {
-        if self.session.entry(id).is_none() {
+        let Some(index) = self.session.tabs.iter().position(|tab| tab.id() == id) else {
             return;
-        }
+        };
         self.session.active = Some(id);
+        self.session.tab_strip.reveal(index);
         self.branch_editor.clear();
         self.dismiss_modal(window, cx);
         self.load_saved_tab(id, window, cx);

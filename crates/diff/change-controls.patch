@@ -1,17 +1,19 @@
 --- a/diff/document.rs
 +++ b/diff/document.rs
-@@ -396,6 +396,7 @@ struct DocumentInner {
+@@ -396,7 +396,8 @@ struct DocumentInner {
  pub struct DiffFile {
      inner: Arc<DocumentInner>,
      language: Option<SharedString>,
+     conflict_source: Option<SharedString>,
 +    hunk_headings: Option<Arc<[crate::controls::HunkHeading]>>,
  }
  
  impl DiffFile {
-@@ -466,6 +467,27 @@ impl DiffFile {
+@@ -466,7 +467,28 @@ impl DiffFile {
                  conflicts: Vec::new(),
              }),
              language: None,
+             conflict_source: None,
 +            hunk_headings: None,
 +        }
 +    }

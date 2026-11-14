@@ -530,7 +530,6 @@ impl Client {
             id,
             context,
             CommitOperation::InteractiveRebase(plan),
-            true,
             window,
             cx,
         );

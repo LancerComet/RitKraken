@@ -27,6 +27,10 @@ impl Client {
         };
         let source_requested = current.source.is_some();
         let source_text = current.source_text.clone();
+        let previous_conflict = current
+            .conflict
+            .as_ref()
+            .map(|view| view.read(cx).expected.clone());
         let repo = tab.repo.clone();
         let ignore = tab.review.ignore_edge_whitespace;
         let request = tab.review.request;
@@ -36,7 +40,13 @@ impl Client {
             window,
             cx,
             move || {
-                let loaded = load_diff(&repo, &file, ignore, previous.as_deref())?;
+                let loaded = load_diff(
+                    &repo,
+                    &file,
+                    ignore,
+                    previous.as_deref(),
+                    previous_conflict.as_deref(),
+                )?;
                 let source = (source_requested && loaded.is_some())
                     .then(|| load_source(&repo, &file, source_text.as_deref()));
                 Ok::<_, ritkraken_git::Error>((file, loaded, source))
@@ -63,7 +73,7 @@ impl Client {
                 match result {
                     Ok((file, Some(loaded), source)) => {
                         current.file = file;
-                        current.apply_loaded(loaded, layout, None, cx);
+                        current.apply_loaded(loaded, layout, None, id, window, cx);
                         let reload_source = source.is_none() && current.source.is_some();
                         if let Some(source) = source {
                             current.apply_source(source, cx);

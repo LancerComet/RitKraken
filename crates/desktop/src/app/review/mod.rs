@@ -1,3 +1,4 @@
+mod conflicts;
 mod loading;
 mod refresh;
 mod staging;
@@ -51,6 +52,7 @@ impl DiffLayout {
 }
 
 pub(super) struct FileReview {
+    conflict: Option<Entity<conflicts::ConflictReview>>,
     pub(super) file: FileTarget,
     pub(super) patch: Load<Arc<Patch>>,
     pub(super) viewer: Option<Entity<DiffState>>,
@@ -83,6 +85,7 @@ impl FileReview {
 }
 
 struct LoadedDiff {
+    conflict: Option<Arc<git::ConflictFile>>,
     patch: Arc<Patch>,
     document: Result<Vec<DiffFile>, Message>,
     compact_context: bool,
@@ -93,13 +96,23 @@ fn load_diff(
     file: &FileTarget,
     ignore_edge_whitespace: bool,
     previous: Option<&Patch>,
+    previous_conflict: Option<&git::ConflictFile>,
 ) -> git::Result<Option<LoadedDiff>> {
+    let conflict = repo.conflict_file(file)?.map(Arc::new);
     let patch = Arc::new(
         repo.patch(file)?
             .with_edge_whitespace_ignored(ignore_edge_whitespace),
     );
-    if previous == Some(patch.as_ref()) {
+    if previous == Some(patch.as_ref()) && conflict.as_deref() == previous_conflict {
         return Ok(None);
+    }
+    if conflict.is_some() {
+        return Ok(Some(LoadedDiff {
+            conflict,
+            patch,
+            document: Ok(Vec::new()),
+            compact_context: false,
+        }));
     }
     let document = parse_patch(patch.bytes(), patch.ignores_edge_whitespace());
     let needs_context = matches!(file.change.code, b'M' | b'R' | b'C')
@@ -129,6 +142,7 @@ fn load_diff(
     });
     let compact_context = compact_context && document.is_ok();
     Ok(Some(LoadedDiff {
+        conflict: None,
         patch,
         document,
         compact_context,
@@ -202,6 +216,7 @@ impl Client {
         let show_source = file.change.code == b' ' || previous.is_some_and(|diff| diff.show_source);
         let collapsed_sidebar = previous.map_or(collapse_default, |diff| diff.collapsed_sidebar);
         let request = tab.review.set_active(Some(FileReview {
+            conflict: None,
             file,
             patch: Load::Pending,
             viewer: None,
@@ -215,13 +230,13 @@ impl Client {
         Self::spawn_background(
             window,
             cx,
-            move || load_diff(&repo, &target, ignore_edge_whitespace, None),
-            move |this, result, _, cx| {
+            move || load_diff(&repo, &target, ignore_edge_whitespace, None, None),
+            move |this, result, window, cx| {
                 let Some((diff, layout)) = this.review_for_request(id, request) else {
                     return;
                 };
                 match result {
-                    Ok(Some(loaded)) => diff.apply_loaded(loaded, layout, viewer, cx),
+                    Ok(Some(loaded)) => diff.apply_loaded(loaded, layout, viewer, id, window, cx),
                     Ok(None) => {}
                     Err(error) => diff.patch = Load::Failed(error.into()),
                 }
