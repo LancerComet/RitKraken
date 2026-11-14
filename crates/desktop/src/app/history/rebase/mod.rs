@@ -12,7 +12,7 @@ use ritkraken_git::{self as git, CommitContext, CommitOperation, RebaseAction};
 
 use super::HistoryState;
 use crate::{
-    app::{Client, Message},
+    app::{Client, Message, Notice},
     i18n::tr,
 };
 
@@ -93,7 +93,11 @@ impl Client {
         };
         if plan.entries.is_empty() {
             if let Some(tab) = self.tab_mut(id) {
-                tab.notice = Some((true, Message::Key("app.rebase.empty_plan")));
+                tab.notify(
+                    Notice::warning(Message::Key("app.rebase.empty_plan")),
+                    window,
+                    cx,
+                );
                 cx.notify();
             }
             return;

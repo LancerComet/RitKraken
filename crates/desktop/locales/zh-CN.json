@@ -155,6 +155,9 @@
       "wip": "// 进行中"
     },
     "notice": {
+      "info": "信息",
+      "warning": "警告",
+      "error": "错误",
       "branched": "分支已创建",
       "committed": "已创建提交",
       "fetched": "抓取完成",
@@ -367,8 +370,7 @@
       "stale": "此引用已变化，请重新打开菜单后再操作。",
       "tag": "本地标签 · %{name}",
       "track": "创建并切换到跟踪分支…",
-      "unavailable": "此引用不支持该操作。",
-      "unmerged": "此分支包含尚未合并到 HEAD 的提交，请先合并再删除。"
+      "unavailable": "此引用不支持该操作。"
     },
     "remotes": {
       "add": "添加远端",

@@ -60,7 +60,6 @@ fn rule_error(rule: &RuleError) -> String {
     let key = match rule {
         RuleError::StaleReference => "app.ref_menu.stale",
         RuleError::BranchInUse => "app.ref_menu.in_use",
-        RuleError::UnmergedBranch => "app.ref_menu.unmerged",
         RuleError::RefExists => "app.ref_menu.exists",
         RuleError::RefUnavailable => "app.ref_menu.unavailable",
         RuleError::InvalidCommit => "app.commit_menu.invalid_commit",

@@ -6,7 +6,7 @@ use gpui_kit::*;
 use ritkraken_git::Repo;
 
 use super::{
-    Client, Message,
+    Client, Message, Notice,
     changes::ChangesState,
     history::{History, HistoryState},
     operations::RepoUpdates,
@@ -114,7 +114,7 @@ pub(super) struct RepoTab {
     pub(super) busy: bool,
     pub(super) active_op: Option<ActiveOp>,
     pub(super) updates: RepoUpdates,
-    pub(super) notice: Option<(bool, Message)>,
+    pub(super) notice: Option<Notice>,
 }
 
 impl RepoTab {
@@ -170,6 +170,7 @@ impl Client {
             return;
         };
         self.session.tabs.remove(index);
+        Notice::clear(id, window, cx);
         if self.session.active == Some(id) {
             if let Some(tab) = self
                 .session

@@ -2,7 +2,7 @@ use gpui_kit::*;
 
 use super::RepoOperation;
 use crate::{
-    app::{Client, Message},
+    app::{Client, Message, Notice},
     i18n::tr,
 };
 
@@ -41,9 +41,11 @@ impl Client {
                 match result {
                     Ok(1) => client.update_repo(id, Some(operation), window, cx),
                     Ok(_) => {}
-                    Err(_) => {
-                        tab.notice = Some((true, Message::Key("app.error.confirmation_failed")))
-                    }
+                    Err(_) => tab.notify(
+                        Notice::failure(Message::Key("app.error.confirmation_failed")),
+                        window,
+                        cx,
+                    ),
                 }
                 cx.notify();
             });

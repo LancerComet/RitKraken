@@ -8,6 +8,7 @@ pub enum RefOperation {
     Checkout,
     Track(String),
     Rename(String),
+    /// Explicit deletion after the caller has obtained confirmation.
     Delete,
 }
 
@@ -123,11 +124,9 @@ impl Repo {
                     if current.checked_out || request.branch.as_deref() == Some(&current.name) {
                         return Err(RuleError::BranchInUse.into());
                     }
-                    let head = request.head.as_deref().ok_or(RuleError::UnmergedBranch)?;
-                    if !self.is_ancestor(&current.id, head)? {
-                        return Err(RuleError::UnmergedBranch.into());
-                    }
-                    run_write(self.git().args(["branch", "-d", "--", &current.name]))
+                    // Deleting the selected branch does not depend on its relation
+                    // to HEAD. Git still protects every checked-out worktree.
+                    run_write(self.git().args(["branch", "-D", "--", &current.name]))
                 }
                 RefKind::Tag => run_write(self.git().args([
                     "update-ref",

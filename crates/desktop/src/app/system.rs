@@ -6,7 +6,7 @@ use std::{
 use gpui_kit::*;
 use ritkraken_git::{ExportedFile, FileTarget, Scope};
 
-use super::{Client, Message};
+use super::{Client, Message, Notice};
 
 #[cfg(windows)]
 mod windows;
@@ -75,7 +75,7 @@ impl Client {
             window,
             cx,
             move || repo.export_commit_file(&revision, &file.change.path),
-            move |this, result, _, cx| {
+            move |this, result, window, cx| {
                 if this.tab(id).is_none() {
                     this.file_opener.snapshots.remove(&key);
                     return;
@@ -87,7 +87,7 @@ impl Client {
                     }
                     Err(error) => {
                         this.file_opener.snapshots.remove(&key);
-                        this.file_system_error(id, "app.file_menu.open_failed", error, cx);
+                        this.file_system_error(id, "app.file_menu.open_failed", error, window, cx);
                     }
                 }
             },
@@ -98,7 +98,7 @@ impl Client {
         &mut self,
         id: u64,
         path: PathBuf,
-        window: &Window,
+        window: &mut Window,
         cx: &mut Context<Self>,
     ) {
         if !path.exists() {
@@ -107,7 +107,7 @@ impl Client {
                 match windows::shell_path(parent) {
                     Ok(parent) => cx.open_with_system(&parent),
                     Err(error) => {
-                        self.file_system_error(id, "app.file_menu.reveal_failed", error, cx)
+                        self.file_system_error(id, "app.file_menu.reveal_failed", error, window, cx)
                     }
                 }
                 #[cfg(not(windows))]
@@ -120,9 +120,9 @@ impl Client {
             window,
             cx,
             move || windows::reveal_file(&path).map_err(|error| error.to_string()),
-            move |this, result, _, cx| {
+            move |this, result, window, cx| {
                 if let Err(error) = result {
-                    this.file_system_error(id, "app.file_menu.reveal_failed", error, cx);
+                    this.file_system_error(id, "app.file_menu.reveal_failed", error, window, cx);
                 }
             },
         );
@@ -138,10 +138,11 @@ impl Client {
         id: u64,
         key: &'static str,
         error: impl ToString,
+        window: &mut Window,
         cx: &mut Context<Self>,
     ) {
         if let Some(tab) = self.tab_mut(id) {
-            tab.notice = Some((true, Message::detail(key, error)));
+            tab.notify(Notice::failure(Message::detail(key, error)), window, cx);
             cx.notify();
         }
     }

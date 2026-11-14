@@ -78,9 +78,9 @@ impl Client {
         let history = tab.active_history().clone();
         let selected = tab.history.selected.clone();
         let show_wip = tab.show_wip();
-        let columns = columns(history.graph.lane_count());
+        let columns = columns(history.graph(show_wip).lane_count());
         let widths = tab.history.columns.widths(&columns, cx);
-        let count = history.graph.rows.len() + usize::from(show_wip);
+        let count = history.graph(show_wip).rows.len() + usize::from(show_wip);
         let view = cx.weak_entity();
         let focus = tab.history.focus.clone();
         let allow_ref_hover =
@@ -357,7 +357,9 @@ impl Client {
             .horizontal_scrollbar(&tab.history.horizontal_scroll);
         div()
             .id(("graph-view", id))
-            .key_context("CommitGraph")
+            .key_context(crate::app::shortcuts::graph_context(
+                rebase_mode == Some(RebaseViewMode::TreeEdit),
+            ))
             .track_focus(&tab.history.focus)
             .on_action(
                 cx.listener(|this, _: &NextRow, window, cx| this.move_selection(1, window, cx)),
@@ -428,7 +430,7 @@ fn history_row(
             .map(|labels| (commit.id.as_str(), labels))
     });
     let color = index.map_or(p.accent, |index| {
-        p.rail_color(history.graph.rows[index].node.color_index)
+        p.rail_color(history.graph(show_wip).rows[index].node.color_index)
     });
     let refs = if let Some((_, input)) =
         inline_branch.filter(|(target, _)| commit.is_some_and(|commit| commit.id == *target))

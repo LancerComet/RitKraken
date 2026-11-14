@@ -60,7 +60,7 @@ pub(super) fn graph_cell(
         .overflow_hidden()
         .child(drawing)
         .when_some(index, |element, index| {
-            let node = history.graph.rows[index].node;
+            let node = history.graph(show_wip).rows[index].node;
             let commit = &history.snapshot.commits[index];
             let left = lane_offset(node.lane) - graph_shift(width) - BAND_HEIGHT / 2.;
             let top = (ROW_HEIGHT - BAND_HEIGHT) / 2.;
@@ -162,7 +162,7 @@ fn paint_graph(
         paint_wip(history, bounds, window, p);
         return;
     };
-    let graph = &history.graph;
+    let graph = history.graph(show_wip);
     let row = &graph.rows[index];
     let top = bounds.top();
     let bottom = bounds.bottom();
@@ -213,12 +213,6 @@ fn paint_graph(
             window,
         );
     }
-    if index == 0 && show_wip && history.head_index() == Some(0) {
-        for offset in [1., 4., 7.] {
-            dot(window, point(node.x, top + px(offset)), color);
-        }
-    }
-
     let separation = if row.incoming.len() > 1 && row.outgoing.len() > 1 {
         px(2.)
     } else {
@@ -318,23 +312,18 @@ mod tests {
 }
 
 fn paint_wip(history: &History, bounds: Bounds<Pixels>, window: &mut Window, p: Palette) {
-    let head = history.head_index();
-    let rail = head.map_or(
-        Rail {
-            lane: 0,
-            color: p.accent,
-            color_index: 0,
-        },
-        |index| history.graph.rows[index].node,
-    );
+    let Some(row) = &history.graph(true).worktree else {
+        return;
+    };
+    let rail = row.node;
     let color = rgb(p.rail_color(rail.color_index));
     let x = bounds.left() + lane_offset(rail.lane);
     let y = bounds.center().y;
     paint_band(x, bounds.right() - px(3.), y, color.opacity(0.42), window);
     let radius = px(10.);
     paint_dot(window, point(x, y), radius, rgb(p.canvas));
-    if head == Some(0) {
-        dot(window, point(x, bounds.bottom() - px(2.)), color);
+    if !row.outgoing.is_empty() {
+        paint_vertical(x, y + radius, bounds.bottom(), color, window);
     }
     for index in 0..18 {
         let angle = index as f32 * std::f32::consts::TAU / 18.;

@@ -10,7 +10,7 @@ use gpui_kit::*;
 use ritkraken_git::{self as git, Change, FileTarget, Patch, PatchSelection, Repo, Scope};
 
 use super::{
-    Client, Message,
+    Client, Message, Notice,
     changes::StageAction,
     history::{History, HistoryState},
     session::ActiveOp,
@@ -243,11 +243,12 @@ impl Client {
                 let result = edit.as_ref().map(|edit| edit.execute(&repo));
                 let history =
                     History::reload(&repo, limit, Some(&previous)).map(|history| (history, limit));
-                let reported = if report_operation {
-                    result.zip(edit)
-                } else {
-                    None
-                };
+                let reported =
+                    if report_operation || result.as_ref().is_some_and(|result| result.is_err()) {
+                        result.zip(edit)
+                    } else {
+                        None
+                    };
                 (reported, history)
             },
             move |this, (result, history), window, cx| {
@@ -285,15 +286,17 @@ impl Client {
         }
         let Some(tab) = self.tab_mut(id) else { return };
         let was_busy = tab.busy;
+        let was_paused = tab.history.data.snapshot.sequence.is_some();
         tab.busy = false;
         tab.active_op = None;
         let mut committed = false;
         let mut reset_selection = false;
         let mut finished_rebase = false;
+        let mut notice = None;
         if let Some((result, edit)) = result {
             match result {
                 Ok(()) => {
-                    tab.notice = Some((false, Message::Key(edit.status_key())));
+                    notice = Some(Notice::info(Message::Key(edit.status_key())));
                     committed = matches!(edit, RepoOperation::Commit(..));
                     finished_rebase = matches!(
                         &edit,
@@ -310,7 +313,7 @@ impl Client {
                             .update(cx, |input, cx| input.set_value("", window, cx));
                     }
                 }
-                Err(error) => tab.notice = Some((true, error.into())),
+                Err(error) => notice = Some(Notice::failure(error)),
             }
         }
         let mut changed = was_busy;
@@ -321,15 +324,15 @@ impl Client {
                 tab.history.limit = limit;
             }
             Err(error) => {
-                let message = if let Some((_, previous)) = tab.notice.take() {
+                let message = if let Some(previous) = notice.take() {
                     Message::RefreshFailed {
-                        previous: Box::new(previous),
+                        previous: Box::new(previous.message),
                         error,
                     }
                 } else {
                     error.into()
                 };
-                tab.notice = Some((true, message));
+                tab.notify(Notice::failure(message), window, cx);
                 cx.notify();
                 return;
             }
@@ -353,15 +356,19 @@ impl Client {
                     session.reproject(&tab.history.data);
                     tab.rebase = Some(session);
                 } else {
-                    tab.notice = Some((true, Message::Key("app.commit_menu.stale")));
+                    notice = Some(Notice::warning(Message::Key("app.commit_menu.stale")));
                     reset_selection = true;
                 }
             }
         }
         if tab.history.data.snapshot.sequence.is_some()
-            && !tab.notice.as_ref().is_some_and(|(error, _)| *error)
+            && !notice.as_ref().is_some_and(Notice::is_problem)
+            && (notice.is_some() || !was_paused)
         {
-            tab.notice = Some((false, Message::Key("app.commit_menu.paused")));
+            notice = Some(Notice::warning(Message::Key("app.commit_menu.paused")));
+        }
+        if let Some(notice) = notice {
+            tab.notify(notice, window, cx);
         }
         let initial_selection = HistoryState::initial_selection(&tab.history.data);
         let leave_wip = tab.history.selected.is_none() && initial_selection.is_some();

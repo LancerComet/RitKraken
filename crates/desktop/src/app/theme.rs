@@ -157,6 +157,9 @@ pub(in crate::app) fn apply_theme(id: ThemeId, cx: &mut App) {
         theme.radius = px(8.);
         theme.radius_lg = px(16.);
         theme.shadow = true;
+        theme.notification.max_items = 4;
+        theme.notification.width = px(400.);
+        theme.notification.margins.top = px(106.);
     });
 }
 

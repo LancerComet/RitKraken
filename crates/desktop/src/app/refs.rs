@@ -1,3 +1,7 @@
+mod menu;
+
+pub(super) use menu::RefMenu;
+
 use std::collections::HashSet;
 
 use gpui_kit::{
@@ -335,6 +339,7 @@ impl Client {
             return group;
         }
         let mut seen = HashSet::new();
+        let menu = RefMenu::new(tab_id, cx.weak_entity());
         for reference in matches {
             let parts: Vec<_> = reference.name.split('/').collect();
             let mut hidden = false;
@@ -365,92 +370,91 @@ impl Client {
             let selected = tab.history.selected.as_ref() == Some(&reference.id);
             let branch = reference.name.clone();
             let oid = reference.id.clone();
-            group = group.child(
-                div()
-                    .id(SharedString::from(format!("{title}/ref/{branch}")))
-                    .h(px(25.))
-                    .mx(px(6.))
-                    .pr(px(8.))
-                    .pl(px(6.))
-                    .rounded(px(8.))
-                    .flex()
-                    .items_center()
-                    .gap(px(6.))
-                    .cursor_pointer()
-                    .min_w_0()
-                    .when(checked, |e| e.bg(rgb(p.success_bg)))
-                    .when(!checked && selected, |e| e.bg(rgb(p.accent_soft)))
-                    .hover(|s| {
-                        s.bg(rgb(if checked {
-                            p.success_hover
-                        } else if selected {
-                            p.accent_soft_hover
-                        } else {
-                            p.hover
-                        }))
-                    })
-                    .on_click(cx.listener(move |this, click: &ClickEvent, window, cx| {
-                        if click.click_count() == 2 && kind == RefKind::Local && !checked {
-                            this.update_repo(
-                                tab_id,
-                                Some(RepoOperation::Switch(branch.clone())),
-                                window,
-                                cx,
-                            );
-                        } else {
-                            this.select(
-                                tab_id,
-                                Some(oid.clone()),
-                                Some(ScrollStrategy::Center),
-                                window,
-                                cx,
-                            );
-                        }
+            let row = div()
+                .id(SharedString::from(format!("{title}/ref/{branch}")))
+                .h(px(25.))
+                .mx(px(6.))
+                .pr(px(8.))
+                .pl(px(6.))
+                .rounded(px(8.))
+                .flex()
+                .items_center()
+                .gap(px(6.))
+                .cursor_pointer()
+                .min_w_0()
+                .when(checked, |e| e.bg(rgb(p.success_bg)))
+                .when(!checked && selected, |e| e.bg(rgb(p.accent_soft)))
+                .hover(|s| {
+                    s.bg(rgb(if checked {
+                        p.success_hover
+                    } else if selected {
+                        p.accent_soft_hover
+                    } else {
+                        p.hover
                     }))
-                    .child(
-                        div()
-                            .size(SIDEBAR_ICON_SIZE)
-                            .flex_shrink_0()
-                            .flex()
-                            .items_center()
-                            .justify_center()
-                            .rounded_full()
-                            .when(checked, |badge| {
-                                badge
-                                    .bg(rgb(p.success))
-                                    .child(icon("icons/check.svg", p.accent_fg).size(px(11.)))
-                            }),
+                })
+                .on_click(cx.listener(move |this, click: &ClickEvent, window, cx| {
+                    if click.click_count() == 2 && kind == RefKind::Local && !checked {
+                        this.update_repo(
+                            tab_id,
+                            Some(RepoOperation::Switch(branch.clone())),
+                            window,
+                            cx,
+                        );
+                    } else {
+                        this.select(
+                            tab_id,
+                            Some(oid.clone()),
+                            Some(ScrollStrategy::Center),
+                            window,
+                            cx,
+                        );
+                    }
+                }))
+                .child(
+                    div()
+                        .size(SIDEBAR_ICON_SIZE)
+                        .flex_shrink_0()
+                        .flex()
+                        .items_center()
+                        .justify_center()
+                        .rounded_full()
+                        .when(checked, |badge| {
+                            badge
+                                .bg(rgb(p.success))
+                                .child(icon("icons/check.svg", p.accent_fg).size(px(11.)))
+                        }),
+                )
+                .child(
+                    sidebar_icon(
+                        if kind == RefKind::Tag {
+                            ref_icon(kind)
+                        } else {
+                            "icons/git-branch.svg"
+                        },
+                        p,
                     )
-                    .child(
-                        sidebar_icon(
-                            if kind == RefKind::Tag {
-                                ref_icon(kind)
-                            } else {
-                                "icons/git-branch.svg"
-                            },
-                            p,
-                        )
-                        .text_color(rgb(p.text_subtle))
-                        .ml(px((parts.len() - 1) as f32 * 13.)),
-                    )
-                    .child(
-                        div()
-                            .truncate()
-                            .text_color(rgb(if checked {
-                                p.success
-                            } else if selected {
-                                p.accent_soft_fg
-                            } else {
-                                p.text
-                            }))
-                            .font_weight(if checked {
-                                FontWeight::MEDIUM
-                            } else {
-                                FontWeight::NORMAL
-                            })
-                            .child(parts.last().copied().unwrap_or(&reference.name).to_owned()),
-                    ),
-            );
+                    .text_color(rgb(p.text_subtle))
+                    .ml(px((parts.len() - 1) as f32 * 13.)),
+                )
+                .child(
+                    div()
+                        .truncate()
+                        .text_color(rgb(if checked {
+                            p.success
+                        } else if selected {
+                            p.accent_soft_fg
+                        } else {
+                            p.text
+                        }))
+                        .font_weight(if checked {
+                            FontWeight::MEDIUM
+                        } else {
+                            FontWeight::NORMAL
+                        })
+                        .child(parts.last().copied().unwrap_or(&reference.name).to_owned()),
+                );
+            group = group.child(menu.target(row, Some(reference), &[]));
         }
         if kind == RefKind::Remote {
             for remote in &snapshot.remotes {

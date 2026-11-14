@@ -155,6 +155,9 @@
       "wip": "// WIP"
     },
     "notice": {
+      "info": "Info",
+      "warning": "Warning",
+      "error": "Error",
       "branched": "Branch created",
       "committed": "Commit created",
       "fetched": "Fetch completed",
@@ -367,8 +370,7 @@
       "stale": "This reference changed. Reopen its menu before continuing.",
       "tag": "Local tag · %{name}",
       "track": "Create and switch to tracking branch…",
-      "unavailable": "This operation is not available for this reference.",
-      "unmerged": "This branch has commits not merged into HEAD. Merge it before deleting."
+      "unavailable": "This operation is not available for this reference."
     },
     "remotes": {
       "add": "Add Remote",

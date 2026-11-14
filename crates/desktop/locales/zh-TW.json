@@ -155,6 +155,9 @@
       "wip": "// 進行中"
     },
     "notice": {
+      "info": "資訊",
+      "warning": "警告",
+      "error": "錯誤",
       "branched": "分支已建立",
       "committed": "已建立提交",
       "fetched": "擷取完成",
@@ -367,8 +370,7 @@
       "stale": "此引用已變更，請重新開啟選單後再操作。",
       "tag": "本機標籤 · %{name}",
       "track": "建立並切換至追蹤分支…",
-      "unavailable": "此引用不支援該操作。",
-      "unmerged": "此分支包含尚未合併至 HEAD 的提交，請先合併再刪除。"
+      "unavailable": "此引用不支援該操作。"
     },
     "remotes": {
       "add": "新增遠端",

@@ -9,12 +9,11 @@ use gpui_kit::{
 
 use crate::app::{
     Client,
-    refs::ref_icon,
+    refs::{RefMenu, ref_icon},
     theme::{Palette, palette},
     widgets::icon,
 };
 
-use super::super::ref_menu::RefMenu;
 use super::{
     super::graph::{BAND_HEIGHT, CONNECTOR_OPACITY},
     RefBadge,
@@ -40,7 +39,7 @@ pub(in crate::app::history) fn ref_labels(
         .gap(BADGE_GAP)
         .overflow_hidden()
         .when_some(labels, |element, (oid, labels)| {
-            let menu = RefMenu::new(id, owner, &labels[0]);
+            let menu = RefMenu::new(id, owner);
             let first = &labels[0];
             let badges = if labels.len() > 1 && allow_hover {
                 div()
@@ -57,7 +56,7 @@ pub(in crate::app::history) fn ref_labels(
                     .id("commit-ref")
                     .when(allow_hover, |badge| with_tooltip(badge, first));
                 compact_refs(
-                    menu.target(primary, first),
+                    menu.target(primary, first.reference.as_ref(), &first.remote_refs),
                     labels.len() - 1,
                     color,
                     false,
@@ -109,8 +108,14 @@ impl RenderOnce for RefStack {
                 let width = width.clone();
                 move |bounds, _, _| width.set(bounds.size.width)
             });
-        let trigger_row = compact_refs(menu.target(primary, first), count, self.color, expanded, p)
-            .on_prepaint(move |bounds, _, _| trigger.set(bounds));
+        let trigger_row = compact_refs(
+            menu.target(primary, first.reference.as_ref(), &first.remote_refs),
+            count,
+            self.color,
+            expanded,
+            p,
+        )
+        .on_prepaint(move |bounds, _, _| trigger.set(bounds));
         let trigger_row =
             trigger_row.on_hover(window.listener_for(&layout, |layout, hovered, window, cx| {
                 layout.hover(false, *hovered, window, cx);
@@ -217,7 +222,7 @@ fn expanded_refs(
                             .rounded_full()
                             .bg(rgb(p.canvas))
                             .self_start()
-                            .child(menu.target(badge, label))
+                            .child(menu.target(badge, label.reference.as_ref(), &label.remote_refs))
                     })),
             )
             .overflow_scrollbar(),

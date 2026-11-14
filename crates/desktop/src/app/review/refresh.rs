@@ -2,7 +2,7 @@ use gpui_kit::*;
 use ritkraken_git::{FileTarget, Scope};
 
 use super::{load_diff, loading::load_source};
-use crate::app::{Client, Load};
+use crate::app::{Client, Load, Notice};
 
 impl Client {
     /// Revalidate the mutable preview without replacing the displayed review.
@@ -78,7 +78,7 @@ impl Client {
                     Ok((_, None, _)) => {}
                     Err(error) => {
                         if let Some(tab) = this.tab_mut(id) {
-                            tab.notice = Some((true, error.into()));
+                            tab.notify(Notice::failure(error), window, cx);
                         }
                         cx.notify();
                     }

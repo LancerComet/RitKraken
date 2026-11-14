@@ -26,15 +26,43 @@ pub(super) struct Row {
 #[derive(Debug)]
 pub(super) struct GraphLayout {
     pub rows: Vec<Row>,
+    pub worktree: Option<Row>,
     // Each lane stores sorted, disjoint spans for the rows between its endpoints.
     lanes: Vec<Vec<Span>>,
 }
 
 impl GraphLayout {
     pub(super) fn new(commits: &[Commit]) -> Self {
+        Self::build(commits, false, None)
+    }
+
+    pub(super) fn with_worktree(commits: &[Commit], head: Option<&str>) -> Self {
+        Self::build(commits, true, head)
+    }
+
+    fn build(commits: &[Commit], worktree: bool, head: Option<&str>) -> Self {
         let mut lanes = Lanes::default();
         let mut pending: HashMap<&str, Vec<Track>> = HashMap::new();
         let mut rows = Vec::with_capacity(commits.len());
+
+        // Treat WIP as a virtual child of HEAD. Its lane stays reserved through
+        // every newer commit, instead of joining whichever branch is listed first.
+        let worktree = worktree.then(|| {
+            let node = lanes.reserve(0);
+            if let Some(head) = head {
+                pending.entry(head).or_default().push(Track {
+                    rail: node,
+                    start: None,
+                });
+            } else {
+                lanes.free.insert(node.lane);
+            }
+            Row {
+                node,
+                incoming: Vec::new(),
+                outgoing: head.map(|_| node).into_iter().collect(),
+            }
+        });
 
         for (index, commit) in commits.iter().enumerate() {
             let mut incoming: Vec<_> = pending
@@ -62,10 +90,10 @@ impl GraphLayout {
                     } else {
                         lanes.reserve(node.lane + 1)
                     };
-                    pending
-                        .entry(parent)
-                        .or_default()
-                        .push(Track { rail, start: index });
+                    pending.entry(parent).or_default().push(Track {
+                        rail,
+                        start: Some(index),
+                    });
                     rail
                 })
                 .collect();
@@ -89,6 +117,7 @@ impl GraphLayout {
         }
         Self {
             rows,
+            worktree,
             lanes: lanes.spans,
         }
     }
@@ -119,7 +148,7 @@ impl GraphLayout {
 #[derive(Clone, Copy)]
 struct Track {
     rail: Rail,
-    start: usize,
+    start: Option<usize>,
 }
 
 #[derive(Debug)]
@@ -156,7 +185,7 @@ impl Lanes {
     }
 
     fn record(&mut self, track: Track, end: usize) {
-        let rows = track.start + 1..end;
+        let rows = track.start.map_or(0, |start| start + 1)..end;
         if !rows.is_empty() {
             self.spans[track.rail.lane].push(Span {
                 rows,
@@ -244,5 +273,68 @@ mod tests {
                 full.through(index, 0..2).collect::<Vec<_>>()
             );
         }
+    }
+
+    #[test]
+    fn worktree_bypasses_newer_commits_and_joins_its_actual_head() {
+        let graph = GraphLayout::with_worktree(
+            &[commit("master", &["base"]), commit("base", &[])],
+            Some("base"),
+        );
+        let worktree = graph.worktree.as_ref().unwrap();
+        assert_eq!(worktree.outgoing, [worktree.node]);
+        assert_ne!(worktree.node.lane, graph.rows[0].node.lane);
+        assert!(graph.rows[0].incoming.is_empty());
+        assert_eq!(
+            graph.through(0, 0..graph.lane_count()).collect::<Vec<_>>(),
+            [worktree.node]
+        );
+        assert_eq!(graph.rows[1].node, worktree.node);
+        assert!(graph.rows[1].incoming.contains(&worktree.node));
+        assert!(graph.rows[1].incoming.contains(&graph.rows[0].node));
+    }
+
+    #[test]
+    fn worktree_at_the_newest_head_has_one_direct_connection() {
+        let graph = GraphLayout::with_worktree(
+            &[commit("head", &["base"]), commit("base", &[])],
+            Some("head"),
+        );
+        let worktree = graph.worktree.as_ref().unwrap();
+        assert_eq!(graph.rows[0].incoming, [worktree.node]);
+        assert_eq!(graph.rows[0].node, worktree.node);
+        assert_eq!(graph.lane_count(), 1);
+    }
+
+    #[test]
+    fn worktree_connection_survives_loading_a_head_outside_loaded_history() {
+        let commits = [
+            commit("newer", &["middle"]),
+            commit("middle", &["head"]),
+            commit("head", &[]),
+        ];
+        let partial = GraphLayout::with_worktree(&commits[..1], Some("head"));
+        let full = GraphLayout::with_worktree(&commits, Some("head"));
+        let worktree = partial.worktree.as_ref().unwrap().node;
+        assert_eq!(partial.rows[0].node, full.rows[0].node);
+        assert!(
+            partial
+                .through(0, 0..partial.lane_count())
+                .any(|rail| rail == worktree)
+        );
+        assert!(
+            full.through(1, 0..full.lane_count())
+                .any(|rail| rail == worktree)
+        );
+        assert!(full.rows[2].incoming.contains(&worktree));
+    }
+
+    #[test]
+    fn unborn_worktree_has_no_invented_commit_connection() {
+        let graph = GraphLayout::with_worktree(&[], None);
+        let worktree = graph.worktree.as_ref().unwrap();
+        assert!(worktree.outgoing.is_empty());
+        assert!(graph.rows.is_empty());
+        assert!(GraphLayout::new(&[]).worktree.is_none());
     }
 }

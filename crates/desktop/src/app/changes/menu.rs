@@ -5,7 +5,7 @@ use ritkraken_git::{FileTarget, IgnoreRule, Scope};
 
 use crate::{
     app::{
-        Client, Message, RepoOperation,
+        Client, Message, Notice, RepoOperation,
         widgets::menu::{PopupMenu, PopupMenuItem, menu_style},
     },
     i18n::tr,
@@ -236,7 +236,7 @@ impl Client {
                 let (expected, file) = match result {
                     Ok(value) => value,
                     Err(error) => {
-                        tab.notice = Some((true, error.into()));
+                        tab.notify(Notice::failure(error), window, cx);
                         cx.notify();
                         return;
                     }
@@ -342,13 +342,17 @@ impl Client {
                 let (bytes, repo, file) = match result {
                     Ok(value) => value,
                     Err(error) => {
-                        this.file_action_error(id, error.into(), cx);
+                        this.file_action_error(id, error.into(), window, cx);
                         return;
                     }
                 };
                 let Some(tab) = this.tab_mut(id) else { return };
                 if bytes.is_empty() {
-                    tab.notice = Some((false, Message::Key("app.review.no_text_changes")));
+                    tab.notify(
+                        Notice::info(Message::Key("app.review.no_text_changes")),
+                        window,
+                        cx,
+                    );
                     cx.notify();
                     return;
                 }
@@ -375,9 +379,15 @@ impl Client {
         );
     }
 
-    fn file_action_error(&mut self, id: u64, message: Message, cx: &mut Context<Self>) {
+    fn file_action_error(
+        &mut self,
+        id: u64,
+        message: Message,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         if let Some(tab) = self.tab_mut(id) {
-            tab.notice = Some((true, message));
+            tab.notify(Notice::failure(message), window, cx);
             cx.notify();
         }
     }

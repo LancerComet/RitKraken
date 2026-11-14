@@ -110,7 +110,7 @@ impl RemoteForm {
                                 .and_then(|tab| tab.notice.as_ref())
                                 .map_or_else(
                                     || tr!("app.error.repository_unavailable"),
-                                    |(_, message)| message.text(),
+                                    |notice| notice.message.text(),
                                 ),
                         )
                     };

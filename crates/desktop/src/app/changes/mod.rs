@@ -7,10 +7,7 @@ mod summary;
 mod worktree;
 
 use gpui_kit::{
-    component::{
-        input::{InputEvent, InputState, TextareaMode, TextareaState},
-        scroll::ScrollableElement,
-    },
+    component::input::{InputEvent, InputState, TextareaMode, TextareaState},
     prelude::*,
     *,
 };
@@ -18,11 +15,7 @@ use ritkraken_git::{Change, CommitDetail, Scope};
 
 use crate::i18n::{LocalizedInput, tr};
 
-use super::{
-    Client, Load, RepoOperation, RepoTab,
-    theme::palette,
-    widgets::{Tone, error_text},
-};
+use super::{Client, Load, RepoOperation, RepoTab, theme::palette, widgets::Tone};
 
 pub(super) use summary::{ChangeSummary, SummaryStyle, change_mark};
 
@@ -245,18 +238,6 @@ impl Client {
             .border_color(rgb(p.border))
             .bg(rgb(p.surface_dim))
             .text_color(rgb(p.text))
-            .when_some(
-                tab.notice.as_ref().filter(|(error, _)| *error),
-                |element, (_, message)| {
-                    element.child(
-                        div()
-                            .max_h(px(82.))
-                            .p(px(6.))
-                            .child(error_text(message, cx))
-                            .overflow_y_scrollbar(),
-                    )
-                },
-            )
             .child(panel)
     }
 }

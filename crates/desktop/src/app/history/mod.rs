@@ -4,7 +4,6 @@ mod graph;
 mod labels;
 mod layout;
 pub(in crate::app) mod rebase;
-mod ref_menu;
 mod view;
 
 use std::{collections::HashMap, sync::Arc};
@@ -22,7 +21,8 @@ pub(super) struct History {
     pub position: HashMap<String, usize>,
     pub(super) menu: Arc<CommitMenuSnapshot>,
     pub(super) worktree_summary: ChangeSummary,
-    graph: GraphLayout,
+    commits_graph: GraphLayout,
+    worktree_graph: GraphLayout,
     labels: HashMap<String, Arc<[RefBadge]>>,
 }
 
@@ -32,7 +32,9 @@ impl History {
         menu: Arc<CommitMenuSnapshot>,
         worktree_summary: ChangeSummary,
     ) -> Arc<Self> {
-        let graph = GraphLayout::new(&snapshot.commits);
+        let commits_graph = GraphLayout::new(&snapshot.commits);
+        let worktree_graph =
+            GraphLayout::with_worktree(&snapshot.commits, snapshot.head.as_deref());
         let position = snapshot
             .commits
             .iter()
@@ -45,7 +47,8 @@ impl History {
             menu,
             position,
             worktree_summary,
-            graph,
+            commits_graph,
+            worktree_graph,
             labels,
         })
     }
@@ -74,8 +77,12 @@ impl History {
         self.labels.get(id).filter(|labels| !labels.is_empty())
     }
 
-    fn head_index(&self) -> Option<usize> {
-        self.position.get(self.snapshot.head.as_deref()?).copied()
+    fn graph(&self, show_wip: bool) -> &GraphLayout {
+        if show_wip {
+            &self.worktree_graph
+        } else {
+            &self.commits_graph
+        }
     }
 }
 
@@ -221,7 +228,7 @@ impl Client {
                 && tab.review.active.is_none()
                 && !tab.busy
                 && tab.history.data.snapshot.history_limited
-                && !tab.notice.as_ref().is_some_and(|(error, _)| *error)
+                && !tab.notice.as_ref().is_some_and(super::Notice::is_error)
         }) else {
             return;
         };

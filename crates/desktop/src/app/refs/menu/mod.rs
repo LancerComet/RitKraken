@@ -5,7 +5,6 @@ use std::rc::Rc;
 use gpui_kit::{component::tooltip::Tooltip, prelude::*, *};
 use ritkraken_git::{RefKind, RefOperation, RefRequest, Reference};
 
-use super::labels::RefBadge;
 use crate::{
     app::{
         Client,
@@ -21,19 +20,17 @@ fn delete_label(reference: &Reference) -> String {
 }
 
 #[derive(Clone)]
-pub(super) struct RefMenu {
-    pub id: u64,
-    pub owner: WeakEntity<Client>,
-    selected: RefBadge,
+pub(in crate::app) struct RefMenu {
+    id: u64,
+    owner: WeakEntity<Client>,
     on_open_change: Option<OpenChange>,
 }
 
 impl RefMenu {
-    pub fn new(id: u64, owner: WeakEntity<Client>, first: &RefBadge) -> Self {
+    pub fn new(id: u64, owner: WeakEntity<Client>) -> Self {
         Self {
             id,
             owner,
-            selected: first.clone(),
             on_open_change: None,
         }
     }
@@ -46,22 +43,30 @@ impl RefMenu {
         self
     }
 
-    pub fn target(&self, badge: Stateful<Div>, label: &RefBadge) -> AnyElement {
-        if label.reference.is_none() {
-            return badge.into_any_element();
-        }
-        let menu = Self {
-            selected: label.clone(),
-            ..self.clone()
+    pub fn target(
+        &self,
+        element: Stateful<Div>,
+        reference: Option<&Reference>,
+        related_remotes: &[Reference],
+    ) -> AnyElement {
+        let Some(reference) = reference else {
+            return element.into_any_element();
         };
-        badge
-            .context_menu(move |popup, window, cx| menu.build(popup, window, cx))
+        let menu = self.clone();
+        let reference = reference.clone();
+        let related_remotes = related_remotes.to_vec();
+        element
+            .context_menu(move |popup, window, cx| {
+                menu.build(popup, &reference, &related_remotes, window, cx)
+            })
             .into_any_element()
     }
 
-    pub fn build(
+    fn build(
         &self,
         menu: PopupMenu,
+        reference: &Reference,
+        related_remotes: &[Reference],
         window: &mut Window,
         cx: &mut Context<PopupMenu>,
     ) -> PopupMenu {
@@ -77,12 +82,9 @@ impl RefMenu {
             )
             .detach();
         }
-        let selected = self.selected.clone();
-        let mut menu = menu_style(menu, window).min_w(px(220.)).max_w(px(540.));
-        if let Some(reference) = selected.reference.as_ref() {
-            menu = self.items(menu, reference, window, cx);
-        }
-        for reference in selected.remote_refs {
+        let menu = menu_style(menu, window).min_w(px(220.)).max_w(px(540.));
+        let mut menu = self.items(menu, reference, window, cx);
+        for reference in related_remotes.iter().cloned() {
             let source = self.clone();
             menu = menu.submenu(
                 reference.name.clone(),

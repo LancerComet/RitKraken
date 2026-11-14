@@ -125,7 +125,7 @@ fn stale_reference_and_changed_checkout_are_rejected() {
 }
 
 #[test]
-fn branch_deletion_preserves_unmerged_work_and_blocks_every_checked_out_worktree() {
+fn branch_deletion_blocks_every_checked_out_worktree() {
     let (directory, repo) = fixture();
     commit_file(&repo, "one", "one", "One");
     let current = request(&repo, RefKind::Local, "main", RefOperation::Delete);
@@ -158,14 +158,6 @@ fn branch_deletion_preserves_unmerged_work_and_blocks_every_checked_out_worktree
             Err(Error::Rule(RuleError::BranchInUse))
         ));
     }
-    git(&repo, &["switch", "-c", "unmerged"]);
-    commit_file(&repo, "two", "two", "Two");
-    git(&repo, &["switch", "main"]);
-    let delete = request(&repo, RefKind::Local, "unmerged", RefOperation::Delete);
-    assert!(matches!(
-        repo.apply_ref_operation(&delete),
-        Err(Error::Rule(RuleError::UnmergedBranch))
-    ));
     git(&repo, &["branch", "merged"]);
     repo.apply_ref_operation(&request(
         &repo,
@@ -181,6 +173,54 @@ fn branch_deletion_preserves_unmerged_work_and_blocks_every_checked_out_worktree
             .iter()
             .all(|reference| reference.name != "merged")
     );
+}
+
+#[test]
+fn confirmed_branch_deletion_is_independent_of_its_relation_to_head() {
+    let (_directory, repo) = fixture();
+    let base = commit_file(&repo, "one", "one", "One");
+    git(&repo, &["switch", "-c", "abc"]);
+    let tip = commit_file(&repo, "two", "two", "Two");
+    git(&repo, &["switch", "main"]);
+    // Match the reported repository: abc is a direct child of the current branch.
+    std::fs::write(repo.root().join("one"), "local edits").unwrap();
+    std::fs::write(repo.root().join("staged"), "staged edits").unwrap();
+    git(&repo, &["add", "staged"]);
+    let status = repo.status().unwrap();
+    repo.apply_ref_operation(&request(&repo, RefKind::Local, "abc", RefOperation::Delete))
+        .unwrap();
+    assert_eq!(head(&repo), base);
+    assert_eq!(repo.status().unwrap(), status);
+    assert_eq!(
+        std::fs::read_to_string(repo.root().join("one")).unwrap(),
+        "local edits"
+    );
+    assert!(!repo.root().join("two").exists());
+    assert!(
+        repo.snapshot(None)
+            .unwrap()
+            .refs
+            .iter()
+            .all(|reference| reference.name != "abc")
+    );
+    // Deleting a branch removes its reference, not the commit object.
+    assert_eq!(git(&repo, &["rev-parse", &tip]).trim(), tip);
+}
+
+#[test]
+fn branch_deletion_rechecks_the_reference_before_removing_it() {
+    let (_directory, repo) = fixture();
+    let first = commit_file(&repo, "one", "one", "One");
+    git(&repo, &["branch", "abc"]);
+    let second = commit_file(&repo, "two", "two", "Two");
+    let delete = request(&repo, RefKind::Local, "abc", RefOperation::Delete);
+    git(&repo, &["update-ref", "refs/heads/abc", &second, &first]);
+    assert!(matches!(
+        repo.apply_ref_operation(&delete),
+        Err(Error::Rule(RuleError::StaleReference))
+    ));
+    assert_eq!(git(&repo, &["rev-parse", "abc"]).trim(), second);
+    assert_eq!(head(&repo), second);
 }
 
 #[test]

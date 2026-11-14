@@ -4,6 +4,7 @@ mod export;
 mod history;
 mod message;
 mod modals;
+mod notices;
 mod operations;
 mod preferences;
 mod refs;
@@ -13,6 +14,7 @@ mod review;
 mod session;
 mod settings;
 mod shell;
+mod shortcuts;
 mod system;
 mod theme;
 mod toolbar;
@@ -24,15 +26,10 @@ use std::path::PathBuf;
 
 use gpui_kit::*;
 
-use history::{
-    BranchEditor,
-    rebase::{
-        RebaseDrop, RebaseEdit, RebaseFixup, RebaseMoveDown, RebaseMoveUp, RebasePick,
-        RebaseReword, RebaseSquash,
-    },
-};
+use history::BranchEditor;
 use message::Message;
 use modals::{ClosingModal, ContentModal};
+use notices::Notice;
 use operations::RepoOperation;
 use preferences::PreferenceDraft;
 use repository_manager::{OpenRepo, RepositoryManager};
@@ -57,33 +54,7 @@ actions!(
 pub fn init(cx: &mut App) {
     theme::init(cx);
     widgets::tooltip::init(cx);
-    bind_keys(cx);
-}
-
-fn bind_keys(cx: &mut App) {
-    let (open, submit, preferences) = if cfg!(target_os = "macos") {
-        ("cmd-o", "cmd-enter", "cmd-,")
-    } else {
-        ("ctrl-o", "ctrl-enter", "ctrl-,")
-    };
-    cx.bind_keys([
-        KeyBinding::new(open, OpenRepos, Some("RitKraken")),
-        KeyBinding::new(preferences, OpenPreferences, Some("RitKraken")),
-        KeyBinding::new("f5", Refresh, Some("RitKraken")),
-        KeyBinding::new("escape", Escape, Some("RitKraken")),
-        KeyBinding::new("down", NextRow, Some("CommitGraph")),
-        KeyBinding::new("up", PreviousRow, Some("CommitGraph")),
-        KeyBinding::new("p", RebasePick, Some("CommitGraph")),
-        KeyBinding::new("r", RebaseReword, Some("CommitGraph")),
-        KeyBinding::new("e", RebaseEdit, Some("CommitGraph")),
-        KeyBinding::new("s", RebaseSquash, Some("CommitGraph")),
-        KeyBinding::new("f", RebaseFixup, Some("CommitGraph")),
-        KeyBinding::new("d", RebaseDrop, Some("CommitGraph")),
-        KeyBinding::new("alt-up", RebaseMoveUp, Some("CommitGraph")),
-        KeyBinding::new("alt-down", RebaseMoveDown, Some("CommitGraph")),
-        KeyBinding::new(submit, Submit, Some("RitKraken")),
-        KeyBinding::new(submit, Submit, Some("CommitOperation")),
-    ]);
+    shortcuts::init(cx);
 }
 
 enum Load<T> {

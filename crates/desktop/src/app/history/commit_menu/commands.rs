@@ -5,7 +5,7 @@ use ritkraken_git::{self as git, CommitContext, CommitMenuState, CommitOperation
 
 use super::{GraphAction, compare::CommitComparison, dialog::CommitDialog, reset_label};
 use crate::{
-    app::{Client, Message, RepoOperation},
+    app::{Client, Message, Notice, RepoOperation},
     i18n::tr,
 };
 
@@ -39,13 +39,13 @@ impl Client {
                         window,
                         cx,
                         move || repo.detail(&commit),
-                        move |this, result, _, cx| match result {
+                        move |this, result, window, cx| match result {
                             Ok(detail) => {
                                 cx.write_to_clipboard(ClipboardItem::new_string(detail.message))
                             }
                             Err(error) => {
                                 if let Some(tab) = this.tab_mut(id) {
-                                    tab.notice = Some((true, error.into()));
+                                    tab.notify(Notice::failure(error), window, cx);
                                     cx.notify();
                                 }
                             }
@@ -140,7 +140,7 @@ impl Client {
                     Ok((context, operation)) => {
                         this.prepare_graph_operation(id, context, operation, reviewed, window, cx)
                     }
-                    Err(error) => tab.notice = Some((true, error.into())),
+                    Err(error) => tab.notify(Notice::failure(error), window, cx),
                 }
                 cx.notify();
             },
@@ -173,14 +173,7 @@ impl Client {
                     Err(error) => {
                         tab.busy = false;
                         let message = Message::from(error);
-                        let _ = window.prompt(
-                            PromptLevel::Info,
-                            &tr!("app.commit_menu.unavailable"),
-                            Some(&message.text()),
-                            &[PromptButton::ok("OK")],
-                            cx,
-                        );
-                        tab.notice = Some((true, message));
+                        tab.notify(Notice::failure(message), window, cx);
                         cx.notify();
                         return;
                     }

@@ -33,8 +33,6 @@ pub enum RuleError {
     StaleReference,
     #[error("This branch is checked out in a worktree and cannot be changed here.")]
     BranchInUse,
-    #[error("This branch has commits not merged into HEAD. Merge it before deleting.")]
-    UnmergedBranch,
     #[error("A reference with that name already exists.")]
     RefExists,
     #[error("This operation is not available for this reference.")]

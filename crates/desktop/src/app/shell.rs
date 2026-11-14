@@ -331,12 +331,6 @@ impl Client {
         } else if let Some(tab) = ready {
             if tab.busy {
                 (p.text_muted, tr!("app.status.running_git"))
-            } else if let Some((error, message)) = &tab.notice {
-                let text = message.text();
-                (
-                    if *error { p.danger } else { p.success },
-                    text.lines().next().unwrap_or(&text).to_owned(),
-                )
             } else if tab.history.data.snapshot.sequence.is_some() {
                 (p.text_muted, tr!("app.commit_menu.paused"))
             } else {

@@ -11,7 +11,7 @@ use gpui_kit::{
 use ritkraken_git::{CommitMenuState, CommitOperation};
 
 use crate::{
-    app::{Client, Message},
+    app::{Client, Message, Notice},
     i18n::LocalizedInput,
 };
 
@@ -132,7 +132,11 @@ impl Client {
             self.branch_editor.waiting = Some(id);
             self.update_repo_with_limit(id, None, None, window, cx);
         } else if let Some(tab) = self.tab_mut(id) {
-            tab.notice = Some((true, Message::Key("app.error.commit_outside_history")));
+            tab.notify(
+                Notice::warning(Message::Key("app.error.commit_outside_history")),
+                window,
+                cx,
+            );
             cx.notify();
         }
     }

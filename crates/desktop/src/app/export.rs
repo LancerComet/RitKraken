@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use super::{Client, Message};
+use super::{Client, Message, Notice};
 use gpui_kit::*;
 
 impl Client {
@@ -26,12 +26,16 @@ impl Client {
                 Ok(Err(error)) => Err(Message::detail("app.file_menu.export_failed", error)),
                 _ => return,
             };
-            let _ = view.update_in(cx, |this, _, cx| {
+            let _ = view.update_in(cx, |this, window, cx| {
                 if let Some(tab) = this.tab_mut(id) {
-                    tab.notice = Some(match result {
-                        Ok(()) => (false, Message::Key("app.file_menu.patch_saved")),
-                        Err(error) => (true, error),
-                    });
+                    tab.notify(
+                        match result {
+                            Ok(()) => Notice::info(Message::Key("app.file_menu.patch_saved")),
+                            Err(error) => Notice::failure(error),
+                        },
+                        window,
+                        cx,
+                    );
                     cx.notify();
                 }
             });
