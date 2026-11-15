@@ -1,4 +1,5 @@
 mod banner;
+mod dialog;
 mod projection;
 mod row;
 
@@ -10,13 +11,13 @@ use gpui_kit::{
 };
 use ritkraken_git::{self as git, CommitContext, CommitOperation, RebaseAction};
 
-use super::HistoryState;
 use crate::{
     app::{Client, Message, Notice},
     i18n::tr,
 };
 
 pub(in crate::app) use banner::{rebase_planning_bar, sequence_control_bar};
+pub(in crate::app) use dialog::RebaseDialog;
 pub(in crate::app) use projection::{
     PlannedRowMeta, ProjectedRebase, RebaseViewMode, find_preview_row_for_entry, project_history,
     real_oid, rebase_row_id,
@@ -88,6 +89,9 @@ impl Client {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        if self.modal_is_present() {
+            return;
+        }
         let Some(base_history) = self.tab(id).map(|tab| tab.history.data.clone()) else {
             return;
         };
@@ -102,6 +106,9 @@ impl Client {
             }
             return;
         }
+        let Some(id) = self.open_rebase_dialog(id, window, cx) else {
+            return;
+        };
         let projected = project_history(&base_history, &plan, RebaseViewMode::TreeEdit);
         let message_editor = cx.new(|cx| TextareaState::new(window, cx).rows(6));
         let subscription = cx.subscribe_in(
@@ -494,17 +501,14 @@ impl Client {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let initial_selection = {
-            let Some(tab) = self.tab_mut(id) else {
-                return;
-            };
-            if tab.busy || tab.rebase.is_none() {
-                return;
-            }
-            tab.rebase = None;
-            HistoryState::initial_selection(&tab.history.data)
-        };
-        self.select(id, initial_selection, Some(ScrollStrategy::Top), window, cx);
+        if self
+            .rebase_modal
+            .as_ref()
+            .is_some_and(|dialog| dialog.tab.id == id)
+        {
+            self.dismiss_modal(window, cx);
+            cx.notify();
+        }
     }
 
     pub(in crate::app) fn submit_rebase(

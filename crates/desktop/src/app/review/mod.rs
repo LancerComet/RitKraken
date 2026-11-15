@@ -387,7 +387,12 @@ impl ReviewState {
 
 impl Client {
     pub(super) fn close_diff(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if let Some(id) = self.session.active {
+        let id = self
+            .rebase_modal
+            .as_ref()
+            .map(|dialog| dialog.tab.id)
+            .or(self.session.active);
+        if let Some(id) = id {
             if let Some(tab) = self.tab_mut(id) {
                 tab.review.close();
                 tab.history.focus.focus(window, cx);

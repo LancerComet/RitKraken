@@ -193,7 +193,14 @@ impl Client {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let Some(tab) = self.current() else { return };
+        let Some(tab) = self
+            .rebase_modal
+            .as_ref()
+            .map(|dialog| &dialog.tab)
+            .or_else(|| self.current())
+        else {
+            return;
+        };
         let offset = usize::from(tab.show_wip());
         let history = tab.active_history();
         let count = history.snapshot.commits.len() + offset;

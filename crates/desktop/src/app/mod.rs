@@ -81,6 +81,7 @@ pub struct Client {
     branch_editor: BranchEditor,
     closing_modal: Option<ClosingModal>,
     content_modal: Option<ContentModal>,
+    rebase_modal: Option<Box<history::rebase::RebaseDialog>>,
     modal_compositor: ModalCompositor,
     file_opener: system::FileOpener,
     panes: WorkspacePanes,
@@ -113,6 +114,7 @@ impl Client {
             branch_editor: BranchEditor::new(window, cx),
             closing_modal: None,
             content_modal: None,
+            rebase_modal: None,
             modal_compositor: ModalCompositor::default(),
             file_opener: system::FileOpener::default(),
             panes: WorkspacePanes::new(cx),
@@ -136,10 +138,20 @@ impl Client {
     }
 
     fn tab(&self, id: u64) -> Option<&RepoTab> {
+        if let Some(dialog) = &self.rebase_modal
+            && dialog.tab.id == id
+        {
+            return Some(&dialog.tab);
+        }
         self.session.entry(id)?.ready()
     }
 
     fn tab_mut(&mut self, id: u64) -> Option<&mut RepoTab> {
+        if let Some(dialog) = &mut self.rebase_modal
+            && dialog.tab.id == id
+        {
+            return Some(&mut dialog.tab);
+        }
         self.session.entry_mut(id)?.ready_mut()
     }
 

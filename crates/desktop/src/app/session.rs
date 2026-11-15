@@ -25,7 +25,7 @@ pub(super) struct Session {
 }
 
 impl Session {
-    fn next_id(&mut self) -> u64 {
+    pub(super) fn next_id(&mut self) -> u64 {
         let id = self.next_tab;
         self.next_tab += 1;
         id
@@ -120,6 +120,30 @@ pub(super) struct RepoTab {
 }
 
 impl RepoTab {
+    pub(super) fn new(
+        id: u64,
+        repo: Repo,
+        history: Arc<History>,
+        limit: Option<usize>,
+        preferences: &super::preferences::Preferences,
+        window: &mut Window,
+        cx: &mut Context<Client>,
+    ) -> Self {
+        Self {
+            id,
+            repo,
+            history: HistoryState::new(history, limit, cx),
+            refs: ReferenceState::new(window, cx),
+            changes: ChangesState::new(window, cx),
+            review: ReviewState::new(preferences),
+            rebase: None,
+            busy: false,
+            active_op: None,
+            updates: RepoUpdates::default(),
+            notice: None,
+        }
+    }
+
     pub(super) fn active_history(&self) -> &std::sync::Arc<super::history::History> {
         self.rebase
             .as_ref()
@@ -237,19 +261,15 @@ impl Client {
         if self.tab(id).is_some() {
             return id;
         }
-        let ready = Tab::Ready(Box::new(RepoTab {
+        let ready = Tab::Ready(Box::new(RepoTab::new(
             id,
             repo,
-            history: HistoryState::new(history, limit, cx),
-            refs: ReferenceState::new(window, cx),
-            changes: ChangesState::new(window, cx),
-            review: ReviewState::new(&self.saved.preferences),
-            rebase: None,
-            busy: false,
-            active_op: None,
-            updates: RepoUpdates::default(),
-            notice: None,
-        }));
+            history,
+            limit,
+            &self.saved.preferences,
+            window,
+            cx,
+        )));
         if let Some(tab) = self.session.entry_mut(id) {
             *tab = ready;
         } else {

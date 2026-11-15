@@ -22,11 +22,15 @@ pub(super) enum ClosingModal {
     Preferences(Box<PreferenceDraft>),
     Repositories(ManagerMode),
     Content(ContentModal),
+    Rebase(Box<super::history::rebase::RebaseDialog>),
 }
 
 impl Client {
     pub(super) fn has_open_modal(&self) -> bool {
-        self.preferences.is_some() || self.manager.mode.is_some() || self.content_modal.is_some()
+        self.preferences.is_some()
+            || self.manager.mode.is_some()
+            || self.content_modal.is_some()
+            || self.rebase_modal.is_some()
     }
 
     pub(super) fn modal_is_present(&self) -> bool {
@@ -34,6 +38,13 @@ impl Client {
     }
 
     pub(super) fn dismiss_modal(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self
+            .rebase_modal
+            .as_ref()
+            .is_some_and(|dialog| dialog.tab.busy)
+        {
+            return;
+        }
         if self
             .content_modal
             .as_ref()
@@ -47,14 +58,20 @@ impl Client {
         }
         let preferences = self.preferences.take();
         let repositories = self.manager.mode.take();
+        let rebase = self.rebase_modal.take();
+        let restore_history_focus = rebase.is_some();
         if let Some(modal) = preferences
             .map(|draft| ClosingModal::Preferences(Box::new(draft)))
             .or(repositories.map(ClosingModal::Repositories))
             .or(content.map(ClosingModal::Content))
+            .or(rebase.map(ClosingModal::Rebase))
         {
             self.closing_modal = Some(modal);
         }
         self.focus.focus(window, cx);
+        if restore_history_focus && let Some(tab) = self.current() {
+            tab.history.focus.focus(window, cx);
+        }
     }
 
     pub(super) fn render_modal(
@@ -93,6 +110,7 @@ impl Client {
             Some(ClosingModal::Preferences(draft)) => (Some(draft.as_ref()), None, None),
             Some(ClosingModal::Repositories(mode)) => (None, Some(*mode), None),
             Some(ClosingModal::Content(content)) => (None, None, Some(content)),
+            Some(ClosingModal::Rebase(_)) => (None, None, None),
             None => (
                 self.preferences.as_ref(),
                 self.manager.mode,
@@ -103,6 +121,16 @@ impl Client {
             self.preferences_view(draft, cx).into_any_element()
         } else if let Some(mode) = repositories {
             self.manager_view(mode, window, cx).into_any_element()
+        } else if let Some(dialog) =
+            self.rebase_modal
+                .as_deref()
+                .or_else(|| match &self.closing_modal {
+                    Some(ClosingModal::Rebase(dialog)) => Some(dialog.as_ref()),
+                    _ => None,
+                })
+        {
+            self.rebase_dialog_view(dialog, window, cx)
+                .into_any_element()
         } else if let Some(content) = content {
             content.render(&self.modal_focus, cx).into_any_element()
         } else {

@@ -96,8 +96,9 @@ impl RepoOperation {
         }
     }
 
-    fn status_key(&self) -> &'static str {
-        match self {
+    fn status_key(&self) -> Option<&'static str> {
+        Some(match self {
+            Self::StageFiles(..) | Self::StagePatch(..) => return None,
             Self::Reference(_) => "app.ref_menu.completed",
             Self::CommitGraph(operation)
                 if matches!(operation.operation, git::CommitOperation::CherryPick { .. }) =>
@@ -105,26 +106,18 @@ impl RepoOperation {
                 "app.notice.cherry_picked"
             }
             Self::CommitGraph(_) => "app.commit_menu.completed",
-            Self::StageFiles(StageAction::Stage, _) => "app.notice.staged",
             Self::ResolveConflict(..) => "app.conflicts.resolved",
-            Self::StageFiles(StageAction::Unstage, _) => "app.notice.unstaged",
             Self::DiscardFiles(_) => "app.file_menu.discarded",
             Self::IgnoreFile(_, _, false) => "app.file_menu.ignored",
             Self::IgnoreFile(_, _, true) => "app.file_menu.stopped_tracking",
             Self::StashFile(_) => "app.notice.stashed",
-            Self::StagePatch(file, _, selection) => match (file.scope == Scope::Index, selection) {
-                (false, PatchSelection::Hunk(_)) => "app.notice.hunk_staged",
-                (true, PatchSelection::Hunk(_)) => "app.notice.hunk_unstaged",
-                (false, PatchSelection::Line { .. }) => "app.notice.line_staged",
-                (true, PatchSelection::Line { .. }) => "app.notice.line_unstaged",
-            },
             Self::Commit(..) => "app.notice.committed",
             Self::Fetch(_) | Self::AutoFetch(_) => "app.notice.fetched",
             Self::AddRemote(_) => "app.notice.remote_added",
             Self::Push { .. } => "app.notice.pushed",
             Self::Stash => "app.notice.stashed",
             Self::Pop => "app.notice.popped",
-        }
+        })
     }
 
     fn activity(&self) -> ActiveOp {
@@ -334,7 +327,7 @@ impl Client {
         if let Some((result, edit)) = result {
             match result {
                 Ok(()) => {
-                    notice = Some(Notice::info(Message::Key(edit.status_key())));
+                    notice = edit.status_key().map(|key| Notice::info(Message::Key(key)));
                     committed = matches!(edit, RepoOperation::Commit(..));
                     finished_rebase = matches!(
                         &edit,

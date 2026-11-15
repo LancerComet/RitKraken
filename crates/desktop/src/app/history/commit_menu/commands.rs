@@ -178,6 +178,7 @@ impl Client {
                     }
                 };
                 tab.busy = false;
+                let id = this.finish_rebase_preparation(id, window, cx);
                 this.update_repo(id, Some(RepoOperation::CommitGraph(prepared)), window, cx);
             },
         );
