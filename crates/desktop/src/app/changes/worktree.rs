@@ -8,13 +8,13 @@ use gpui_kit::{
     prelude::*,
     *,
 };
-use ritkraken_git::{Change, Scope};
+use ritkraken_git::{Change, FileTarget, Scope};
 
 use crate::i18n::tr;
 
 use super::{StageAction, StageTarget, change_count, files::FILE_ROW_HEIGHT};
 use crate::app::{
-    Client, RepoOperation, RepoTab,
+    Client, RepoTab,
     message::branch_label,
     session::ActiveOp,
     theme::palette,
@@ -184,7 +184,20 @@ impl Client {
         let p = palette(cx);
         let id = tab.id;
         let action = StageAction::for_scope(&scope).filter(|_| !files.is_empty());
-        let conflict = files.iter().find(|file| file.code == b'U').cloned();
+        let selected = tab.changes.selection.selected(&scope, files);
+        let selected_count = selected.len();
+        let targets = if selected.is_empty() {
+            files
+                .iter()
+                .map(|change| FileTarget {
+                    scope: scope.clone(),
+                    change: change.clone(),
+                })
+                .collect()
+        } else {
+            selected
+        };
+        let conflicted = targets.iter().any(|file| file.change.code == b'U');
         div()
             .flex_1()
             .min_h_0()
@@ -195,6 +208,7 @@ impl Client {
                     .flex()
                     .items_center()
                     .justify_between()
+                    .gap(px(8.))
                     .h(FILE_SECTION_HEADER_HEIGHT)
                     .flex_shrink_0()
                     .px(px(10.))
@@ -205,6 +219,9 @@ impl Client {
                     .bg(rgb(p.surface_high))
                     .child(
                         div()
+                            .flex_1()
+                            .min_w_0()
+                            .truncate()
                             .font_weight(FontWeight::MEDIUM)
                             .child(tr!(title_key, count = files.len())),
                     )
@@ -212,8 +229,10 @@ impl Client {
                         e.child(
                             button(
                                 title_key,
-                                if conflict.is_some() {
+                                if conflicted {
                                     tr!("app.conflicts.resolve")
+                                } else if selected_count > 0 {
+                                    action.label(StageTarget::Selected(selected_count))
                                 } else {
                                     action.label(StageTarget::All)
                                 },
@@ -221,23 +240,11 @@ impl Client {
                                 !tab.busy,
                                 cx,
                                 cx.listener(move |this, _, window, cx| {
-                                    if let Some(change) = &conflict {
-                                        this.open_diff(
-                                            id,
-                                            ritkraken_git::FileTarget {
-                                                scope: Scope::Worktree,
-                                                change: change.clone(),
-                                            },
-                                            window,
-                                            cx,
-                                        );
-                                        return;
-                                    }
-                                    let edit = RepoOperation::StageFiles(action, None);
-                                    this.update_repo(id, Some(edit), window, cx);
+                                    this.stage_selected_files(id, targets.clone(), window, cx);
                                 }),
                             )
                             .rounded_full()
+                            .flex_shrink_0()
                             .h(px(22.)),
                         )
                     }),

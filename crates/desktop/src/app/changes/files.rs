@@ -1,6 +1,7 @@
 use std::{
     collections::HashSet,
     path::{Path, PathBuf},
+    sync::Arc,
 };
 
 use gpui_kit::{
@@ -14,7 +15,7 @@ use crate::i18n::tr;
 
 use super::{StageAction, StageTarget, change_mark, menu::FileMenu};
 use crate::app::{
-    Client, RepoOperation, RepoTab,
+    Client, RepoTab,
     theme::palette,
     widgets::{Tone, button, icon, menu::ContextMenuExt, note},
 };
@@ -87,12 +88,20 @@ impl Client {
                 .child(note(tr!("app.changes.no_files"), cx));
         }
         let id = tab.id;
-        let selected = tab.review.active.as_ref().map(|diff| diff.file.clone());
+        let selected = tab.changes.selection.clone();
         let files = files.to_vec();
         let tree = tab.changes.tree;
         let busy = tab.busy;
         let action = StageAction::for_scope(&scope);
         let rows = file_rows(&files, tree);
+        let ordered: Arc<Vec<_>> = Arc::new(
+            rows.iter()
+                .filter_map(|row| match row {
+                    FileRow::File { index, .. } => Some(files[*index].clone()),
+                    FileRow::Folder { .. } => None,
+                })
+                .collect(),
+        );
         let view = cx.weak_entity();
         let scroll = &tab.changes.scroll[scroll_index];
         let list = uniform_list((label, id), rows.len(), move |range, _, cx| {
@@ -128,15 +137,19 @@ impl Client {
                             scope: scope.clone(),
                             change: change.clone(),
                         };
-                        let active = selected.as_ref() == Some(&file);
+                        let active = selected.contains(&file);
                         let mark = change_mark(change.code, p);
                         let open_view = view.clone();
                         let stage_view = view.clone();
                         let stage_change = change.clone();
+                        let stage_file = file.clone();
+                        let open_order = ordered.clone();
+                        let stage_order = ordered.clone();
                         let menu = FileMenu {
                             id,
                             file: file.clone(),
                             view: view.clone(),
+                            files: ordered.clone(),
                         };
                         file_row(*depth)
                             .id(SharedString::from(format!(
@@ -149,9 +162,22 @@ impl Client {
                             .hover(|style| {
                                 style.bg(rgb(if active { p.accent_soft_hover } else { p.hover }))
                             })
-                            .on_click(move |_, window, cx| {
+                            .on_click(move |event, window, cx| {
+                                let modifiers = event.modifiers();
+                                let toggle = modifiers.secondary(cx);
                                 let _ = open_view.update(cx, |this, cx| {
-                                    this.open_diff(id, file.clone(), window, cx)
+                                    if let Some(tab) = this.tab_mut(id) {
+                                        let selected = tab.changes.selection.click(
+                                            &file,
+                                            &open_order,
+                                            modifiers.shift,
+                                            toggle,
+                                        );
+                                        if selected {
+                                            this.open_diff(id, file.clone(), window, cx);
+                                        }
+                                        cx.notify();
+                                    }
                                 });
                             })
                             .child(file_row_icon(mark.icon_path, mark.color))
@@ -171,23 +197,12 @@ impl Client {
                                         move |_, window, cx| {
                                             cx.stop_propagation();
                                             let _ = stage_view.update(cx, |this, cx| {
-                                                if stage_change.code == b'U' {
-                                                    this.open_diff(
-                                                        id,
-                                                        FileTarget {
-                                                            scope: Scope::Worktree,
-                                                            change: stage_change.clone(),
-                                                        },
-                                                        window,
-                                                        cx,
-                                                    );
-                                                    return;
-                                                }
-                                                let edit = RepoOperation::StageFiles(
-                                                    action,
-                                                    Some(stage_change.clone()),
+                                                let targets = this.selected_file_targets(
+                                                    id,
+                                                    &stage_file,
+                                                    &stage_order,
                                                 );
-                                                this.update_repo(id, Some(edit), window, cx);
+                                                this.stage_selected_files(id, targets, window, cx);
                                             });
                                         },
                                     )

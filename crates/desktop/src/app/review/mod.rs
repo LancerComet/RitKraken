@@ -204,6 +204,7 @@ impl Client {
     ) {
         let collapse_default = self.saved.preferences.collapse_review_sidebar;
         let Some(tab) = self.tab_mut(id) else { return };
+        tab.changes.selection.preview(&file);
         let repo = tab.repo.clone();
         let ignore_edge_whitespace = tab.review.ignore_edge_whitespace;
         let target = file.clone();

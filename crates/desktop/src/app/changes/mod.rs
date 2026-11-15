@@ -1,8 +1,10 @@
 mod commit;
 mod commit_people;
+mod file_actions;
 mod files;
 mod inspect;
 mod menu;
+mod selection;
 mod summary;
 mod worktree;
 
@@ -29,6 +31,7 @@ pub(super) enum StageTarget {
     Row,
     File,
     All,
+    Selected(usize),
     Hunk,
     Line,
 }
@@ -50,6 +53,12 @@ impl StageAction {
             (Self::Unstage, StageTarget::File) => "app.stage.unstage_file",
             (Self::Stage, StageTarget::All) => "app.stage.stage_all",
             (Self::Unstage, StageTarget::All) => "app.stage.unstage_all",
+            (Self::Stage, StageTarget::Selected(count)) => {
+                return tr!("app.stage.stage_selected", count = count);
+            }
+            (Self::Unstage, StageTarget::Selected(count)) => {
+                return tr!("app.stage.unstage_selected", count = count);
+            }
             (Self::Stage, StageTarget::Hunk) => "app.stage.stage_hunk",
             (Self::Unstage, StageTarget::Hunk) => "app.stage.unstage_hunk",
             (Self::Stage, StageTarget::Line) => "app.stage.stage_line",
@@ -66,6 +75,7 @@ impl StageAction {
 }
 
 pub(super) struct ChangesState {
+    pub(super) selection: selection::FileSelection,
     pub(super) detail: Load<CommitDetail>,
     show_all_files: bool,
     commit_files: Option<Load<Vec<Change>>>,
@@ -98,6 +108,7 @@ impl ChangesState {
             },
         );
         Self {
+            selection: selection::FileSelection::default(),
             detail: Load::Pending,
             show_all_files: false,
             commit_files: None,
@@ -113,6 +124,7 @@ impl ChangesState {
     }
 
     pub(super) fn select_commit(&mut self) -> u64 {
+        self.selection.clear();
         self.detail = Load::Pending;
         self.show_all_files = false;
         self.commit_files = None;

@@ -197,8 +197,10 @@ impl Client {
                                 !tab.busy,
                                 cx,
                                 cx.listener(move |this, _, window, cx| {
-                                    let edit =
-                                        RepoOperation::StageFiles(action, Some(change.clone()));
+                                    let edit = RepoOperation::StageFiles(
+                                        action,
+                                        Some(vec![change.clone()]),
+                                    );
                                     this.update_repo(id, Some(edit), window, cx);
                                 }),
                             )

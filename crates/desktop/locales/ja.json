@@ -277,6 +277,8 @@
       "worktree": "作業ツリー"
     },
     "stage": {
+      "stage_selected": "選択をステージ（%{count}）",
+      "unstage_selected": "選択をステージ解除（%{count}）",
       "stage": "ステージ",
       "stage_all": "すべてステージ",
       "stage_file": "ファイルをステージ",
@@ -312,6 +314,7 @@
       "stash_hint": "変更をスタッシュ"
     },
     "file_menu": {
+      "selection": "%{count} 個のファイルを選択",
       "blame": "ファイルの Blame",
       "blame_limit": "Blame のプレビューは 100,000 行までです。",
       "copy_path": "ファイルパスをコピー",

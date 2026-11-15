@@ -4,7 +4,11 @@ mod stash;
 
 use std::{collections::HashSet, path::PathBuf, process::Command};
 
-use crate::{Repo, Result, RuleError, command::run_write, protocol::path_from_bytes};
+use crate::{
+    Repo, Result, RuleError,
+    command::{run_with_input, run_write},
+    protocol::path_from_bytes,
+};
 
 pub use files::DiscardFile;
 pub(crate) use files::WorkspaceVersion;
@@ -52,29 +56,35 @@ impl Repo {
     }
 
     pub fn stage(&self, change: Option<&Change>) -> Result<()> {
-        self.check_conflict_staging(change)?;
-        let mut git = self.git_with_literal_paths();
-        git.args(["add", "-A", "--"]);
-        if let Some(change) = change {
-            append_paths(&mut git, change);
+        self.stage_files(change.map(std::slice::from_ref))
+    }
+
+    pub fn stage_files(&self, changes: Option<&[Change]>) -> Result<()> {
+        if changes.is_some_and(<[Change]>::is_empty) {
+            return Ok(());
         }
-        run_write(&mut git)
+        self.check_conflict_staging(changes)?;
+        let mut git = self.git_with_literal_paths();
+        git.args(["add", "-A"]);
+        run_paths(git, changes)
     }
 
     pub fn unstage(&self, change: Option<&Change>) -> Result<()> {
+        self.unstage_files(change.map(std::slice::from_ref))
+    }
+
+    pub fn unstage_files(&self, changes: Option<&[Change]>) -> Result<()> {
+        if changes.is_some_and(<[Change]>::is_empty) {
+            return Ok(());
+        }
         let head = self.resolve_ref("HEAD")?;
         let mut git = self.git_with_literal_paths();
         if head.is_some() {
-            git.args(["restore", "--staged", "--"]);
+            git.args(["restore", "--staged"]);
         } else {
-            git.args(["rm", "-r", "--cached", "--force", "--"]);
+            git.args(["rm", "-r", "--cached", "--force"]);
         }
-        if let Some(change) = change {
-            append_paths(&mut git, change);
-        } else {
-            git.arg(".");
-        }
-        run_write(&mut git)
+        run_paths(git, changes)
     }
 
     pub fn commit(&self, summary: &str, description: &str) -> Result<()> {
@@ -100,6 +110,27 @@ impl Repo {
         }
         run_write(self.git().args(["stash", "pop", "--index"]))
     }
+}
+
+/// NUL-delimited stdin avoids Windows' command-line limit and preserves literal paths.
+fn run_paths(mut git: Command, changes: Option<&[Change]>) -> Result<()> {
+    let Some(changes) = changes else {
+        return run_write(git.args(["--", "."]));
+    };
+    let mut paths = Vec::new();
+    for change in changes {
+        for path in std::iter::once(&change.path)
+            .chain(change.previous.as_ref().filter(|_| change.code != b'C'))
+        {
+            paths.extend_from_slice(path.as_os_str().as_encoded_bytes());
+            paths.push(0);
+        }
+    }
+    run_with_input(
+        git.args(["--pathspec-from-file=-", "--pathspec-file-nul"]),
+        &[&paths],
+    )
+    .map(drop)
 }
 
 pub(crate) fn append_paths(command: &mut Command, change: &Change) {

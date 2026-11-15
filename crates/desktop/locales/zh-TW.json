@@ -277,6 +277,8 @@
       "worktree": "工作區"
     },
     "stage": {
+      "stage_selected": "暫存所選變更（%{count}）",
+      "unstage_selected": "取消暫存所選變更（%{count}）",
       "stage": "暫存",
       "stage_all": "暫存所有變更",
       "stage_file": "暫存檔案",
@@ -312,6 +314,7 @@
       "stash_hint": "貯藏變更"
     },
     "file_menu": {
+      "selection": "已選取 %{count} 個檔案",
       "blame": "檔案追溯（Blame）",
       "blame_limit": "檔案追溯預覽最多支援 100,000 行。",
       "copy_path": "複製檔案路徑",

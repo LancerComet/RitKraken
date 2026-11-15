@@ -21,10 +21,10 @@ type Completion = Box<dyn FnOnce(&mut Client, bool, &mut Window, &mut Context<Cl
 pub(super) enum RepoOperation {
     Reference(git::RefRequest),
     CommitGraph(Arc<git::PreparedCommitOperation>),
-    StageFiles(StageAction, Option<Change>),
+    StageFiles(StageAction, Option<Vec<Change>>),
     StagePatch(FileTarget, Arc<Patch>, PatchSelection),
     ResolveConflict(Arc<git::ConflictFile>, git::ConflictResolution),
-    DiscardFile(Arc<git::DiscardFile>),
+    DiscardFiles(Arc<Vec<git::DiscardFile>>),
     IgnoreFile(Change, git::IgnoreRule, bool),
     StashFile(Change),
     Commit(String, String),
@@ -67,11 +67,13 @@ impl RepoOperation {
                 operation,
                 &git::GitEditor::for_executable(&std::env::current_exe()?),
             ),
-            Self::StageFiles(StageAction::Stage, change) => repo.stage(change.as_ref()),
-            Self::StageFiles(StageAction::Unstage, change) => repo.unstage(change.as_ref()),
+            Self::StageFiles(StageAction::Stage, changes) => repo.stage_files(changes.as_deref()),
+            Self::StageFiles(StageAction::Unstage, changes) => {
+                repo.unstage_files(changes.as_deref())
+            }
             Self::StagePatch(file, patch, selection) => repo.apply_partial(file, patch, *selection),
             Self::ResolveConflict(file, resolution) => repo.resolve_conflict(file, resolution),
-            Self::DiscardFile(expected) => repo.discard_file(expected),
+            Self::DiscardFiles(expected) => repo.discard_files(expected),
             Self::IgnoreFile(change, rule, stop_tracking) => {
                 repo.ignore_file(change, *rule)?;
                 if *stop_tracking {
@@ -106,7 +108,7 @@ impl RepoOperation {
             Self::StageFiles(StageAction::Stage, _) => "app.notice.staged",
             Self::ResolveConflict(..) => "app.conflicts.resolved",
             Self::StageFiles(StageAction::Unstage, _) => "app.notice.unstaged",
-            Self::DiscardFile(_) => "app.file_menu.discarded",
+            Self::DiscardFiles(_) => "app.file_menu.discarded",
             Self::IgnoreFile(_, _, false) => "app.file_menu.ignored",
             Self::IgnoreFile(_, _, true) => "app.file_menu.stopped_tracking",
             Self::StashFile(_) => "app.notice.stashed",
@@ -364,6 +366,9 @@ impl Client {
                 changed |= !Arc::ptr_eq(&tab.history.data, &history) || tab.history.limit != limit;
                 tab.history.data = history;
                 tab.history.limit = limit;
+                tab.changes
+                    .selection
+                    .refresh_worktree(&tab.history.data.snapshot.status);
             }
             Err(error) => {
                 let message = if let Some(previous) = notice.take() {

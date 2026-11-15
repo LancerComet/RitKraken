@@ -119,6 +119,17 @@ impl Repo {
         run_write(&mut git)
     }
 
+    pub fn discard_files(&self, expected: &[DiscardFile]) -> Result<()> {
+        // Validate the complete selection before discarding any selected file.
+        for file in expected {
+            self.verify_discard(file)?;
+        }
+        for file in expected {
+            self.discard_file(file)?;
+        }
+        Ok(())
+    }
+
     pub(crate) fn verify_discard(&self, expected: &DiscardFile) -> Result<()> {
         if self.prepare_discard(&expected.file)? != *expected {
             return Err(RuleError::StaleFile.into());

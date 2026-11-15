@@ -277,6 +277,8 @@
       "worktree": "Working directory"
     },
     "stage": {
+      "stage_selected": "Stage selected (%{count})",
+      "unstage_selected": "Unstage selected (%{count})",
       "stage": "Stage",
       "stage_all": "Stage all changes",
       "stage_file": "Stage File",
@@ -312,6 +314,7 @@
       "stash_hint": "Stash changes"
     },
     "file_menu": {
+      "selection": "%{count} files selected",
       "blame": "File Blame",
       "blame_limit": "Blame previews are limited to 100,000 lines.",
       "copy_path": "Copy file path",

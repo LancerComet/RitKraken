@@ -216,14 +216,16 @@ impl Repo {
         )
     }
 
-    pub(crate) fn check_conflict_staging(&self, change: Option<&crate::Change>) -> Result<()> {
+    pub(crate) fn check_conflict_staging(&self, changes: Option<&[crate::Change]>) -> Result<()> {
         for conflicted in self
             .status()?
             .unstaged
             .into_iter()
             .filter(|entry| entry.code == b'U')
         {
-            if change.is_some_and(|selected| selected.path != conflicted.path) {
+            if changes.is_some_and(|selected| {
+                !selected.iter().any(|change| change.path == conflicted.path)
+            }) {
                 continue;
             }
             let file = FileTarget {
