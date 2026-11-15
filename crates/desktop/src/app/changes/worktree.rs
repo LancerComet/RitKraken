@@ -1,6 +1,7 @@
 use gpui_kit::{
     component::{
-        Sizable, Size as InputSize,
+        Disableable, Sizable, Size as InputSize,
+        checkbox::Checkbox,
         input::{Input, Textarea},
         progress::ProgressCircle,
         resizable::{resizable_panel, v_resizable},
@@ -109,16 +110,24 @@ impl Client {
     }
 
     fn commit_message_form(&self, tab: &RepoTab, cx: &Context<Self>) -> Div {
-        let label = match tab.history.data.snapshot.status.staged.len() {
-            0 => tr!("app.changes.stage_to_commit"),
-            1 => tr!("app.changes.commit_one"),
-            count => tr!("app.changes.commit_many", count = count),
+        let id = tab.id;
+        let amending = tab.changes.amend.is_some();
+        let label = if amending {
+            tr!("app.changes.amend_commit")
+        } else {
+            match tab.history.data.snapshot.status.staged.len() {
+                0 => tr!("app.changes.stage_to_commit"),
+                1 => tr!("app.changes.commit_one"),
+                count => tr!("app.changes.commit_many", count = count),
+            }
         };
         let input_size = InputSize::Small;
         let padding = input_size.input_px() + px(2.);
         // Allow a 20px line, the padding, and a 1px border on each side.
         let summary = Styled::h(
-            Input::new(&tab.changes.summary).with_size(input_size),
+            Input::new(&tab.changes.summary)
+                .with_size(input_size)
+                .appearance(false),
             px(22.) + padding * 2.,
         )
         .flex_shrink_0()
@@ -130,21 +139,39 @@ impl Client {
             .gap(px(6.))
             .p(px(9.))
             .child(
-                div()
-                    .flex_shrink_0()
-                    .font_weight(FontWeight::MEDIUM)
-                    .child(tr!("app.changes.commit_message")),
+                Checkbox::new(("amend-previous-commit", id))
+                    .small()
+                    .text_size(px(14.))
+                    .label(tr!("app.changes.amend_previous"))
+                    .checked(amending)
+                    .disabled(tab.busy || (!amending && !tab.amend_enabled()))
+                    .on_click(cx.listener(move |this, checked: &bool, window, cx| {
+                        this.toggle_worktree_amend(id, *checked, window, cx);
+                    })),
             )
-            .child(summary)
             .child(
-                div().flex_1().min_h_0().child(
-                    Textarea::new(&tab.changes.description)
-                        .with_size(input_size)
-                        .h(relative(1.))
-                        // The multiline editor already applies the size's padding internally.
-                        .px(padding - input_size.input_px())
-                        .py(padding - input_size.input_py()),
-                ),
+                div()
+                    .flex_1()
+                    .min_h_0()
+                    .flex()
+                    .flex_col()
+                    .border_1()
+                    .border_color(rgb(palette(cx).border))
+                    .rounded(px(4.))
+                    .bg(rgb(palette(cx).canvas))
+                    .overflow_hidden()
+                    .child(summary)
+                    .child(
+                        div().flex_1().min_h_0().child(
+                            Textarea::new(&tab.changes.description)
+                                .with_size(input_size)
+                                .appearance(false)
+                                .h(relative(1.))
+                                // Match the summary's inset in the shared message editor.
+                                .px(padding - input_size.input_px())
+                                .py(padding - input_size.input_py()),
+                        ),
+                    ),
             )
             .child(
                 button_content(
@@ -167,7 +194,7 @@ impl Client {
                     cx,
                     cx.listener(|this, _, window, cx| this.submit(window, cx)),
                 )
-                .rounded_full()
+                .rounded(px(3.))
                 .flex_shrink_0()
                 .h(px(36.)),
             )

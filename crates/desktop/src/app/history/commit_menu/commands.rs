@@ -148,7 +148,7 @@ impl Client {
         cx.notify();
     }
 
-    pub(in crate::app::history) fn prepare_graph_operation(
+    pub(in crate::app) fn prepare_graph_operation(
         &mut self,
         id: u64,
         context: Arc<CommitContext>,
@@ -179,7 +179,26 @@ impl Client {
                 };
                 tab.busy = false;
                 let id = this.finish_rebase_preparation(id, window, cx);
-                this.update_repo(id, Some(RepoOperation::CommitGraph(prepared)), window, cx);
+                if matches!(prepared.operation, CommitOperation::Amend { .. }) {
+                    if let Err(message) = this.update_repo_with_completion(
+                        id,
+                        RepoOperation::CommitGraph(prepared),
+                        move |this, succeeded, window, cx| {
+                            if succeeded {
+                                this.restore_commit_draft(id, window, cx);
+                            }
+                        },
+                        window,
+                        cx,
+                    ) {
+                        if let Some(tab) = this.tab_mut(id) {
+                            tab.notify(Notice::failure(message), window, cx);
+                        }
+                        cx.notify();
+                    }
+                } else {
+                    this.update_repo(id, Some(RepoOperation::CommitGraph(prepared)), window, cx);
+                }
             },
         );
         cx.notify();

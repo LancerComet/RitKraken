@@ -7,6 +7,8 @@
       "name": "ブランチ名"
     },
     "changes": {
+      "amend_commit": "直前のコミットを修正",
+      "amend_previous": "直前のコミットを修正する",
       "changed_files": "変更ファイル (%{count})",
       "commit_many": "%{count} ファイルの変更をコミット",
       "commit_message": "コミットメッセージ",

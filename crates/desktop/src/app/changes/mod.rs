@@ -1,3 +1,4 @@
+mod amend;
 mod commit;
 mod commit_people;
 mod file_actions;
@@ -83,6 +84,7 @@ pub(super) struct ChangesState {
     scroll: [UniformListScrollHandle; 3],
     pub(super) summary: LocalizedInput,
     pub(super) description: LocalizedInput<TextareaMode>,
+    amend: Option<amend::AmendDraft>,
     tree: bool,
     worktree_panes: Entity<gpui_kit::base::ResizableState>,
     message_panes: Entity<gpui_kit::base::ResizableState>,
@@ -116,6 +118,7 @@ impl ChangesState {
             scroll: std::array::from_fn(|_| UniformListScrollHandle::default()),
             summary,
             description,
+            amend: None,
             tree: false,
             worktree_panes: cx.new(|_| gpui_kit::base::ResizableState::default()),
             message_panes: cx.new(|_| gpui_kit::base::ResizableState::default()),
@@ -138,7 +141,11 @@ impl RepoTab {
     fn commit_enabled(&self, cx: &App) -> bool {
         self.history.selected.is_none()
             && !self.busy
-            && !self.history.data.snapshot.status.staged.is_empty()
+            && if self.changes.amend.is_some() {
+                self.amend_enabled()
+            } else {
+                !self.history.data.snapshot.status.staged.is_empty()
+            }
             && !self.changes.summary.read(cx).value().trim().is_empty()
     }
 }
@@ -222,6 +229,26 @@ impl Client {
             return;
         }
         if let Some(tab) = self.current().filter(|tab| tab.commit_enabled(cx)) {
+            if let Some(draft) = &tab.changes.amend {
+                let summary = tab.changes.summary.read(cx).value();
+                let description = tab.changes.description.read(cx).value();
+                let message = if description.trim().is_empty() {
+                    summary.trim().to_owned()
+                } else {
+                    format!("{}\n\n{}", summary.trim(), description.trim())
+                };
+                self.prepare_graph_operation(
+                    tab.id,
+                    draft.context.clone(),
+                    ritkraken_git::CommitOperation::Amend {
+                        message,
+                        include_staged: true,
+                    },
+                    window,
+                    cx,
+                );
+                return;
+            }
             let edit = RepoOperation::Commit(
                 tab.changes.summary.read(cx).value().to_string(),
                 tab.changes.description.read(cx).value().to_string(),

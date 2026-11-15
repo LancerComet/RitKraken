@@ -7,6 +7,8 @@
       "name": "Branch name"
     },
     "changes": {
+      "amend_commit": "Amend Previous Commit",
+      "amend_previous": "Amend previous commit",
       "changed_files": "Changed files (%{count})",
       "commit_many": "Commit changes to %{count} files",
       "commit_message": "Commit Message",

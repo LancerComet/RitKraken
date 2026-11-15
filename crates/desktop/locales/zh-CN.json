@@ -7,6 +7,8 @@
       "name": "分支名称"
     },
     "changes": {
+      "amend_commit": "修订上一个提交",
+      "amend_previous": "修订上一个提交",
       "changed_files": "变更文件（%{count}）",
       "commit_many": "提交 %{count} 个文件的更改",
       "commit_message": "提交信息",
