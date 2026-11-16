@@ -8,6 +8,10 @@
   A fast desktop Git client written in Rust, powered by <a href="https://github.com/longbridge/gpui-kit">GPUI Kit</a> and your local Git CLI.
 </p>
 
+<p align="center">
+  <img src="docs/preview.webp" alt="RitKraken Desktop Client" style="width: 100%; max-width: 1366px" />
+</p>
+
 ## User Requirements & Notes
 
 - **Git 2.37 or newer** must be installed and available on your `PATH`. RitKraken delegates all repository reads and writes to the system `git` executable.
