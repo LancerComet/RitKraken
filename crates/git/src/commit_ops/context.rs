@@ -1,6 +1,7 @@
 use std::{
     path::{Path, PathBuf},
     process::Output,
+    thread::{self, Scope, ScopedJoinHandle},
 };
 
 use crate::{
@@ -21,11 +22,7 @@ pub(crate) struct OperationState {
 
 impl Repo {
     pub fn commit_at(&self, id: &str) -> Result<Commit> {
-        // UI commands use immutable object IDs, never revisions which can move
-        // or be interpreted as command-line options.
-        if !matches!(id.len(), 40 | 64) || !id.bytes().all(|byte| byte.is_ascii_hexdigit()) {
-            return Err(RuleError::InvalidCommit.into());
-        }
+        ensure_object_id(id)?;
         parse_log(&self.read(&[
             "show",
             "--no-patch",
@@ -44,81 +41,118 @@ impl Repo {
     }
 
     pub fn commit_context(&self, id: &str) -> Result<CommitContext> {
-        let commit = self.commit_at(id)?;
-        let head = self.resolve_ref("HEAD")?.ok_or(RuleError::InvalidCommit)?;
-        let branch = self.checked_out_branch()?;
-        let relation = if commit.id == head {
+        // Each Git process costs tens of milliseconds to start on Windows, so
+        // independent reads run side by side. HEAD and the branch are read
+        // again at the end to reject a checkout that moved meanwhile.
+        ensure_object_id(id)?;
+        thread::scope(|scope| {
+            let commit = spawn(scope, || self.commit_at(id))?;
+            let message = spawn(scope, || self.commit_message(id))?;
+            let status = spawn(scope, || self.status())?;
+            let remotes = spawn(scope, || self.remote_summary())?;
+            let operation = spawn(scope, || self.operation_state())?;
+            let references = spawn(scope, || {
+                let branch = self.checked_out_branch()?;
+                let references = self.references(branch.as_deref())?;
+                Ok((branch, references))
+            })?;
+            let head = self.resolve_ref("HEAD")?.ok_or(RuleError::InvalidCommit)?;
+            let staged_version = {
+                let head = head.clone();
+                spawn(scope, move || {
+                    self.read(&[
+                        "diff",
+                        "--cached",
+                        "--raw",
+                        "--no-abbrev",
+                        "--no-ext-diff",
+                        "--no-textconv",
+                        &head,
+                        "--",
+                    ])
+                })?
+            };
+            let commit = join(commit)?;
+            let relation = self.commit_relation(&commit.id, &head)?;
+            let linear_rebase = match self.rebase_upstream(&head, &commit.id, relation)? {
+                Some(upstream) => self
+                    .read(&[
+                        "rev-list",
+                        "--max-count=1",
+                        "--min-parents=2",
+                        &format!("{upstream}..{head}"),
+                        "--",
+                    ])?
+                    .is_empty(),
+                None => false,
+            };
+            let status = join(status)?;
+            let (branch, (references, upstream)) = join(references)?;
+            let (remotes, remote_url) = join(remotes)?;
+            let operation = join(operation)?;
+            let message = join(message)?;
+            let staged_version = join(staged_version)?;
+            let conflicted = status.has_conflicts();
+            let tracked_remote = upstream.as_ref().and_then(crate::Upstream::tracking_name);
+            let editing_rebase_commit = operation.editing_head.as_deref() == Some(head.as_str());
+            let current_branch = spawn(scope, || self.checked_out_branch())?;
+            if self.resolve_ref("HEAD")?.as_deref() != Some(head.as_str())
+                || join(current_branch)? != branch
+            {
+                return Err(RuleError::StaleCommit.into());
+            }
+            Ok(CommitContext {
+                menu: CommitMenuState {
+                    references: references
+                        .into_iter()
+                        .filter(|reference| reference.id == commit.id)
+                        .collect(),
+                    commit,
+                    head,
+                    branch,
+                    relation,
+                    linear_rebase,
+                    remote_url,
+                    dirty: !status.is_empty(),
+                    conflicted,
+                    staged_count: status.staged.len(),
+                    sequence: operation.kind,
+                    editing_rebase_commit,
+                    remote_names: remotes,
+                    tracked_remote,
+                },
+                message,
+                staged_version,
+            })
+        })
+    }
+
+    /// The full message of a commit, as shown in its details.
+    fn commit_message(&self, id: &str) -> Result<String> {
+        let message = self.read(&[
+            "show",
+            "--no-patch",
+            "--no-notes",
+            "--no-show-signature",
+            "--encoding=UTF-8",
+            "--format=%B",
+            id,
+            "--",
+        ])?;
+        Ok(text(&message).trim_end().to_owned())
+    }
+
+    fn commit_relation(&self, commit: &str, head: &str) -> Result<CommitRelation> {
+        Ok(if commit == head {
             CommitRelation::Head
-        } else if self.is_ancestor(&commit.id, &head)? {
+        } else if self.is_ancestor(commit, head)? {
             CommitRelation::Ancestor
-        } else if self.is_ancestor(&head, &commit.id)? {
+        } else if self.is_ancestor(head, commit)? {
             CommitRelation::Descendant
-        } else if succeeds_or_absent(read_output(self.git().args([
-            "merge-base",
-            &head,
-            &commit.id,
-        ])))? {
+        } else if succeeds_or_absent(read_output(self.git().args(["merge-base", head, commit])))? {
             CommitRelation::Diverged
         } else {
             CommitRelation::Unrelated
-        };
-        let linear_rebase = match self.rebase_upstream(&head, &commit.id, relation)? {
-            Some(upstream) => self
-                .read(&[
-                    "rev-list",
-                    "--max-count=1",
-                    "--min-parents=2",
-                    &format!("{upstream}..{head}"),
-                    "--",
-                ])?
-                .is_empty(),
-            None => false,
-        };
-        let status = self.status()?;
-        let conflicted = status.has_conflicts();
-        let (references, upstream) = self.references(branch.as_deref())?;
-        let tracked_remote = upstream.as_ref().and_then(crate::Upstream::tracking_name);
-        let (remotes, remote_url) = self.remote_summary()?;
-        let message = self.detail(&commit)?.message;
-        let staged_version = self.read(&[
-            "diff",
-            "--cached",
-            "--raw",
-            "--no-abbrev",
-            "--no-ext-diff",
-            "--no-textconv",
-            &head,
-            "--",
-        ])?;
-        let operation = self.operation_state()?;
-        let editing_rebase_commit = operation.editing_head.as_deref() == Some(head.as_str());
-        if self.resolve_ref("HEAD")?.as_deref() != Some(head.as_str())
-            || self.checked_out_branch()? != branch
-        {
-            return Err(RuleError::StaleCommit.into());
-        }
-        Ok(CommitContext {
-            menu: CommitMenuState {
-                references: references
-                    .into_iter()
-                    .filter(|reference| reference.id == commit.id)
-                    .collect(),
-                commit,
-                head,
-                branch,
-                relation,
-                linear_rebase,
-                remote_url,
-                dirty: !status.is_empty(),
-                conflicted,
-                staged_count: status.staged.len(),
-                sequence: operation.kind,
-                editing_rebase_commit,
-                remote_names: remotes,
-                tracked_remote,
-            },
-            message,
-            staged_version,
         })
     }
 
@@ -243,4 +277,25 @@ fn succeeds_or_absent(output: Result<Output>) -> Result<bool> {
         Some(1) => Ok(false),
         _ => checked(output).map(|_| false).map_err(Error::from),
     }
+}
+
+/// UI commands use immutable object IDs, never revisions which can move or be
+/// interpreted as command-line options.
+fn ensure_object_id(id: &str) -> Result<()> {
+    if matches!(id.len(), 40 | 64) && id.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        Ok(())
+    } else {
+        Err(RuleError::InvalidCommit.into())
+    }
+}
+
+fn spawn<'scope, T: Send + 'scope>(
+    scope: &'scope Scope<'scope, '_>,
+    read: impl FnOnce() -> Result<T> + Send + 'scope,
+) -> Result<ScopedJoinHandle<'scope, Result<T>>> {
+    Ok(thread::Builder::new().spawn_scoped(scope, read)?)
+}
+
+fn join<T>(reader: ScopedJoinHandle<'_, Result<T>>) -> Result<T> {
+    reader.join().expect("Git reader panicked")
 }

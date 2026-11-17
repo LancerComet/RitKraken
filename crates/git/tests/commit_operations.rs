@@ -304,3 +304,44 @@ fn newly_published_history_invalidates_a_previously_confirmed_rewrite() {
     ));
     assert_eq!(head(&repo), tip);
 }
+
+#[test]
+fn freshly_read_operations_skip_a_second_read_but_still_refuse_stale_runs() {
+    let (_directory, repo) = fixture();
+    let base = commit_file(&repo, "base", "base", "Base");
+    let tip = commit_file(&repo, "tip", "tip", "Tip");
+    git(&repo, &["commit", "--amend", "-m", "Tip\n\nBody line"]);
+    let tip_amended = head(&repo);
+    assert_ne!(tip, tip_amended);
+    let context = repo.commit_context(&tip_amended).unwrap();
+    assert_eq!(context.message, "Tip\n\nBody line");
+
+    let create = |name: &str, checkout| Op::CreateBranch {
+        name: name.into(),
+        checkout,
+        track: None,
+    };
+    let prepared = repo
+        .prepare_fresh_commit_operation(context, create("fresh", true))
+        .unwrap();
+    repo.apply_commit_operation(&prepared, &editor()).unwrap();
+    assert_eq!(git(&repo, &["branch", "--show-current"]).trim(), "fresh");
+
+    assert!(matches!(
+        repo.prepare_fresh_commit_operation(
+            repo.commit_context(&tip_amended).unwrap(),
+            create("bad..name", false)
+        ),
+        Err(Error::Rule(RuleError::InvalidRefName))
+    ));
+
+    let prepared = repo
+        .prepare_fresh_commit_operation(repo.commit_context(&base).unwrap(), create("late", false))
+        .unwrap();
+    commit_file(&repo, "more", "more", "More");
+    assert!(matches!(
+        repo.apply_commit_operation(&prepared, &editor()),
+        Err(Error::Rule(RuleError::StaleCommit))
+    ));
+    assert!(git(&repo, &["branch", "--list", "late"]).trim().is_empty());
+}

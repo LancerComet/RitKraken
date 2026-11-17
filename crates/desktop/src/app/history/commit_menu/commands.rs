@@ -118,7 +118,20 @@ impl Client {
                 } else if let CommitOperation::InteractiveRebase(plan) = &mut operation {
                     *plan = repo.rebase_plan(&context)?;
                 }
-                Ok((Arc::new(context), operation))
+                let review = !reviewed
+                    && matches!(
+                        operation,
+                        CommitOperation::InteractiveRebase(_) | CommitOperation::Amend { .. }
+                    );
+                Ok(if review {
+                    Loaded::Review(Arc::new(context), operation)
+                } else {
+                    // The state was read just now; preparing here avoids a
+                    // second full read before the pre-run check.
+                    Loaded::Prepared(Box::new(
+                        repo.prepare_fresh_commit_operation(context, operation),
+                    ))
+                })
             },
             move |this, result: git::Result<_>, window, cx| {
                 let active = this.session.active == Some(id);
@@ -129,16 +142,14 @@ impl Client {
                     return;
                 }
                 match result {
-                    Ok((context, CommitOperation::InteractiveRebase(plan))) if !reviewed => {
+                    Ok(Loaded::Review(context, CommitOperation::InteractiveRebase(plan))) => {
                         this.start_rebase_session(id, context, plan, window, cx)
                     }
-                    Ok((context, operation))
-                        if !reviewed && matches!(operation, CommitOperation::Amend { .. }) =>
-                    {
+                    Ok(Loaded::Review(context, operation)) => {
                         CommitDialog::open(id, context, operation, window, cx)
                     }
-                    Ok((context, operation)) => {
-                        this.prepare_graph_operation(id, context, operation, window, cx)
+                    Ok(Loaded::Prepared(prepared)) => {
+                        this.run_prepared_operation(id, *prepared, window, cx)
                     }
                     Err(error) => tab.notify(Notice::failure(error), window, cx),
                 }
@@ -167,42 +178,60 @@ impl Client {
             move || repo.prepare_commit_operation(&context, operation),
             move |this, result, window, cx| {
                 let Some(tab) = this.tab_mut(id) else { return };
-                let prepared = match result {
-                    Ok(value) => Arc::new(value),
-                    Err(error) => {
-                        tab.busy = false;
-                        let message = Message::from(error);
-                        tab.notify(Notice::failure(message), window, cx);
-                        cx.notify();
-                        return;
-                    }
-                };
                 tab.busy = false;
-                let id = this.finish_rebase_preparation(id, window, cx);
-                if matches!(prepared.operation, CommitOperation::Amend { .. }) {
-                    if let Err(message) = this.update_repo_with_completion(
-                        id,
-                        RepoOperation::CommitGraph(prepared),
-                        move |this, succeeded, window, cx| {
-                            if succeeded {
-                                this.restore_commit_draft(id, window, cx);
-                            }
-                        },
-                        window,
-                        cx,
-                    ) {
-                        if let Some(tab) = this.tab_mut(id) {
-                            tab.notify(Notice::failure(message), window, cx);
-                        }
-                        cx.notify();
-                    }
-                } else {
-                    this.update_repo(id, Some(RepoOperation::CommitGraph(prepared)), window, cx);
-                }
+                this.run_prepared_operation(id, result, window, cx);
             },
         );
         cx.notify();
     }
+
+    fn run_prepared_operation(
+        &mut self,
+        id: u64,
+        result: git::Result<git::PreparedCommitOperation>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let prepared = match result {
+            Ok(value) => Arc::new(value),
+            Err(error) => {
+                if let Some(tab) = self.tab_mut(id) {
+                    tab.notify(Notice::failure(Message::from(error)), window, cx);
+                }
+                cx.notify();
+                return;
+            }
+        };
+        let id = self.finish_rebase_preparation(id, window, cx);
+        if matches!(prepared.operation, CommitOperation::Amend { .. }) {
+            if let Err(message) = self.update_repo_with_completion(
+                id,
+                RepoOperation::CommitGraph(prepared),
+                move |this, succeeded, window, cx| {
+                    if succeeded {
+                        this.restore_commit_draft(id, window, cx);
+                    }
+                },
+                window,
+                cx,
+            ) {
+                if let Some(tab) = self.tab_mut(id) {
+                    tab.notify(Notice::failure(message), window, cx);
+                }
+                cx.notify();
+            }
+        } else {
+            self.update_repo(id, Some(RepoOperation::CommitGraph(prepared)), window, cx);
+        }
+    }
+}
+
+/// What a graph operation needs once its repository state has been read.
+enum Loaded {
+    /// The user reviews the operation in a dialog or rebase session first.
+    Review(Arc<CommitContext>, CommitOperation),
+    /// The operation is ready to run after its pre-run check.
+    Prepared(Box<git::Result<git::PreparedCommitOperation>>),
 }
 
 pub(super) fn operation_title(operation: &CommitOperation, context: &CommitMenuState) -> String {

@@ -25,6 +25,26 @@ impl Repo {
         operation: CommitOperation,
     ) -> Result<PreparedCommitOperation> {
         let context = self.validate_commit_operation(expected, &operation)?;
+        self.prepare_checked_operation(context, operation)
+    }
+
+    /// Prepares an operation against a context the caller has just read with
+    /// [`Repo::commit_context`], without reading the same state a second time.
+    /// The operation is still checked against fresh state before it runs.
+    pub fn prepare_fresh_commit_operation(
+        &self,
+        context: CommitContext,
+        operation: CommitOperation,
+    ) -> Result<PreparedCommitOperation> {
+        let context = self.check_commit_operation(context.clone(), &context, &operation)?;
+        self.prepare_checked_operation(context, operation)
+    }
+
+    fn prepare_checked_operation(
+        &self,
+        context: CommitContext,
+        operation: CommitOperation,
+    ) -> Result<PreparedCommitOperation> {
         let workspace = matches!(
             operation,
             CommitOperation::Reset(ResetMode::Mixed | ResetMode::Hard)
@@ -116,20 +136,28 @@ impl Repo {
             return Err(RuleError::StaleCommit.into());
         }
         let target = &context.commit.id;
-        let mut git = self.git();
-        editor.configure(self, &mut git)?;
         match &expected.operation {
+            // The name was checked against fresh state above, and neither
+            // operation needs the rebase editor environment.
             CommitOperation::CreateBranch {
                 name,
                 checkout,
                 track,
             } => {
-                return self.create_branch_at(name, Some(target), *checkout, track.as_deref());
+                return self.run_create_branch(name, Some(target), *checkout, track.as_deref());
+            }
+            CommitOperation::Switch(branch) => return self.switch(branch),
+            _ => {}
+        }
+        let mut git = self.git();
+        editor.configure(self, &mut git)?;
+        match &expected.operation {
+            CommitOperation::CreateBranch { .. } | CommitOperation::Switch(_) => {
+                unreachable!("handled before configuring the editor")
             }
             CommitOperation::CreateTag(name) => {
                 git.args(["tag", "--", name, target]);
             }
-            CommitOperation::Switch(branch) => return self.switch(branch),
             CommitOperation::Checkout => {
                 git.args(["switch", "--detach", "--no-recurse-submodules", target]);
             }
@@ -250,6 +278,15 @@ impl Repo {
         operation: &CommitOperation,
     ) -> Result<CommitContext> {
         let fresh = self.commit_context(&expected.commit.id)?;
+        self.check_commit_operation(fresh, expected, operation)
+    }
+
+    fn check_commit_operation(
+        &self,
+        fresh: CommitContext,
+        expected: &CommitContext,
+        operation: &CommitOperation,
+    ) -> Result<CommitContext> {
         if !fresh.same_checkout(expected) {
             return Err(RuleError::StaleCommit.into());
         }
@@ -334,6 +371,16 @@ impl Repo {
         track: Option<&str>,
     ) -> Result<()> {
         self.validate_ref_name(name, "heads")?;
+        self.run_create_branch(name, target, checkout, track)
+    }
+
+    fn run_create_branch(
+        &self,
+        name: &str,
+        target: Option<&str>,
+        checkout: bool,
+        track: Option<&str>,
+    ) -> Result<()> {
         let mut git = self.git();
         if checkout {
             git.args(["switch", "--no-guess", "-c", name]);
