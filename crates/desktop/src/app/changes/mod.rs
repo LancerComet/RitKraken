@@ -18,7 +18,14 @@ use ritkraken_git::{Change, CommitDetail, Scope};
 
 use crate::i18n::{LocalizedInput, tr};
 
-use super::{Client, Load, RepoOperation, RepoTab, theme::palette, widgets::Tone};
+use super::{
+    Client, Load, RepoOperation, RepoTab, layout::remembered_panes, theme::palette, widgets::Tone,
+};
+
+/// Layout keys for the working-copy file list / commit form split and the
+/// commit message / metadata split.
+const WORKTREE_PANES: &str = "worktree-panes";
+const MESSAGE_PANES: &str = "commit-detail-panes";
 
 pub(super) use summary::{ChangeSummary, SummaryStyle, change_mark};
 
@@ -120,8 +127,8 @@ impl ChangesState {
             description,
             amend: None,
             tree: false,
-            worktree_panes: cx.new(|_| gpui_kit::base::ResizableState::default()),
-            message_panes: cx.new(|_| gpui_kit::base::ResizableState::default()),
+            worktree_panes: remembered_panes(WORKTREE_PANES, cx),
+            message_panes: remembered_panes(MESSAGE_PANES, cx),
             _summary: subscription,
         }
     }

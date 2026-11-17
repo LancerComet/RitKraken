@@ -105,7 +105,7 @@ impl HistoryState {
             limit,
             scroll: UniformListScrollHandle::default(),
             horizontal_scroll: ScrollHandle::new(),
-            columns: ResizableColumns::new(cx),
+            columns: ResizableColumns::new("graph-columns", cx),
             focus: cx.focus_handle(),
         }
     }

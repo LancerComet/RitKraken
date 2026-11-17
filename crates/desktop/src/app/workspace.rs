@@ -4,18 +4,24 @@ use gpui_kit::{
     *,
 };
 
-use super::{Client, RepoTab};
+use super::{
+    Client, RepoTab,
+    layout::{remembered_panes, remembered_size},
+};
 
 pub(super) struct WorkspacePanes {
     workspace: Entity<gpui_kit::base::ResizableState>,
     navigation: Entity<gpui_kit::base::ResizableState>,
 }
 
+const WORKSPACE_PANES: &str = "workspace-panes";
+const NAVIGATION_PANES: &str = "navigation-panes";
+
 impl WorkspacePanes {
     pub(super) fn new(cx: &mut Context<Client>) -> Self {
         Self {
-            workspace: cx.new(|_| gpui_kit::base::ResizableState::default()),
-            navigation: cx.new(|_| gpui_kit::base::ResizableState::default()),
+            workspace: remembered_panes(WORKSPACE_PANES, cx),
+            navigation: remembered_panes(NAVIGATION_PANES, cx),
         }
     }
 }
@@ -28,8 +34,10 @@ impl Client {
         cx: &mut Context<Self>,
     ) -> impl IntoElement {
         let width = window.viewport_size().width;
-        let right = (width * 0.30).clamp(px(296.), px(570.));
-        let left = (width * 0.175).clamp(px(168.), px(320.));
+        let right = remembered_size(WORKSPACE_PANES, 1, cx)
+            .unwrap_or_else(|| (width * 0.30).clamp(px(296.), px(570.)));
+        let left = remembered_size(NAVIGATION_PANES, 0, cx)
+            .unwrap_or_else(|| (width * 0.175).clamp(px(168.), px(320.)));
         let center = if let Some(diff) = &tab.review.active {
             self.diff_view(tab, diff, cx).into_any_element()
         } else {
@@ -48,7 +56,7 @@ impl Client {
                 .child(div().flex_1().min_w_0().h_full().child(center))
                 .into_any_element()
         } else {
-            h_resizable("navigation-panes")
+            h_resizable(NAVIGATION_PANES)
                 .with_state(&self.panes.navigation)
                 .child(
                     resizable_panel()
@@ -63,7 +71,7 @@ impl Client {
                 )
                 .into_any_element()
         };
-        h_resizable("workspace-panes")
+        h_resizable(WORKSPACE_PANES)
             .with_state(&self.panes.workspace)
             .child(
                 resizable_panel()

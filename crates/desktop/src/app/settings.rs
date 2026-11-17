@@ -17,10 +17,7 @@ pub(super) struct SavedRepos {
 
 impl SavedRepos {
     pub(super) fn load() -> Self {
-        let Some(value) = settings_path()
-            .and_then(|path| fs::read(path).ok())
-            .and_then(|bytes| serde_json::from_slice::<serde_json::Value>(&bytes).ok())
-        else {
+        let Some(value) = read_state(SETTINGS_FILE) else {
             return Self::default();
         };
         let paths = |key: &str| serde_json::from_value(value[key].clone()).unwrap_or_default();
@@ -35,24 +32,17 @@ impl SavedRepos {
     }
 
     pub(super) fn save(&self) {
-        if let Some(path) = settings_path() {
-            let json = serde_json::json!({
+        write_state(
+            SETTINGS_FILE,
+            &serde_json::json!({
                 "recent": self.recent,
                 "favorites": self.favorites,
                 "projects": self.projects,
                 "open_tabs": self.open_tabs,
                 "active_tab": self.active_tab,
                 "preferences": self.preferences.json(),
-            });
-            if let Some(parent) = path.parent() {
-                if fs::create_dir_all(parent).is_ok() {
-                    let temporary = path.with_extension(format!("{}.new", std::process::id()));
-                    if fs::write(&temporary, json.to_string()).is_ok() {
-                        let _ = fs::rename(temporary, path);
-                    }
-                }
-            }
-        }
+            }),
+        );
     }
 
     pub(super) fn remember(&mut self, root: &Path) {
@@ -62,9 +52,32 @@ impl SavedRepos {
     }
 }
 
-fn settings_path() -> Option<PathBuf> {
+const SETTINGS_FILE: &str = "repositories.json";
+
+/// Reads a JSON file from the application state directory.
+pub(super) fn read_state(file: &str) -> Option<serde_json::Value> {
+    let bytes = fs::read(state_path(file)?).ok()?;
+    serde_json::from_slice(&bytes).ok()
+}
+
+/// Atomically replaces a JSON file in the application state directory.
+pub(super) fn write_state(file: &str, json: &serde_json::Value) {
+    let Some(path) = state_path(file) else {
+        return;
+    };
+    if let Some(parent) = path.parent()
+        && fs::create_dir_all(parent).is_ok()
+    {
+        let temporary = path.with_extension(format!("{}.new", std::process::id()));
+        if fs::write(&temporary, json.to_string()).is_ok() {
+            let _ = fs::rename(temporary, path);
+        }
+    }
+}
+
+fn state_path(file: &str) -> Option<PathBuf> {
     if let Some(path) = std::env::var_os("RITKRAKEN_STATE_DIR") {
-        return Some(PathBuf::from(path).join("repositories.json"));
+        return Some(PathBuf::from(path).join(file));
     }
     #[cfg(windows)]
     let directory = PathBuf::from(std::env::var_os("LOCALAPPDATA")?).join("RitKraken");
@@ -76,5 +89,5 @@ fn settings_path() -> Option<PathBuf> {
         .map(PathBuf::from)
         .or_else(|| std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".local/state")))?
         .join("ritkraken");
-    Some(directory.join("repositories.json"))
+    Some(directory.join(file))
 }

@@ -16,6 +16,7 @@ use crate::i18n::tr;
 use super::{StageAction, StageTarget, change_count, files::FILE_ROW_HEIGHT};
 use crate::app::{
     Client, RepoTab,
+    layout::remembered_size,
     message::branch_label,
     session::ActiveOp,
     theme::palette,
@@ -101,7 +102,10 @@ impl Client {
                         )
                         .child(
                             resizable_panel()
-                                .size(px(210.))
+                                .size(
+                                    remembered_size(super::WORKTREE_PANES, 1, cx)
+                                        .unwrap_or(px(210.)),
+                                )
                                 .size_range(message_min_height..Pixels::MAX)
                                 .child(message),
                         ),

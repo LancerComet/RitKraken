@@ -2,6 +2,7 @@ mod avatar;
 mod changes;
 mod export;
 mod history;
+mod layout;
 mod message;
 mod modals;
 mod notices;
@@ -32,6 +33,8 @@ use std::path::PathBuf;
 
 use gpui_kit::*;
 
+pub use layout::{MIN_WINDOW_SIZE, saved_window_bounds};
+
 use history::BranchEditor;
 use message::Message;
 use modals::{ClosingModal, ContentModal};
@@ -60,6 +63,7 @@ actions!(
 );
 
 pub fn init(cx: &mut App) {
+    layout::init(cx);
     theme::init(cx);
     widgets::tooltip::init(cx);
     shortcuts::init(cx);
@@ -104,6 +108,7 @@ impl Client {
         let saved = SavedRepos::load();
         saved.preferences.language.apply();
         theme::apply_theme(saved.preferences.theme, cx);
+        layout::remember_window(window, cx);
         let focus = cx.focus_handle();
         focus.focus(window, cx);
         let activation = cx.observe_window_activation(window, |this, window, cx| {

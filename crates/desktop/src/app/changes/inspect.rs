@@ -70,7 +70,7 @@ impl FileInspection {
                 data: Load::Pending,
                 typography,
                 scroll: UniformListScrollHandle::default(),
-                history_columns: ResizableColumns::new(cx),
+                history_columns: ResizableColumns::new("file-history-columns", cx),
                 limit: 500,
                 loading: false,
                 selected: None,

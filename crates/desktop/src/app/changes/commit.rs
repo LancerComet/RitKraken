@@ -15,6 +15,7 @@ use crate::i18n::tr;
 use super::{ChangeSummary, SummaryStyle, change_count};
 use crate::app::{
     Client, Load, RepoTab,
+    layout::remembered_size,
     theme::palette,
     widgets::{Tone, button, error_text, note},
 };
@@ -125,11 +126,14 @@ impl Client {
                     .flex_1()
                     .min_h_0()
                     .child(
-                        v_resizable("commit-detail-panes")
+                        v_resizable(super::MESSAGE_PANES)
                             .with_state(&tab.changes.message_panes)
                             .child(
                                 resizable_panel()
-                                    .size(message_height)
+                                    .size(
+                                        remembered_size(super::MESSAGE_PANES, 0, cx)
+                                            .unwrap_or(message_height),
+                                    )
                                     .size_range(px(84.)..px(650.))
                                     .child(message),
                             )

@@ -23,10 +23,12 @@ fn main() {
             gpui_kit::init(cx);
             ritkraken_diff::init(cx);
             app::init(cx);
-            let bounds = Bounds::centered(None, size(px(1480.), px(920.)), cx);
+            let bounds = app::saved_window_bounds(cx).unwrap_or_else(|| {
+                WindowBounds::Windowed(Bounds::centered(None, size(px(1480.), px(920.)), cx))
+            });
             let options = WindowOptions {
-                window_bounds: Some(WindowBounds::Windowed(bounds)),
-                window_min_size: Some(size(px(920.), px(560.))),
+                window_bounds: Some(bounds),
+                window_min_size: Some(app::MIN_WINDOW_SIZE),
                 titlebar: Some(TitlebarOptions {
                     title: Some("RitKraken".into()),
                     ..Default::default()
