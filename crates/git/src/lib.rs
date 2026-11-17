@@ -17,6 +17,7 @@ mod watch;
 mod worktree;
 mod worktrees;
 
+pub use command::{GitCall, set_git_call_listener};
 pub use commit_ops::{
     CommitAction, CommitAvailability, CommitBlock, CommitContext, CommitMenuSnapshot,
     CommitMenuState, CommitOperation, CommitRelation, GitEditor, MenuMetadata,

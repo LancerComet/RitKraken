@@ -3,7 +3,7 @@ use std::process::Command;
 use super::{PullMode, Upstream};
 use crate::{
     Error, Repo, Result, RuleError, Snapshot,
-    command::{checked, process_error, run_write},
+    command::{checked, run_output, run_write},
     protocol::text,
 };
 
@@ -35,12 +35,7 @@ impl Repo {
         let urls = self.push_urls(&upstream.remote)?;
         let mut git = self.push_command(set_upstream);
         let refspec = format!("refs/heads/{branch}:{}", upstream.reference);
-        let output = git
-            .arg("--")
-            .arg(&upstream.remote)
-            .arg(&refspec)
-            .output()
-            .map_err(process_error)?;
+        let output = run_output(git.arg("--").arg(&upstream.remote).arg(&refspec))?;
         if !output.status.success()
             && is_non_fast_forward(&text(&output.stdout), &refspec)
             && urls.len() == 1

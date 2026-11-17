@@ -10,7 +10,7 @@ use crate::i18n::{Language, LocalizedInput};
 use editor::{EditorDraft, EditorTypography};
 
 use super::{
-    Client, Message, Tab,
+    Client, Message, Tab, logs,
     pull::PullAction,
     review::DiffLayout,
     theme::{ThemeId, apply_theme},
@@ -34,6 +34,7 @@ pub(super) struct Preferences {
     pub(super) wrap_lines: bool,
     pub(super) editor: EditorTypography,
     pub(super) pull_action: PullAction,
+    pub(super) log_file_size_mb: u64,
 }
 
 impl Default for Preferences {
@@ -53,6 +54,7 @@ impl Default for Preferences {
             wrap_lines: false,
             editor: EditorTypography::default(),
             pull_action: PullAction::default(),
+            log_file_size_mb: logs::DEFAULT_FILE_SIZE_MB,
         }
     }
 }
@@ -107,6 +109,10 @@ impl Preferences {
                 .as_str()
                 .and_then(PullAction::from_id)
                 .unwrap_or_default(),
+            log_file_size_mb: value["log_file_size_mb"]
+                .as_u64()
+                .filter(|size| logs::FILE_SIZE_RANGE.contains(size))
+                .unwrap_or(defaults.log_file_size_mb),
         }
     }
 
@@ -126,6 +132,7 @@ impl Preferences {
             "wrap_lines": self.wrap_lines,
             "editor_typography": self.editor.json(),
             "pull_action": self.pull_action.id(),
+            "log_file_size_mb": self.log_file_size_mb,
         })
     }
 
@@ -162,6 +169,7 @@ pub(super) struct PreferenceDraft {
     pub(super) count: Entity<InputState>,
     auto_fetch: Entity<InputState>,
     auto_fetch_timeout: Entity<InputState>,
+    pub(super) log_size: Entity<InputState>,
     editor: EditorDraft,
     pub(super) error: Option<Message>,
 }
@@ -185,6 +193,7 @@ impl Client {
         let auto_fetch = cx.new(|cx| unsigned_input(Some(options.auto_fetch_minutes), window, cx));
         let auto_fetch_timeout =
             cx.new(|cx| unsigned_input(Some(options.auto_fetch_timeout_seconds), window, cx));
+        let log_size = cx.new(|cx| unsigned_input(Some(options.log_file_size_mb), window, cx));
         let editor = EditorDraft::new(&options, window, cx);
         self.manager.mode = None;
         self.branch_editor.clear();
@@ -195,6 +204,7 @@ impl Client {
             count,
             auto_fetch,
             auto_fetch_timeout,
+            log_size,
             editor,
             error: None,
         });
@@ -282,6 +292,21 @@ impl Client {
             return;
         };
         options.auto_fetch_timeout_seconds = timeout;
+        let Some(log_file_size_mb) = draft
+            .log_size
+            .read(cx)
+            .value()
+            .trim()
+            .parse::<u64>()
+            .ok()
+            .filter(|size| logs::FILE_SIZE_RANGE.contains(size))
+        else {
+            draft.page = PreferencePage::General;
+            draft.error = Some(Message::Key("app.error.log_file_size"));
+            cx.notify();
+            return;
+        };
+        options.log_file_size_mb = log_file_size_mb;
         options.default_branch = draft.branch.read(cx).value().trim().to_owned();
         match draft.editor.typography(cx) {
             Ok(typography) => options.editor = typography,
@@ -322,6 +347,7 @@ impl Client {
                 self.set_diff_layout(id, options.diff_layout, cx);
             }
         }
+        logs::set_file_size(options.log_file_size_mb);
         self.saved.preferences = options;
         self.dismiss_modal(window, cx);
         self.persist_session();

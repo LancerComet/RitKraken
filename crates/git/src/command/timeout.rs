@@ -9,7 +9,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use super::{checked, process_error};
+use super::{CallTimer, checked, process_error};
 use crate::{Error, Result};
 
 const POLL_INTERVAL: Duration = Duration::from_millis(20);
@@ -26,7 +26,16 @@ pub(crate) fn run_write_with_timeout(mut command: Command, timeout: Duration) ->
     command
         .stdout(Stdio::from(stdout.try_clone()?))
         .stderr(Stdio::from(stderr.try_clone()?));
-    let mut running = Running::spawn(&mut command).map_err(process_error)?;
+    let timer = CallTimer::start(&command);
+    let mut running = match Running::spawn(&mut command) {
+        Ok(running) => running,
+        Err(error) => {
+            if let Some(timer) = timer {
+                timer.not_started(&error);
+            }
+            return Err(process_error(error));
+        }
+    };
     let status = loop {
         match running.child.try_wait() {
             Ok(Some(status)) => {
@@ -45,6 +54,9 @@ pub(crate) fn run_write_with_timeout(mut command: Command, timeout: Duration) ->
     let status = match status {
         Ok(status) => status,
         Err(operation) => {
+            if let Some(timer) = timer {
+                timer.interrupted(&operation);
+            }
             return match running.stop() {
                 Ok(()) => Err(operation),
                 Err(cleanup) => Err(Error::CleanupFailed {
@@ -54,12 +66,15 @@ pub(crate) fn run_write_with_timeout(mut command: Command, timeout: Duration) ->
             };
         }
     };
-    checked(Output {
+    let output = Output {
         status,
         stdout: read_diagnostic(&mut stdout)?,
         stderr: read_diagnostic(&mut stderr)?,
-    })
-    .map(drop)
+    };
+    if let Some(timer) = timer {
+        timer.finish(Some(status), &output.stderr);
+    }
+    checked(output).map(drop)
 }
 
 fn read_diagnostic(file: &mut File) -> io::Result<Vec<u8>> {

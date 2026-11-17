@@ -3,11 +3,13 @@ mod changes;
 mod export;
 mod history;
 mod layout;
+mod logs;
 mod message;
 mod modals;
 mod notices;
 mod operations;
 mod palette;
+mod paths;
 mod preferences;
 mod pull;
 mod push;
@@ -106,6 +108,7 @@ pub struct Client {
 impl Client {
     pub fn new(path: Option<PathBuf>, window: &mut Window, cx: &mut Context<Self>) -> Self {
         let saved = SavedRepos::load();
+        logs::init(saved.preferences.log_file_size_mb);
         saved.preferences.language.apply();
         theme::apply_theme(saved.preferences.theme, cx);
         layout::remember_window(window, cx);

@@ -140,7 +140,8 @@
       "upstream_changed": "The upstream changed. Review the current upstream before pushing.",
       "cleanup_failed": "%{detail}\nAutomatic cleanup also failed: %{cleanup}",
       "repository_unavailable": "This repository is no longer open.",
-      "repo_busy": "Wait for the current Git operation to finish."
+      "repo_busy": "Wait for the current Git operation to finish.",
+      "log_file_size": "Log file size must be a whole number from 1 to 1024 MB."
     },
     "history": {
       "author": "AUTHOR",
@@ -218,7 +219,9 @@
       "title": "PREFERENCES",
       "version": "Version",
       "wrap_lines": "Wrap long lines",
-      "wrap_lines_hint": "Wraps long lines in file previews and diffs."
+      "wrap_lines_hint": "Wraps long lines in file previews and diffs.",
+      "log_file_size": "Log file size",
+      "log_file_size_hint": "When the log file grows past this size, a new file is started and the 3 most recent old files are kept."
     },
     "refs": {
       "filter": "Filter branches and tags",
@@ -526,6 +529,19 @@
       "resolve": "Resolve conflicts",
       "resolved": "Conflict resolved and staged.",
       "paused": "Conflicts detected. Choose and edit the result, then save and continue."
+    },
+    "logs": {
+      "title": "Logs",
+      "all": "All",
+      "errors": "Errors",
+      "warnings": "Warnings",
+      "git": "Git",
+      "error": "Error",
+      "warning": "Warning",
+      "select": "Select an entry to see its details.",
+      "empty": "No log entries yet.",
+      "copy": "Copy entry",
+      "open_folder": "Open log folder"
     }
   }
 }

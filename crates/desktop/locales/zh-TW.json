@@ -140,7 +140,8 @@
       "upstream_changed": "上游分支已變更。請確認目前的上游分支後再推送。",
       "cleanup_failed": "%{detail}\n自動清理也失敗了：%{cleanup}",
       "repository_unavailable": "此儲存庫已關閉。",
-      "repo_busy": "請等待目前的 Git 操作完成。"
+      "repo_busy": "請等待目前的 Git 操作完成。",
+      "log_file_size": "日誌輪替大小必須是 1 到 1024 之間的整數（MB）。"
     },
     "history": {
       "author": "作者",
@@ -218,7 +219,9 @@
       "title": "偏好設定",
       "version": "版本",
       "wrap_lines": "長行自動換行",
-      "wrap_lines_hint": "在檔案預覽和差異檢視中自動換行。"
+      "wrap_lines_hint": "在檔案預覽和差異檢視中自動換行。",
+      "log_file_size": "日誌輪替大小",
+      "log_file_size_hint": "日誌檔超過此大小時改寫新檔，並保留最近 3 個舊檔。"
     },
     "refs": {
       "filter": "篩選分支與標籤",
@@ -526,6 +529,19 @@
       "resolve": "解決衝突",
       "resolved": "衝突已解決並暫存。",
       "paused": "發現衝突。請選擇並編輯合併結果，儲存後繼續。"
+    },
+    "logs": {
+      "title": "日誌",
+      "all": "全部",
+      "errors": "錯誤",
+      "warnings": "警告",
+      "git": "Git",
+      "error": "錯誤",
+      "warning": "警告",
+      "select": "選擇一筆日誌查看詳細資料。",
+      "empty": "尚無日誌。",
+      "copy": "複製所選",
+      "open_folder": "開啟日誌資料夾"
     }
   },
   "gpui_component": {

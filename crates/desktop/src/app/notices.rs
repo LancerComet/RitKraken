@@ -8,7 +8,7 @@ use gpui_kit::{
     *,
 };
 
-use super::{Message, RepoTab, theme::palette};
+use super::{Message, RepoTab, logs, theme::palette};
 use crate::i18n::tr;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -128,6 +128,14 @@ impl Notice {
 
 impl RepoTab {
     pub(super) fn notify(&mut self, notice: Notice, window: &mut Window, cx: &mut App) {
+        let level = match notice.level {
+            Level::Info => None,
+            Level::Warning => Some(logs::Level::Warning),
+            Level::Error => Some(logs::Level::Error),
+        };
+        if let Some(level) = level {
+            logs::record(level, Some(self.repo.name()), &notice.message.text());
+        }
         window.push_notification(notice.toast(self.id, &self.repo.name(), cx), cx);
         self.notice = Some(notice);
     }

@@ -13,7 +13,7 @@ use std::{
 
 use crate::{
     Change, Error, Repo, Result, RuleError,
-    command::{checked, process_error, read_output, without_optional_locks},
+    command::{CallTimer, checked, process_error, read_output, without_optional_locks},
     worktree::append_paths,
 };
 pub use export::ExportedFile;
@@ -175,16 +175,25 @@ pub(crate) fn read_preview(
     command: &mut Command,
     is_untracked_diff: bool,
 ) -> Result<Option<Vec<u8>>> {
-    let mut child = without_optional_locks(command)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .spawn()
-        .map_err(process_error)?;
+    let command = without_optional_locks(command);
+    let timer = CallTimer::start(command);
+    let mut child = match command.stdout(Stdio::piped()).stderr(Stdio::null()).spawn() {
+        Ok(child) => child,
+        Err(error) => {
+            if let Some(timer) = timer {
+                timer.not_started(&error);
+            }
+            return Err(process_error(error));
+        }
+    };
     let preview = read_preview_bytes(child.stdout.take().expect("piped stdout"));
     if !matches!(&preview, Ok(Some(_))) {
         let _ = child.kill();
     }
     let status = child.wait().map_err(process_error)?;
+    if let Some(timer) = timer {
+        timer.finish(Some(status), &[]);
+    }
     let bytes = preview.map_err(process_error)?;
     if bytes.is_none()
         || status.success()

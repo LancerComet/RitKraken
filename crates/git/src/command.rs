@@ -1,5 +1,8 @@
+mod log;
 mod timeout;
 
+pub(crate) use log::CallTimer;
+pub use log::{GitCall, set_git_call_listener};
 pub(crate) use timeout::run_write_with_timeout;
 
 use std::{
@@ -61,9 +64,15 @@ fn windows_git() -> &'static Path {
 }
 
 pub(crate) fn read_output(command: &mut Command) -> Result<Output> {
-    without_optional_locks(command)
-        .output()
-        .map_err(process_error)
+    run_output(without_optional_locks(command))
+}
+
+/// Runs Git to completion and reports the call to the application log.
+pub(crate) fn run_output(command: &mut Command) -> Result<Output> {
+    let timer = CallTimer::start(command);
+    let output = command.output();
+    CallTimer::output(timer, &output);
+    output.map_err(process_error)
 }
 
 pub(crate) fn without_optional_locks(command: &mut Command) -> &mut Command {
@@ -75,7 +84,7 @@ pub(crate) fn run_read(command: &mut Command) -> Result<Vec<u8>> {
 }
 
 pub(crate) fn run_write(command: &mut Command) -> Result<()> {
-    checked(command.output().map_err(process_error)?).map(drop)
+    checked(run_output(command)?).map(drop)
 }
 
 pub(crate) fn run_with_input(command: &mut Command, parts: &[&[u8]]) -> Result<Vec<u8>> {
@@ -83,12 +92,21 @@ pub(crate) fn run_with_input(command: &mut Command, parts: &[&[u8]]) -> Result<V
 }
 
 pub(crate) fn output_with_input(command: &mut Command, parts: &[&[u8]]) -> Result<Output> {
-    let mut child = command
+    let timer = CallTimer::start(command);
+    let mut child = match command
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .map_err(process_error)?;
+    {
+        Ok(child) => child,
+        Err(error) => {
+            if let Some(timer) = timer {
+                timer.not_started(&error);
+            }
+            return Err(process_error(error));
+        }
+    };
     let mut input = child.stdin.take().expect("piped stdin");
     // Drain stdout while sending stdin: commands such as check-ignore can
     // produce output before consuming all input, filling both OS pipes.
@@ -97,6 +115,7 @@ pub(crate) fn output_with_input(command: &mut Command, parts: &[&[u8]]) -> Resul
         let output = child.wait_with_output();
         (output, writer.join().expect("Git stdin writer"))
     });
+    CallTimer::output(timer, &output);
     let output = output.map_err(process_error)?;
     if output.status.success() {
         written.map_err(process_error)?;

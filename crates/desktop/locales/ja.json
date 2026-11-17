@@ -140,7 +140,8 @@
       "upstream_changed": "追跡先が変わりました。現在の追跡先を確認してからプッシュしてください。",
       "cleanup_failed": "%{detail}\n自動クリーンアップにも失敗しました：%{cleanup}",
       "repository_unavailable": "このリポジトリは閉じられています。",
-      "repo_busy": "現在の Git 操作が完了するまでお待ちください。"
+      "repo_busy": "現在の Git 操作が完了するまでお待ちください。",
+      "log_file_size": "ログファイルのサイズは 1〜1024 MB の整数で指定してください。"
     },
     "history": {
       "author": "作成者",
@@ -218,7 +219,9 @@
       "title": "設定",
       "version": "バージョン",
       "wrap_lines": "長い行を折り返す",
-      "wrap_lines_hint": "ファイルのプレビューと差分表示で長い行を折り返します。"
+      "wrap_lines_hint": "ファイルのプレビューと差分表示で長い行を折り返します。",
+      "log_file_size": "ログファイルのサイズ",
+      "log_file_size_hint": "ログファイルがこのサイズを超えると新しいファイルに切り替え、古いファイルは直近 3 つまで残します。"
     },
     "refs": {
       "filter": "ブランチとタグを絞り込む",
@@ -526,6 +529,19 @@
       "resolve": "競合を解決",
       "resolved": "競合を解決してステージしました。",
       "paused": "競合が見つかりました。マージ結果を選択・編集し、保存して続行してください。"
+    },
+    "logs": {
+      "title": "ログ",
+      "all": "すべて",
+      "errors": "エラー",
+      "warnings": "警告",
+      "git": "Git",
+      "error": "エラー",
+      "warning": "警告",
+      "select": "項目を選択すると詳細を表示します。",
+      "empty": "ログはまだありません。",
+      "copy": "項目をコピー",
+      "open_folder": "ログフォルダーを開く"
     }
   },
   "gpui_component": {

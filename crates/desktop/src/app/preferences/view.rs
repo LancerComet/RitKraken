@@ -220,6 +220,17 @@ impl Client {
                 p,
             ))
             .child(preference_row(
+                "app.preferences.log_file_size",
+                Input::new(&draft.log_size)
+                    .w(px(132.))
+                    .max_w_full()
+                    .min_w_0()
+                    .suffix(unit_suffix("MB", cx))
+                    .aria_label(tr!("app.preferences.log_file_size")),
+                Some("app.preferences.log_file_size_hint"),
+                p,
+            ))
+            .child(preference_row(
                 "app.preferences.remember_tabs",
                 preference_check(
                     "remember-tabs",

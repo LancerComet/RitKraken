@@ -14,6 +14,7 @@ use super::{
     Client, Escape, OpenPalette, OpenPreferences, OpenRepos, Refresh, SearchCommits, Submit, Tab,
     message::branch_label,
     theme::{Palette, palette},
+    widgets::icon,
 };
 
 impl Render for Client {
@@ -80,7 +81,7 @@ impl Render for Client {
                         )
                     }),
             )
-            .child(self.status_bar(tab, p))
+            .child(self.status_bar(tab, p, cx))
             .children(modal)
             .when(self.closing_modal.is_some(), |element| {
                 element.capture_key_down(|event, window, cx| {
@@ -167,7 +168,7 @@ impl Client {
             .child(self.toolbar_navigation(ready, cx))
     }
 
-    fn status_bar(&self, tab: Option<&Tab>, p: Palette) -> Div {
+    fn status_bar(&self, tab: Option<&Tab>, p: Palette, cx: &mut Context<Self>) -> Div {
         let ready = tab.and_then(Tab::ready);
         let opening =
             self.session.opening || matches!(tab, Some(Tab::Saved(saved)) if saved.is_loading());
@@ -238,6 +239,26 @@ impl Client {
                         )),
                 )
             })
+            .child(
+                div()
+                    .id("open-logs")
+                    .flex()
+                    .items_center()
+                    .gap(px(4.))
+                    .px(px(6.))
+                    .py(px(1.))
+                    .rounded(px(4.))
+                    .cursor_pointer()
+                    .text_color(rgb(p.text_muted))
+                    .hover(|button| button.bg(rgb(p.hover)).text_color(rgb(p.text)))
+                    .tooltip(|window, cx| {
+                        gpui_kit::component::tooltip::Tooltip::new(tr!("app.logs.title"))
+                            .build(window, cx)
+                    })
+                    .child(icon("icons/scroll-text.svg", p.text_muted).size(px(12.)))
+                    .child(tr!("app.logs.title"))
+                    .on_click(cx.listener(|this, _, window, cx| this.open_logs(window, cx))),
+            )
             .child(
                 div()
                     .text_color(rgb(p.text_muted))
