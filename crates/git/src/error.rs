@@ -45,12 +45,22 @@ pub enum RuleError {
     CommitUnavailable,
     #[error("Commit or stash your changes before continuing.")]
     DirtyWorktree,
+    #[error("This worktree changed. Refresh the worktree list before continuing.")]
+    StaleWorktree,
+    #[error("The main, current, or bare worktree cannot be removed.")]
+    ProtectedWorktree,
+    #[error("Unlock this worktree before removing it.")]
+    LockedWorktree,
+    #[error("Enter a valid worktree directory path.")]
+    InvalidWorktreePath,
     #[error("Resolve and stage the conflicts before continuing.")]
     UnresolvedConflicts,
     #[error("Finish or abort the current Git operation first.")]
     SequenceInProgress,
     #[error("Enter a valid branch or tag name.")]
     InvalidRefName,
+    #[error("Enter a valid date in YYYY-MM-DD format.")]
+    InvalidSearchDate,
     #[error("Choose a mainline parent for this merge commit.")]
     MainlineRequired,
     #[error(

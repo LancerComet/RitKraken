@@ -4,6 +4,7 @@ mod graph;
 mod labels;
 mod layout;
 pub(in crate::app) mod rebase;
+mod search;
 mod view;
 
 use std::{collections::HashMap, sync::Arc};

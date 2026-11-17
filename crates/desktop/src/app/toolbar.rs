@@ -10,15 +10,21 @@ use ritkraken_git as git;
 
 use crate::i18n::tr;
 
-use super::{Client, RepoOperation, RepoTab, session::ActiveOp, theme::palette, widgets::icon};
+use super::{
+    Client, RepoOperation, RepoTab,
+    palette::{Command, CommandContext},
+    session::ActiveOp,
+    theme::palette,
+    widgets::icon,
+};
 
 impl Client {
     pub(super) fn toolbar_actions(&self, tab: &RepoTab, cx: &mut Context<Self>) -> Div {
         let id = tab.id;
-        let available = !tab.busy && tab.rebase.is_none();
+        let context = Some(CommandContext::from(tab));
         let active_op = tab.active_op;
         let snapshot = &tab.history.data.snapshot;
-        let remote_available = available && !snapshot.remotes.is_empty();
+        let remote_available = Command::Fetch.available(context);
         let remotes = snapshot.remotes.clone();
         let view = cx.weak_entity();
         let p = palette(cx);
@@ -48,20 +54,63 @@ impl Client {
                 ))
             })
         });
-        let can_stash = available
-            && snapshot.head.is_some()
-            && tab.has_changes()
-            && !snapshot
-                .status
-                .unstaged
-                .iter()
-                .any(|change| change.code == b'U');
+        let can_stash = Command::Stash.available(context);
 
         div()
             .flex()
             .h_full()
             .items_center()
             .gap(px(4.))
+            .child(
+                toolbar_tile(
+                    "commands",
+                    "app.palette.short_title",
+                    "icons/command.svg",
+                    "app.palette.title",
+                    true,
+                    false,
+                    cx,
+                )
+                .on_click(cx.listener(|this, _, window, cx| this.open_palette(window, cx))),
+            )
+            .child(
+                toolbar_tile(
+                    "worktrees",
+                    "app.worktrees.short_title",
+                    "icons/folder-symlink.svg",
+                    "app.worktrees.title",
+                    Command::Worktrees.available(context),
+                    false,
+                    cx,
+                )
+                .on_click(cx.listener(|this, _, window, cx| this.open_worktrees(window, cx))),
+            )
+            .child(
+                toolbar_tile(
+                    "recovery",
+                    "app.recovery.short_title",
+                    "icons/undo.svg",
+                    "app.recovery.title",
+                    Command::Recovery.available(context),
+                    false,
+                    cx,
+                )
+                .on_click(cx.listener(|this, _, window, cx| this.open_recovery(window, cx))),
+            )
+            .child(
+                toolbar_tile(
+                    "search",
+                    "app.search.short_title",
+                    "icons/search.svg",
+                    "app.search.title",
+                    Command::SearchCommits.available(context),
+                    false,
+                    cx,
+                )
+                .on_click(cx.listener(|this, _, window, cx| {
+                    this.open_commit_search(window, cx);
+                })),
+            )
             .child(
                 toolbar_tile(
                     "fetch",
@@ -84,7 +133,7 @@ impl Client {
                     "app.toolbar.branch",
                     "icons/git-branch.svg",
                     "app.toolbar.create_branch_hint",
-                    available && snapshot.head.is_some(),
+                    Command::CreateBranch.available(context),
                     active_op == Some(ActiveOp::Branch),
                     cx,
                 )
@@ -112,7 +161,7 @@ impl Client {
                     "app.toolbar.pop",
                     "icons/upload.svg",
                     "app.toolbar.pop_hint",
-                    available && snapshot.has_stash,
+                    Command::Pop.available(context),
                     active_op == Some(ActiveOp::Pop),
                     cx,
                 )
@@ -248,7 +297,8 @@ fn toolbar_tile(
 ) -> Button {
     let p = palette(cx);
     toolbar_button(id, hint_key, enabled, spinning, cx)
-        .w(px(54.))
+        .min_w(px(54.))
+        .px(px(4.))
         .child(
             div()
                 .flex()

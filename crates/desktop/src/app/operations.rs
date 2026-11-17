@@ -19,6 +19,10 @@ type Completion = Box<dyn FnOnce(&mut Client, bool, &mut Window, &mut Context<Cl
 
 #[derive(Clone)]
 pub(super) enum RepoOperation {
+    AddWorktree(git::NewWorktree),
+    RemoveWorktree(git::Worktree),
+    RestoreHead(git::RecoveryHistory, String),
+    RecoverBranch(git::RecoveryHistory, String, String),
     Reference(git::RefRequest),
     CommitGraph(Arc<git::PreparedCommitOperation>),
     StageFiles(StageAction, Option<Vec<Change>>),
@@ -43,6 +47,7 @@ pub(super) enum RepoOperation {
 impl RepoOperation {
     fn resets_selection(&self) -> bool {
         match self {
+            Self::RestoreHead(..) => true,
             Self::Reference(request) => matches!(
                 request.operation,
                 git::RefOperation::Checkout | git::RefOperation::Track(_)
@@ -62,6 +67,12 @@ impl RepoOperation {
 
     fn execute(&self, repo: &Repo) -> git::Result<()> {
         match self {
+            Self::AddWorktree(request) => repo.add_worktree(request),
+            Self::RemoveWorktree(request) => repo.remove_worktree(request),
+            Self::RestoreHead(history, target) => repo.restore_head(history, target),
+            Self::RecoverBranch(history, target, name) => {
+                repo.recover_branch(history, target, name)
+            }
             Self::Reference(request) => repo.apply_ref_operation(request),
             Self::CommitGraph(operation) => repo.apply_commit_operation(
                 operation,
@@ -98,6 +109,8 @@ impl RepoOperation {
 
     fn status_key(&self) -> Option<&'static str> {
         Some(match self {
+            Self::AddWorktree(_) | Self::RemoveWorktree(_) => "app.worktrees.completed",
+            Self::RestoreHead(..) | Self::RecoverBranch(..) => "app.recovery.completed",
             Self::StageFiles(..) | Self::StagePatch(..) => return None,
             Self::Reference(_) => "app.ref_menu.completed",
             Self::CommitGraph(operation)
@@ -141,6 +154,33 @@ impl RepoOperation {
 }
 
 impl Client {
+    pub(super) fn reveal_commit(
+        &mut self,
+        id: u64,
+        commit: String,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(tab) = self.tab(id).filter(|tab| !tab.busy) else {
+            return;
+        };
+        if tab.history.data.position.contains_key(&commit) {
+            self.select(id, Some(commit), Some(ScrollStrategy::Center), window, cx);
+            return;
+        }
+        self.start_repo_update(
+            id,
+            None,
+            None,
+            true,
+            Some(Box::new(move |this, _, window, cx| {
+                this.select(id, Some(commit), Some(ScrollStrategy::Center), window, cx);
+            })),
+            window,
+            cx,
+        );
+    }
+
     pub(super) fn refresh(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if let Some(id) = self.session.active {
             self.update_repo(id, None, window, cx);
@@ -222,7 +262,7 @@ impl Client {
             return false;
         };
         let read_only = edit.is_none();
-        let Some(generation) = tab.updates.begin(read_only) else {
+        let Some(generation) = tab.updates.begin(read_only, report_operation) else {
             return false;
         };
         tab.busy = !read_only;

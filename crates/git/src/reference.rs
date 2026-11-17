@@ -138,6 +138,7 @@ impl Repo {
                     }
                     // Deleting the selected branch does not depend on its relation
                     // to HEAD. Git still protects every checked-out worktree.
+                    self.preserve_deleted_branch(&current.name, &current.id)?;
                     run_write(self.git().args(["branch", "-D", "--", &current.name]))
                 }
                 RefKind::Tag => run_write(self.git().args([

@@ -4,7 +4,10 @@ use super::history::rebase::{
     RebaseDrop, RebaseEdit, RebaseFixup, RebaseMoveDown, RebaseMoveUp, RebasePick, RebaseReword,
     RebaseSquash,
 };
-use super::{Escape, NextRow, OpenPreferences, OpenRepos, PreviousRow, Refresh, Submit};
+use super::{
+    Escape, NextRow, OpenPalette, OpenPreferences, OpenRepos, PreviousRow, Refresh, SearchCommits,
+    Submit,
+};
 
 const GRAPH_KEYS: &str = "CommitGraph && !Input";
 const REBASE_KEYS: &str = "CommitGraph && RebasePlan && !Input";
@@ -30,6 +33,16 @@ fn bindings(mac: bool) -> Vec<KeyBinding> {
     vec![
         KeyBinding::new(open, OpenRepos, Some("RitKraken")),
         KeyBinding::new(preferences, OpenPreferences, Some("RitKraken")),
+        KeyBinding::new(
+            if mac { "cmd-shift-p" } else { "ctrl-shift-p" },
+            OpenPalette,
+            Some("RitKraken"),
+        ),
+        KeyBinding::new(
+            if mac { "cmd-f" } else { "ctrl-f" },
+            SearchCommits,
+            Some("CommitGraph && !Input"),
+        ),
         KeyBinding::new("f5", Refresh, Some("RitKraken")),
         KeyBinding::new("escape", Escape, Some("RitKraken")),
         KeyBinding::new("down", NextRow, Some(GRAPH_KEYS)),
@@ -71,6 +84,27 @@ mod tests {
             )
             .0
             .into_vec()
+    }
+
+    #[test]
+    fn palette_shortcut_resolves_on_windows_and_macos_while_typing() {
+        for (mac, key, os) in [
+            (false, "ctrl-shift-p", OperatingSystem::Windows),
+            (true, "cmd-shift-p", OperatingSystem::Mac),
+        ] {
+            let contexts = [
+                KeyContext::parse("RitKraken").unwrap(),
+                KeyContext::parse("Input").unwrap(),
+            ];
+            let matched = Keymap::new(bindings(mac))
+                .bindings_for_input(&[Keystroke::parse_with_os(key, os).unwrap()], &contexts)
+                .0;
+            assert_eq!(matched.len(), 1, "{key}");
+            assert_eq!(
+                matched[0].action().as_any().type_id(),
+                TypeId::of::<super::OpenPalette>()
+            );
+        }
     }
 
     #[test]

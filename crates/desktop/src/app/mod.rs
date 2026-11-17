@@ -6,7 +6,9 @@ mod message;
 mod modals;
 mod notices;
 mod operations;
+mod palette;
 mod preferences;
+mod recovery;
 mod refs;
 mod remotes;
 mod repository_manager;
@@ -22,6 +24,7 @@ mod toolbar;
 mod watch;
 mod widgets;
 mod workspace;
+mod worktrees;
 
 use std::path::PathBuf;
 
@@ -44,6 +47,8 @@ actions!(
     [
         OpenRepos,
         OpenPreferences,
+        OpenPalette,
+        SearchCommits,
         Refresh,
         Escape,
         NextRow,

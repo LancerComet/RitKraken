@@ -1,5 +1,6 @@
 mod detail;
 mod file;
+mod search;
 
 use std::thread;
 
@@ -10,6 +11,7 @@ use crate::{
 
 pub use detail::{CommitDetail, CommitPerson};
 pub use file::{BlameLine, FileCommit, FileHistory};
+pub use search::CommitSearch;
 
 pub(crate) const COMMIT_DATE_FORMAT: &str = "--date=format-local:%Y/%m/%d @ %H:%M";
 pub(crate) const COMMIT_LOG_FORMAT: &str = "--format=%H%x00%P%x00%an%x00%ae%x00%ad%x00%s";

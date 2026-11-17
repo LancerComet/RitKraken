@@ -14,6 +14,10 @@
 
 ## User Requirements & Notes
 
+- **Commit search**: Use **Search** in the toolbar, or `Ctrl+F` / `Cmd+F` while the commit graph has focus. Search full commit messages or SHA prefixes, then filter by author, file path, branch, and inclusive dates. Results cover the entire history and reveal the selected commit in the graph.
+- **Recovery**: **Recovery** shows local HEAD movements and local branches deleted through RitKraken. Restore moves the current branch tip (or detached HEAD) while keeping the index, working files, and untracked files unchanged. It does not reverse a checkout, recover discarded file contents, or change remotes. A selected record can also become a new recovery branch.
+- **Worktrees**: **Worktrees** lists working directories, branches, changes, and lock status. Create a new branch at HEAD or use an existing local branch, open the directory in a tab, and remove clean directories after closing their tabs. Removal keeps the branch.
+- **Command palette**: Press `Ctrl+Shift+P` / `Cmd+Shift+P`, or choose **Commands** in the toolbar. Use `>` for commands, `@` for branches, `#` for commits, and `/` for files; arrows select, Enter executes, and Escape closes.
 - **Git 2.37 or newer** must be installed and available on your `PATH`. RitKraken delegates all repository reads and writes to the system `git` executable.
 - **macOS 15 or newer** is required to run the macOS application.
 - **Preview limits**: File and diff previews are capped at 8 MiB. Hunk and single-line staging apply to modified text files; added, deleted, renamed, and binary files can be staged as a whole.

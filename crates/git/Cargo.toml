@@ -4,6 +4,7 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+chrono = { version = "0.4", default-features = false, features = ["std"] }
 notify = "=8.2.1"
 similar = "2.7"
 tempfile = "3"

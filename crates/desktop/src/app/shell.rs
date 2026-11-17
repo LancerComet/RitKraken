@@ -11,7 +11,7 @@ use gpui_kit::{
 use crate::i18n::tr;
 
 use super::{
-    Client, Escape, OpenPreferences, OpenRepos, Refresh, Submit, Tab,
+    Client, Escape, OpenPalette, OpenPreferences, OpenRepos, Refresh, SearchCommits, Submit, Tab,
     message::branch_label,
     theme::{Palette, palette},
 };
@@ -41,6 +41,12 @@ impl Render for Client {
                 if !this.modal_is_present() {
                     this.refresh(window, cx);
                 }
+            }))
+            .on_action(cx.listener(|this, _: &SearchCommits, window, cx| {
+                this.open_commit_search(window, cx);
+            }))
+            .on_action(cx.listener(|this, _: &OpenPalette, window, cx| {
+                this.open_palette(window, cx);
             }))
             .on_action(cx.listener(|this, _: &Escape, window, cx| this.escape(window, cx)))
             .on_action(cx.listener(|this, _: &Submit, window, cx| this.submit(window, cx)))

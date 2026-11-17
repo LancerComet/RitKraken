@@ -9,11 +9,13 @@ mod diff;
 mod error;
 mod history;
 mod protocol;
+mod recovery;
 mod reference;
 mod remotes;
 mod repository;
 mod watch;
 mod worktree;
+mod worktrees;
 
 pub use commit_ops::{
     CommitAction, CommitAvailability, CommitBlock, CommitContext, CommitMenuSnapshot,
@@ -29,11 +31,13 @@ pub use diff::{
 };
 pub use error::{Error, Result, RuleError};
 pub use history::{
-    BlameLine, Commit, CommitDetail, CommitPerson, FileCommit, FileHistory, RefKind, Reference,
-    Snapshot, short_id,
+    BlameLine, Commit, CommitDetail, CommitPerson, CommitSearch, FileCommit, FileHistory, RefKind,
+    Reference, Snapshot, short_id,
 };
+pub use recovery::{RecoveryHistory, ReflogEntry};
 pub use reference::{RefOperation, RefRequest, remote_branch};
 pub use remotes::{DEFAULT_AUTO_FETCH_TIMEOUT, NewRemote, Upstream};
 pub use repository::Repo;
 pub use watch::RepoWatch;
 pub use worktree::{Change, DiscardFile, IgnoreRule, Status};
+pub use worktrees::{NewWorktree, Worktree};
