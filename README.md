@@ -12,19 +12,12 @@
   <img src="docs/preview.png" alt="RitKraken Desktop Client" style="width: 100%; max-width: 1700px" />
 </p>
 
-## User Requirements & Notes
+## User Requirements
 
-- **Commit search**: Use **Search** in the toolbar, or `Ctrl+F` / `Cmd+F` while the commit graph has focus. Search full commit messages or SHA prefixes, then filter by author, file path, branch, and inclusive dates. Results cover the entire history and reveal the selected commit in the graph.
-- **Recovery**: **Recovery** shows local HEAD movements and local branches deleted through RitKraken. Restore moves the current branch tip (or detached HEAD) while keeping the index, working files, and untracked files unchanged. It does not reverse a checkout, recover discarded file contents, or change remotes. A selected record can also become a new recovery branch.
-- **Worktrees**: **Worktrees** lists working directories, branches, changes, and lock status. Create a new branch at HEAD or use an existing local branch, open the directory in a tab, and remove clean directories after closing their tabs. Removal keeps the branch.
-- **Command palette**: Press `Ctrl+Shift+P` / `Cmd+Shift+P`, or choose **Commands** in the toolbar. Use `>` for commands, `@` for branches, `#` for commits, and `/` for files; arrows select, Enter executes, and Escape closes.
 - **Git 2.37 or newer** must be installed and available on your `PATH`. RitKraken delegates all repository reads and writes to the system `git` executable.
 - **macOS 15 or newer** is required to run the macOS application.
-- **Preview limits**: File and diff previews are capped at 8 MiB. Hunk and single-line staging apply to modified text files; added, deleted, renamed, and binary files can be staged as a whole.
-- **Automatic fetching**: Set its timeout in seconds under **Preferences → Git** (default: 30). A timed-out attempt is cancelled; automatic fetching resumes on the next scheduled interval.
-- **Settings**: Language (`English`, `简体中文`, `繁體中文`, `日本語`) and color themes (`Nawal`, `One Dark Pro`, `Dracula`, `Nord`, `RitKraken Classic`, `Catppuccin Latte`) can be switched in **Preferences** (`Ctrl+,` / `Cmd+,`) and take effect immediately.
 
-## Developer Requirements & Notes
+## Developer Requirements
 
 - **Rust 1.92 or newer** is required to build from source.
 - **Windows**: Requires the MSVC Rust toolchain, Visual Studio C++ Build Tools, and the Windows SDK. Close a running `ritkraken.exe` before rebuilding so the executable is not locked.
