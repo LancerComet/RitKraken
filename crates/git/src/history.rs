@@ -14,6 +14,10 @@ pub use file::{BlameLine, FileCommit, FileHistory};
 pub use search::CommitSearch;
 
 pub(crate) const COMMIT_DATE_FORMAT: &str = "--date=format-local:%Y/%m/%d @ %H:%M";
+/// Lists commits newest first by commit time while still showing every child
+/// before its parents. `--topo-order` would instead keep each line of history
+/// together, placing older commits of one branch above newer ones of another.
+pub(crate) const HISTORY_ORDER: &str = "--date-order";
 pub(crate) const COMMIT_LOG_FORMAT: &str = "--format=%H%x00%P%x00%an%x00%ae%x00%ad%x00%s";
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -131,7 +135,7 @@ impl Repo {
             "log",
             "--exclude=refs/stash",
             "--all",
-            "--topo-order",
+            HISTORY_ORDER,
             COMMIT_DATE_FORMAT,
             "--encoding=UTF-8",
             COMMIT_LOG_FORMAT,

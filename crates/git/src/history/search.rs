@@ -2,7 +2,7 @@ use std::path::{Component, Path};
 
 use crate::{Repo, Result, RuleError, command::run_read, protocol::text};
 
-use super::{COMMIT_DATE_FORMAT, COMMIT_LOG_FORMAT, Commit, RefKind, parse_log};
+use super::{COMMIT_DATE_FORMAT, COMMIT_LOG_FORMAT, Commit, HISTORY_ORDER, RefKind, parse_log};
 
 #[derive(Clone, Debug, Default)]
 pub struct CommitSearch {
@@ -54,7 +54,7 @@ impl Repo {
         let mut git = self.git_with_literal_paths();
         git.args([
             "log",
-            "--topo-order",
+            HISTORY_ORDER,
             "--no-show-signature",
             "--encoding=UTF-8",
             COMMIT_DATE_FORMAT,
