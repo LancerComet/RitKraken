@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/preview.webp" alt="RitKraken Desktop Client" style="width: 100%; max-width: 1366px" />
+  <img src="docs/preview.png" alt="RitKraken Desktop Client" style="width: 100%; max-width: 1700px" />
 </p>
 
 ## User Requirements & Notes
