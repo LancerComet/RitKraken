@@ -11,7 +11,7 @@ use ritkraken_git as git;
 use crate::i18n::tr;
 
 use super::{
-    Client, RepoOperation, RepoTab,
+    Client, OpenPalette, RepoOperation, RepoTab, SearchCommits,
     palette::{Command, CommandContext},
     session::ActiveOp,
     theme::palette,
@@ -63,18 +63,6 @@ impl Client {
             .gap(px(4.))
             .child(
                 toolbar_tile(
-                    "commands",
-                    "app.palette.short_title",
-                    "icons/command.svg",
-                    "app.palette.title",
-                    true,
-                    false,
-                    cx,
-                )
-                .on_click(cx.listener(|this, _, window, cx| this.open_palette(window, cx))),
-            )
-            .child(
-                toolbar_tile(
                     "worktrees",
                     "app.worktrees.short_title",
                     "icons/folder-symlink.svg",
@@ -96,20 +84,6 @@ impl Client {
                     cx,
                 )
                 .on_click(cx.listener(|this, _, window, cx| this.open_recovery(window, cx))),
-            )
-            .child(
-                toolbar_tile(
-                    "search",
-                    "app.search.short_title",
-                    "icons/search.svg",
-                    "app.search.title",
-                    Command::SearchCommits.available(context),
-                    false,
-                    cx,
-                )
-                .on_click(cx.listener(|this, _, window, cx| {
-                    this.open_commit_search(window, cx);
-                })),
             )
             .child(
                 toolbar_tile(
@@ -168,6 +142,43 @@ impl Client {
                 .on_click(cx.listener(move |this, _, window, cx| {
                     this.update_repo(id, Some(RepoOperation::Pop), window, cx);
                 })),
+            )
+    }
+
+    pub(super) fn toolbar_navigation(&self, tab: Option<&RepoTab>, cx: &mut Context<Self>) -> Div {
+        div()
+            .flex()
+            .h_full()
+            .flex_shrink_0()
+            .items_center()
+            .gap(px(4.))
+            .child(
+                toolbar_tile(
+                    "search",
+                    "app.search.short_title",
+                    "icons/search.svg",
+                    "app.search.title",
+                    Command::SearchCommits.available(tab.map(CommandContext::from)),
+                    false,
+                    cx,
+                )
+                .tooltip_with_action(tr!("app.search.title"), &SearchCommits, Some("CommitGraph"))
+                .on_click(cx.listener(|this, _, window, cx| {
+                    this.open_commit_search(window, cx);
+                })),
+            )
+            .child(
+                toolbar_tile(
+                    "commands",
+                    "app.palette.short_title",
+                    "icons/command.svg",
+                    "app.palette.title",
+                    true,
+                    false,
+                    cx,
+                )
+                .tooltip_with_action(tr!("app.palette.title"), &OpenPalette, Some("RitKraken"))
+                .on_click(cx.listener(|this, _, window, cx| this.open_palette(window, cx))),
             )
     }
 

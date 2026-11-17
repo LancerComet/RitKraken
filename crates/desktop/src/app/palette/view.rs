@@ -1,5 +1,8 @@
 use gpui_kit::{
-    component::input::{self, Input},
+    component::{
+        input::{self, Input},
+        kbd::Kbd,
+    },
     prelude::*,
     *,
 };
@@ -7,7 +10,7 @@ use gpui_kit::{
 use super::PaletteForm;
 use crate::{
     app::{
-        Escape, Submit,
+        Escape, OpenPalette, Submit,
         theme::palette,
         widgets::{Tone, button, error_text},
     },
@@ -15,7 +18,7 @@ use crate::{
 };
 
 impl Render for PaletteForm {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let p = palette(cx);
         div()
             .id("command-palette")
@@ -46,9 +49,21 @@ impl Render for PaletteForm {
             .child(Input::new(&self.input).w_full())
             .child(
                 div()
-                    .text_size(px(11.))
-                    .text_color(rgb(p.text_muted))
-                    .child(tr!("app.palette.hint")),
+                    .flex()
+                    .items_center()
+                    .gap(px(12.))
+                    .child(
+                        div()
+                            .flex_1()
+                            .text_size(px(11.))
+                            .text_color(rgb(p.text_muted))
+                            .child(tr!("app.palette.hint")),
+                    )
+                    .children(Kbd::binding_for_action(
+                        &OpenPalette,
+                        Some("RitKraken"),
+                        window,
+                    )),
             )
             .when(self.pending > 0, |body| {
                 body.child(
@@ -99,16 +114,20 @@ impl Render for PaletteForm {
                                         div()
                                             .flex_1()
                                             .min_w_0()
+                                            .h_full()
                                             .flex()
                                             .flex_col()
+                                            .justify_center()
                                             .child(div().truncate().child(candidate.title.clone()))
-                                            .child(
-                                                div()
-                                                    .truncate()
-                                                    .text_size(px(11.))
-                                                    .text_color(rgb(p.text_muted))
-                                                    .child(candidate.details.clone()),
-                                            ),
+                                            .when(!candidate.details.is_empty(), |column| {
+                                                column.child(
+                                                    div()
+                                                        .truncate()
+                                                        .text_size(px(11.))
+                                                        .text_color(rgb(p.text_muted))
+                                                        .child(candidate.details.clone()),
+                                                )
+                                            }),
                                     )
                                     .on_click(cx.listener(move |this, _, window, cx| {
                                         this.selected = index;

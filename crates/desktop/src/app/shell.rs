@@ -161,7 +161,7 @@ impl Client {
             .when_some(ready, |toolbar, tab| {
                 toolbar.child(self.toolbar_actions(tab, cx))
             })
-            .child(div().w(px(58.)).flex_shrink_0())
+            .child(self.toolbar_navigation(ready, cx))
     }
 
     fn status_bar(&self, tab: Option<&Tab>, p: Palette) -> Div {

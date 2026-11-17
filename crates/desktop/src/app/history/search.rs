@@ -46,13 +46,21 @@ impl Client {
         let form = cx.new(|cx| {
             let inputs = std::array::from_fn(|_| cx.new(|cx| InputState::new(window, cx)));
             let subscriptions = inputs.each_ref().map(|input| {
-                cx.subscribe(
+                cx.subscribe_in(
                     input,
-                    |this: &mut CommitSearchForm, _, event: &InputEvent, cx| {
-                        if matches!(event, InputEvent::Change) {
-                            this.generation += 1;
-                            this.results = None;
-                            cx.notify();
+                    window,
+                    |this: &mut CommitSearchForm, _, event: &InputEvent, window, cx| {
+                        if !this.modal.is_open() {
+                            return;
+                        }
+                        match event {
+                            InputEvent::Change => {
+                                this.generation += 1;
+                                this.results = None;
+                                cx.notify();
+                            }
+                            InputEvent::PressEnter { shift: false, .. } => this.search(window, cx),
+                            _ => {}
                         }
                     },
                 )
@@ -86,6 +94,9 @@ impl Client {
 
 impl CommitSearchForm {
     fn search(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if !self.modal.is_open() || matches!(self.results, Some(Load::Pending)) {
+            return;
+        }
         let [text, author, path, branch, since, until] = self
             .inputs
             .each_ref()
@@ -204,6 +215,7 @@ impl Render for CommitSearchForm {
                 Some(Load::Ready(commits)) => {
                     let count = commits.len();
                     div()
+                        .w_full()
                         .flex_1()
                         .min_h_0()
                         .flex()
@@ -225,6 +237,7 @@ impl Render for CommitSearchForm {
                                             let p = palette(cx);
                                             div()
                                                 .id(("search-result", index))
+                                                .w_full()
                                                 .h(px(52.))
                                                 .px(px(8.))
                                                 .flex()
@@ -257,6 +270,7 @@ impl Render for CommitSearchForm {
                                         .collect()
                                 }),
                             )
+                            .w_full()
                             .flex_1()
                             .min_h_0(),
                         )
