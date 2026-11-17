@@ -136,7 +136,7 @@ impl Repo {
         Ok((remotes.into_keys().collect(), url))
     }
 
-    fn ensure_remote(&self, remote: &str) -> Result<()> {
+    pub(crate) fn ensure_remote(&self, remote: &str) -> Result<()> {
         if self
             .remotes()?
             .iter()

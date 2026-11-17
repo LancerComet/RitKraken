@@ -63,7 +63,7 @@ impl Client {
             RefOperation::Delete if request.reference.kind != RefKind::Tag => {
                 DeleteBranchDialog::open(id, request, window, cx);
             }
-            RefOperation::Checkout | RefOperation::Delete => {
+            RefOperation::Checkout | RefOperation::Delete | RefOperation::PushTag(_) => {
                 self.update_repo(id, Some(RepoOperation::Reference(request)), window, cx)
             }
         }

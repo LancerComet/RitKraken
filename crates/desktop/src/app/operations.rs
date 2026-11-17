@@ -126,6 +126,11 @@ impl RepoOperation {
             Self::AddWorktree(_) | Self::RemoveWorktree(_) => "app.worktrees.completed",
             Self::RestoreHead(..) | Self::RecoverBranch(..) => "app.recovery.completed",
             Self::StageFiles(..) | Self::StagePatch(..) => return None,
+            Self::Reference(request)
+                if matches!(request.operation, git::RefOperation::PushTag(_)) =>
+            {
+                "app.notice.tag_pushed"
+            }
             Self::Reference(_) => "app.ref_menu.completed",
             Self::CommitGraph(operation)
                 if matches!(operation.operation, git::CommitOperation::CherryPick { .. }) =>
@@ -154,6 +159,11 @@ impl RepoOperation {
                 ActiveOp::Fetch
             }
             Self::Push { .. } | Self::ForcePush(_) => ActiveOp::Push,
+            Self::Reference(request)
+                if matches!(request.operation, git::RefOperation::PushTag(_)) =>
+            {
+                ActiveOp::Push
+            }
             Self::Commit(..) => ActiveOp::Commit,
             Self::Stash => ActiveOp::Stash,
             Self::Pop => ActiveOp::Pop,

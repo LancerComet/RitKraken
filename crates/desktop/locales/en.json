@@ -165,6 +165,7 @@
       "popped": "Stash restored",
       "pulled": "Remote changes pulled",
       "pushed": "Branch pushed",
+      "tag_pushed": "Tag pushed",
       "staged": "Changes staged",
       "stashed": "Changes stashed",
       "switched": "Branch checked out",
@@ -381,7 +382,8 @@
       "stale": "This reference changed. Reopen its menu before continuing.",
       "tag": "Local tag · %{name}",
       "track": "Create and switch to tracking branch…",
-      "unavailable": "This operation is not available for this reference."
+      "unavailable": "This operation is not available for this reference.",
+      "push_tag": "Push %{name} to %{remote}"
     },
     "remotes": {
       "add": "Add Remote",

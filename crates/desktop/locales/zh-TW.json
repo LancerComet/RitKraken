@@ -165,6 +165,7 @@
       "popped": "貯藏已還原",
       "pulled": "已拉取遠端變更",
       "pushed": "分支已推送",
+      "tag_pushed": "標籤已推送",
       "staged": "變更已暫存",
       "stashed": "變更已貯藏",
       "switched": "分支已切換",
@@ -381,7 +382,8 @@
       "stale": "此引用已變更，請重新開啟選單後再操作。",
       "tag": "本機標籤 · %{name}",
       "track": "建立並切換至追蹤分支…",
-      "unavailable": "此引用不支援該操作。"
+      "unavailable": "此引用不支援該操作。",
+      "push_tag": "推送 %{name} 至 %{remote}"
     },
     "remotes": {
       "add": "新增遠端",

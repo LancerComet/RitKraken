@@ -158,6 +158,19 @@ impl RefMenu {
                 reason.clone(),
             ));
         }
+        if reference.kind == RefKind::Tag {
+            for remote in &snapshot.remotes {
+                menu = menu.item(self.operation_item(
+                    tr!(
+                        "app.ref_menu.push_tag",
+                        name = &reference.name,
+                        remote = remote
+                    ),
+                    request(RefOperation::PushTag(remote.clone())),
+                    reason.clone(),
+                ));
+            }
+        }
         let delete_reason = if current {
             Some(tr!("app.ref_menu.in_use"))
         } else {

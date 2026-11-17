@@ -10,6 +10,9 @@ pub enum RefOperation {
     Rename(String),
     /// Explicit deletion after the caller has obtained confirmation.
     Delete,
+    /// Publishes a local tag to the named remote without overwriting a
+    /// different remote tag of the same name.
+    PushTag(String),
 }
 
 /// Captured without I/O when the menu opens, and checked again at execution.
@@ -130,6 +133,18 @@ impl Repo {
                     )
                     .map(drop)
                 }
+            }
+            RefOperation::PushTag(remote) if current.kind == RefKind::Tag => {
+                self.ensure_remote(remote)?;
+                // Push the reviewed tag object, not whatever the name resolves
+                // to by the time the transport starts.
+                run_write(self.git().args([
+                    "push",
+                    "--no-follow-tags",
+                    "--",
+                    remote,
+                    &format!("{}:{}", current.object_id, current.full_name()),
+                ]))
             }
             RefOperation::Delete => match current.kind {
                 RefKind::Local => {

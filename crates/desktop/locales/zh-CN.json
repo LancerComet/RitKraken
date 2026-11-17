@@ -165,6 +165,7 @@
       "popped": "储藏已恢复",
       "pulled": "已拉取远程更改",
       "pushed": "分支已推送",
+      "tag_pushed": "标签已推送",
       "staged": "更改已暂存",
       "stashed": "更改已储藏",
       "switched": "分支已切换",
@@ -381,7 +382,8 @@
       "stale": "此引用已变化，请重新打开菜单后再操作。",
       "tag": "本地标签 · %{name}",
       "track": "创建并切换到跟踪分支…",
-      "unavailable": "此引用不支持该操作。"
+      "unavailable": "此引用不支持该操作。",
+      "push_tag": "推送 %{name} 到 %{remote}"
     },
     "remotes": {
       "add": "添加远端",

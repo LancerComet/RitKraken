@@ -338,3 +338,94 @@ fn invalid_names_cannot_be_interpreted_as_options_or_overwrite_references() {
     }
     assert_eq!(repo.snapshot(None).unwrap().branch.as_deref(), Some("main"));
 }
+
+fn remote_tag(remote: &std::path::Path, name: &str) -> Option<String> {
+    let output = command(Some(remote))
+        .args([
+            "rev-parse",
+            "--verify",
+            "--quiet",
+            &format!("refs/tags/{name}"),
+        ])
+        .output()
+        .unwrap();
+    output
+        .status
+        .success()
+        .then(|| String::from_utf8(output.stdout).unwrap().trim().to_owned())
+}
+
+#[test]
+fn tags_push_their_reviewed_object_without_overwriting_a_different_remote_tag() {
+    let (directory, repo) = fixture();
+    let remote = directory.path().join("remote.git");
+    support::git_output(command(None).args(["init", "--bare"]).arg(&remote));
+    git(
+        &repo,
+        &["remote", "add", "origin", remote.to_str().unwrap()],
+    );
+    let first = commit_file(&repo, "one", "one", "One");
+    git(&repo, &["tag", "light"]);
+    git(&repo, &["tag", "-a", "release/one", "-m", "Release notes"]);
+    let annotated = git(&repo, &["rev-parse", "refs/tags/release/one"])
+        .trim()
+        .to_owned();
+    for name in ["light", "release/one"] {
+        let push = request(
+            &repo,
+            RefKind::Tag,
+            name,
+            RefOperation::PushTag("origin".into()),
+        );
+        repo.apply_ref_operation(&push).unwrap();
+    }
+    assert_eq!(
+        remote_tag(&remote, "light").as_deref(),
+        Some(first.as_str())
+    );
+    assert_eq!(
+        remote_tag(&remote, "release/one").as_deref(),
+        Some(annotated.as_str())
+    );
+
+    commit_file(&repo, "two", "two", "Two");
+    git(&repo, &["tag", "-f", "light"]);
+    let moved = request(
+        &repo,
+        RefKind::Tag,
+        "light",
+        RefOperation::PushTag("origin".into()),
+    );
+    assert!(matches!(
+        repo.apply_ref_operation(&moved),
+        Err(Error::Git { .. })
+    ));
+    assert_eq!(
+        remote_tag(&remote, "light").as_deref(),
+        Some(first.as_str())
+    );
+
+    git(&repo, &["tag", "late"]);
+    let stale = request(
+        &repo,
+        RefKind::Tag,
+        "late",
+        RefOperation::PushTag("origin".into()),
+    );
+    git(&repo, &["tag", "-f", "late", &first]);
+    assert!(matches!(
+        repo.apply_ref_operation(&stale),
+        Err(Error::Rule(RuleError::StaleReference))
+    ));
+    let missing = request(
+        &repo,
+        RefKind::Tag,
+        "late",
+        RefOperation::PushTag("upstream".into()),
+    );
+    assert!(matches!(
+        repo.apply_ref_operation(&missing),
+        Err(Error::Rule(RuleError::MissingRemote(_)))
+    ));
+    assert_eq!(remote_tag(&remote, "late"), None);
+}
