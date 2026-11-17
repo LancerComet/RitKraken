@@ -23,37 +23,7 @@ impl Client {
         let id = tab.id;
         let context = Some(CommandContext::from(tab));
         let active_op = tab.active_op;
-        let snapshot = &tab.history.data.snapshot;
         let remote_available = Command::Fetch.available(context);
-        let remotes = snapshot.remotes.clone();
-        let view = cx.weak_entity();
-        let p = palette(cx);
-        let fetch_menu = toolbar_button(
-            "fetch-options",
-            "app.toolbar.fetch_options",
-            remote_available,
-            false,
-            cx,
-        )
-        .w(px(20.))
-        .rounded(px(8.))
-        .child(icon("icons/chevron-down.svg", p.chrome_text).size(px(11.)))
-        .dropdown_menu(move |menu, _, _| {
-            let menu = menu.item(edit_item(
-                tr!("app.toolbar.fetch_all"),
-                id,
-                RepoOperation::Fetch(None),
-                &view,
-            ));
-            remotes.iter().fold(menu, |menu, remote| {
-                menu.item(edit_item(
-                    tr!("app.toolbar.fetch_remote", remote = remote),
-                    id,
-                    RepoOperation::Fetch(Some(remote.clone())),
-                    &view,
-                ))
-            })
-        });
         let can_stash = Command::Stash.available(context);
 
         div()
@@ -85,21 +55,7 @@ impl Client {
                 )
                 .on_click(cx.listener(|this, _, window, cx| this.open_recovery(window, cx))),
             )
-            .child(
-                toolbar_tile(
-                    "fetch",
-                    "app.toolbar.fetch",
-                    "icons/arrow-down-to-line.svg",
-                    "app.toolbar.fetch_all",
-                    remote_available,
-                    active_op == Some(ActiveOp::Fetch),
-                    cx,
-                )
-                .on_click(cx.listener(move |this, _, window, cx| {
-                    this.update_repo(id, Some(RepoOperation::Fetch(None)), window, cx);
-                })),
-            )
-            .child(fetch_menu)
+            .children(self.pull_controls(tab, remote_available, cx))
             .child(self.push_button(tab, remote_available, cx))
             .child(
                 toolbar_tile(
@@ -251,7 +207,7 @@ impl Client {
     }
 }
 
-fn edit_item(
+pub(super) fn edit_item(
     label: impl Into<SharedString>,
     id: u64,
     edit: RepoOperation,
@@ -265,7 +221,7 @@ fn edit_item(
     })
 }
 
-fn toolbar_button(
+pub(super) fn toolbar_button(
     id: &'static str,
     hint_key: &'static str,
     enabled: bool,
@@ -297,7 +253,7 @@ fn toolbar_button(
         .when(!enabled && !spinning, |button| button.opacity(0.45))
 }
 
-fn toolbar_tile(
+pub(super) fn toolbar_tile(
     id: &'static str,
     label_key: &'static str,
     glyph: &'static str,

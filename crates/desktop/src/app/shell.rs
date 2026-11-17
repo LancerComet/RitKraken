@@ -117,6 +117,9 @@ impl Client {
     fn toolbar(&self, tab: Option<&Tab>, p: Palette, cx: &mut Context<Self>) -> Div {
         let repo = tab.map_or_else(|| tr!("app.repositories.title"), Tab::name);
         let ready = tab.and_then(Tab::ready);
+        if let Some(banner) = ready.and_then(|tab| self.push_warning(tab, cx)) {
+            return banner;
+        }
         let branch = ready.map_or_else(String::new, |tab| branch_label(&tab.history.data.snapshot));
         div()
             .h(px(54.))

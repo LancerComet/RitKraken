@@ -163,6 +163,7 @@
       "line_staged": "已暫存此行",
       "line_unstaged": "已取消暫存此行",
       "popped": "貯藏已還原",
+      "pulled": "已拉取遠端變更",
       "pushed": "分支已推送",
       "staged": "變更已暫存",
       "stashed": "變更已貯藏",
@@ -304,10 +305,16 @@
       "create_branch_hint": "建立分支",
       "fetch": "擷取",
       "fetch_all": "擷取所有遠端",
-      "fetch_options": "擷取選項",
       "fetch_remote": "擷取 %{remote}",
       "pop": "還原",
       "pop_hint": "還原並移除最新的貯藏",
+      "pull": "拉取",
+      "pull_default_hint": "選擇按下此按鈕時執行的預設拉取／擷取操作",
+      "pull_ff": "拉取（盡可能快轉）",
+      "pull_ff_only": "拉取（僅快轉）",
+      "pull_no_upstream": "目前分支沒有可拉取的上游分支",
+      "pull_options": "拉取與擷取選項",
+      "pull_rebase": "拉取（重定基底）",
       "push": "推送",
       "push_and_track": "推送並追蹤 %{upstream}",
       "push_hint": "推送目前分支",
@@ -348,6 +355,12 @@
       "stash_list_changed": "檔案已還原，但儲藏清單已由其他操作修改，已保留原儲藏。",
       "stopped_tracking": "已加入忽略規則並停止 Git 追蹤。",
       "uncommitted": "未提交的變更"
+    },
+    "push": {
+      "rejected": "無法快轉推送至遠端分支，請先拉取變更或確認強制推送。",
+      "rejected_detail": "分支「%{branch}」無法快轉推送至「%{upstream}」。請拉取以合併遠端變更，或強制推送以覆寫遠端歷史。",
+      "pull": "拉取",
+      "force": "強制推送"
     },
     "ref_menu": {
       "checkout": "切換至此分支",

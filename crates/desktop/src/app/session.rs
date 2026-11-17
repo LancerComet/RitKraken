@@ -117,6 +117,7 @@ pub(super) struct RepoTab {
     pub(super) active_op: Option<ActiveOp>,
     pub(super) updates: RepoUpdates,
     pub(super) notice: Option<Notice>,
+    pub(super) push_rejection: Option<ritkraken_git::PushRejection>,
 }
 
 impl RepoTab {
@@ -141,6 +142,7 @@ impl RepoTab {
             active_op: None,
             updates: RepoUpdates::default(),
             notice: None,
+            push_rejection: None,
         }
     }
 

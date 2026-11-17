@@ -163,6 +163,7 @@
       "line_staged": "已暂存此行",
       "line_unstaged": "已取消暂存此行",
       "popped": "储藏已恢复",
+      "pulled": "已拉取远程更改",
       "pushed": "分支已推送",
       "staged": "更改已暂存",
       "stashed": "更改已储藏",
@@ -304,10 +305,16 @@
       "create_branch_hint": "创建分支",
       "fetch": "抓取",
       "fetch_all": "抓取所有远端",
-      "fetch_options": "抓取选项",
       "fetch_remote": "抓取 %{remote}",
       "pop": "恢复",
       "pop_hint": "恢复并移除最新的储藏",
+      "pull": "拉取",
+      "pull_default_hint": "选择点击此按钮时执行的默认拉取/抓取操作",
+      "pull_ff": "拉取（尽可能快进）",
+      "pull_ff_only": "拉取（仅快进）",
+      "pull_no_upstream": "当前分支没有可拉取的上游分支",
+      "pull_options": "拉取与抓取选项",
+      "pull_rebase": "拉取（变基）",
       "push": "推送",
       "push_and_track": "推送并跟踪 %{upstream}",
       "push_hint": "推送当前分支",
@@ -348,6 +355,12 @@
       "stash_list_changed": "文件已恢复，但储藏列表已被其他操作修改，已保留原储藏。",
       "stopped_tracking": "已添加忽略规则并停止 Git 跟踪。",
       "uncommitted": "未提交的更改"
+    },
+    "push": {
+      "rejected": "无法快进推送到远程分支，请先拉取更改或确认强制推送。",
+      "rejected_detail": "分支“%{branch}”无法快进推送到“%{upstream}”。请拉取以合并远程更改，或强制推送以覆盖远程历史。",
+      "pull": "拉取",
+      "force": "强制推送"
     },
     "ref_menu": {
       "checkout": "切换到此分支",

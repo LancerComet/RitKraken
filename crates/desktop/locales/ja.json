@@ -163,6 +163,7 @@
       "line_staged": "行をステージしました",
       "line_unstaged": "行のステージを解除しました",
       "popped": "スタッシュを復元しました",
+      "pulled": "リモートの変更を取得しました",
       "pushed": "ブランチをプッシュしました",
       "staged": "変更をステージしました",
       "stashed": "変更をスタッシュしました",
@@ -304,10 +305,16 @@
       "create_branch_hint": "ブランチを作成",
       "fetch": "フェッチ",
       "fetch_all": "すべてフェッチ",
-      "fetch_options": "フェッチのオプション",
       "fetch_remote": "%{remote} をフェッチ",
       "pop": "復元",
       "pop_hint": "最新のスタッシュを復元して削除",
+      "pull": "プル",
+      "pull_default_hint": "このボタンをクリックしたときに実行する既定のプル／フェッチ操作を選択",
+      "pull_ff": "プル（可能なら早送り）",
+      "pull_ff_only": "プル（早送りのみ）",
+      "pull_no_upstream": "現在のブランチにはプル元の上流ブランチがありません",
+      "pull_options": "プルとフェッチのオプション",
+      "pull_rebase": "プル（リベース）",
       "push": "プッシュ",
       "push_and_track": "%{upstream} にプッシュして追跡",
       "push_hint": "現在のブランチをプッシュ",
@@ -348,6 +355,12 @@
       "stash_list_changed": "ファイルは復元されましたが、スタッシュ一覧が変更されたため、保存済みのスタッシュを保持しました。",
       "stopped_tracking": "無視ルールを追加し、Git の追跡を停止しました。",
       "uncommitted": "未コミットの変更"
+    },
+    "push": {
+      "rejected": "リモートブランチへ fast-forward できません。Pull するか、Force Push を確認してください。",
+      "rejected_detail": "「%{branch}」から「%{upstream}」へ fast-forward できません。Pull でリモートの変更を統合するか、Force Push でリモート履歴を上書きできます。",
+      "pull": "Pull",
+      "force": "Force Push"
     },
     "ref_menu": {
       "checkout": "このブランチに切り替え",

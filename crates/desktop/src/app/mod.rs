@@ -8,6 +8,8 @@ mod notices;
 mod operations;
 mod palette;
 mod preferences;
+mod pull;
+mod push;
 mod recovery;
 mod refs;
 mod remotes;

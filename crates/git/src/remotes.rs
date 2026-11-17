@@ -110,23 +110,6 @@ impl Repo {
         }
     }
 
-    pub fn push(&self, branch: &str, upstream: &Upstream, set_upstream: bool) -> Result<()> {
-        if self.checked_out_branch()?.as_deref() != Some(branch) {
-            return Err(RuleError::BranchChanged.into());
-        }
-        if !set_upstream && self.references(Some(branch))?.1.as_ref() != Some(upstream) {
-            return Err(RuleError::UpstreamChanged.into());
-        }
-        self.ensure_remote(&upstream.remote)?;
-        let mut git = self.git();
-        git.args(["push", "--no-follow-tags"]);
-        if set_upstream {
-            git.arg("--set-upstream");
-        }
-        let refspec = format!("refs/heads/{branch}:{}", upstream.reference);
-        run_write(git.arg("--").arg(&upstream.remote).arg(refspec))
-    }
-
     pub(crate) fn remotes(&self) -> Result<Vec<String>> {
         self.remote_summary().map(|(names, _)| names)
     }
@@ -165,3 +148,8 @@ impl Repo {
         }
     }
 }
+mod pull;
+mod push;
+
+pub use pull::PullMode;
+pub use push::PushRejection;

@@ -40,6 +40,13 @@ pub(super) enum RepoOperation {
         upstream: git::Upstream,
         set_upstream: bool,
     },
+    ForcePush(git::PushRejection),
+    PullRejected(git::PushRejection),
+    Pull {
+        branch: String,
+        upstream: git::Upstream,
+        mode: git::PullMode,
+    },
     Stash,
     Pop,
 }
@@ -60,7 +67,7 @@ impl RepoOperation {
                         ..
                     }
             ),
-            Self::Stash | Self::Pop => true,
+            Self::Stash | Self::Pop | Self::PullRejected(_) | Self::Pull { .. } => true,
             _ => false,
         }
     }
@@ -102,6 +109,13 @@ impl RepoOperation {
                 upstream,
                 set_upstream,
             } => repo.push(branch, upstream, *set_upstream),
+            Self::ForcePush(request) => repo.force_push(request),
+            Self::PullRejected(request) => repo.pull_after_rejected_push(request),
+            Self::Pull {
+                branch,
+                upstream,
+                mode,
+            } => repo.pull(branch, upstream, *mode),
             Self::Stash => repo.stash(),
             Self::Pop => repo.pop_stash(),
         }
@@ -127,7 +141,8 @@ impl RepoOperation {
             Self::Commit(..) => "app.notice.committed",
             Self::Fetch(_) | Self::AutoFetch(_) => "app.notice.fetched",
             Self::AddRemote(_) => "app.notice.remote_added",
-            Self::Push { .. } => "app.notice.pushed",
+            Self::Push { .. } | Self::ForcePush(_) => "app.notice.pushed",
+            Self::PullRejected(_) | Self::Pull { .. } => "app.notice.pulled",
             Self::Stash => "app.notice.stashed",
             Self::Pop => "app.notice.popped",
         })
@@ -135,8 +150,10 @@ impl RepoOperation {
 
     fn activity(&self) -> ActiveOp {
         match self {
-            Self::Fetch(_) | Self::AutoFetch(_) => ActiveOp::Fetch,
-            Self::Push { .. } => ActiveOp::Push,
+            Self::Fetch(_) | Self::AutoFetch(_) | Self::PullRejected(_) | Self::Pull { .. } => {
+                ActiveOp::Fetch
+            }
+            Self::Push { .. } | Self::ForcePush(_) => ActiveOp::Push,
             Self::Commit(..) => ActiveOp::Commit,
             Self::Stash => ActiveOp::Stash,
             Self::Pop => ActiveOp::Pop,
@@ -266,6 +283,9 @@ impl Client {
             return false;
         };
         tab.busy = !read_only;
+        if !read_only && !matches!(edit, Some(RepoOperation::AutoFetch(_))) {
+            tab.push_rejection = None;
+        }
         tab.active_op = (!read_only).then(|| {
             edit.as_ref()
                 .map_or(ActiveOp::Other, RepoOperation::activity)
@@ -330,7 +350,10 @@ impl Client {
                             | git::CommitOperation::InteractiveRebase(_)
                             | git::CommitOperation::Continue
                     ),
-                    RepoOperation::Pop | RepoOperation::StashFile(_) => true,
+                    RepoOperation::Pop
+                    | RepoOperation::StashFile(_)
+                    | RepoOperation::PullRejected(_)
+                    | RepoOperation::Pull { .. } => true,
                     _ => false,
                 }
         });
@@ -384,6 +407,9 @@ impl Client {
                             .update(cx, |input, cx| input.set_value("", window, cx));
                     }
                 }
+                Err(git::Error::PushRejected(request)) => {
+                    tab.push_rejection = Some(*request);
+                }
                 Err(error) => {
                     notice = Some(if conflict_file.is_some() {
                         Notice::info(Message::Key("app.conflicts.paused"))
@@ -399,6 +425,10 @@ impl Client {
                 changed |= !Arc::ptr_eq(&tab.history.data, &history) || tab.history.limit != limit;
                 tab.history.data = history;
                 tab.history.limit = limit;
+                tab.push_rejection = tab
+                    .push_rejection
+                    .take()
+                    .filter(|request| request.matches_snapshot(&tab.history.data.snapshot));
                 tab.changes
                     .selection
                     .refresh_worktree(&tab.history.data.snapshot.status);

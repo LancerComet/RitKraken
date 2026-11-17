@@ -11,6 +11,7 @@ use editor::{EditorDraft, EditorTypography};
 
 use super::{
     Client, Message, Tab,
+    pull::PullAction,
     review::DiffLayout,
     theme::{ThemeId, apply_theme},
 };
@@ -32,6 +33,7 @@ pub(super) struct Preferences {
     pub(super) diff_layout: DiffLayout,
     pub(super) wrap_lines: bool,
     pub(super) editor: EditorTypography,
+    pub(super) pull_action: PullAction,
 }
 
 impl Default for Preferences {
@@ -50,6 +52,7 @@ impl Default for Preferences {
             diff_layout: DiffLayout::Split,
             wrap_lines: false,
             editor: EditorTypography::default(),
+            pull_action: PullAction::default(),
         }
     }
 }
@@ -100,6 +103,10 @@ impl Preferences {
                 .unwrap_or(defaults.diff_layout),
             wrap_lines: value["wrap_lines"].as_bool().unwrap_or(defaults.wrap_lines),
             editor: EditorTypography::read(&value["editor_typography"]),
+            pull_action: value["pull_action"]
+                .as_str()
+                .and_then(PullAction::from_id)
+                .unwrap_or_default(),
         }
     }
 
@@ -118,6 +125,7 @@ impl Preferences {
             "diff_layout": self.diff_layout.id(),
             "wrap_lines": self.wrap_lines,
             "editor_typography": self.editor.json(),
+            "pull_action": self.pull_action.id(),
         })
     }
 
@@ -358,7 +366,7 @@ fn unsigned_input(
 mod tests {
     use std::time::Duration;
 
-    use super::{DiffLayout, Language, Preferences, ThemeId};
+    use super::{DiffLayout, Language, Preferences, PullAction, ThemeId};
 
     #[test]
     fn theme_preference_round_trips_and_handles_legacy_settings() {
@@ -446,6 +454,22 @@ mod tests {
         ] {
             let options = Preferences::read(&serde_json::json!({"auto_fetch_minutes": invalid}));
             assert_eq!(options.auto_fetch_interval(), Some(Duration::from_secs(60)));
+        }
+    }
+
+    #[test]
+    fn pull_action_defaults_to_fetch_and_round_trips() {
+        let legacy = serde_json::json!({"initial_commits": 750});
+        assert_eq!(Preferences::read(&legacy).pull_action, PullAction::FetchAll);
+        let unknown = serde_json::json!({"pull_action": "pull_squash"});
+        assert_eq!(
+            Preferences::read(&unknown).pull_action,
+            PullAction::FetchAll
+        );
+        for action in PullAction::ALL {
+            let options = Preferences::read(&serde_json::json!({"pull_action": action.id()}));
+            assert_eq!(options.pull_action, action);
+            assert_eq!(Preferences::read(&options.json()).pull_action, action);
         }
     }
 }

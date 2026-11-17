@@ -10,6 +10,10 @@ pub enum Error {
     Timeout(Duration),
     #[error("{message}")]
     Git { status: ExitStatus, message: String },
+    #[error(
+        "The remote branch cannot be fast-forwarded. Pull its changes or confirm a force push."
+    )]
+    PushRejected(Box<crate::PushRejection>),
     #[error("Git exited with {0}.")]
     Exited(ExitStatus),
     #[error("Git could not read this preview ({0}).")]

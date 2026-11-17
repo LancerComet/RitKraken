@@ -36,7 +36,7 @@ pub use history::{
 };
 pub use recovery::{RecoveryHistory, ReflogEntry};
 pub use reference::{RefOperation, RefRequest, remote_branch};
-pub use remotes::{DEFAULT_AUTO_FETCH_TIMEOUT, NewRemote, Upstream};
+pub use remotes::{DEFAULT_AUTO_FETCH_TIMEOUT, NewRemote, PullMode, PushRejection, Upstream};
 pub use repository::Repo;
 pub use watch::RepoWatch;
 pub use worktree::{Change, DiscardFile, IgnoreRule, Status};

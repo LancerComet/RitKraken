@@ -43,6 +43,7 @@ fn git_error(error: &Error) -> String {
         Error::Invocation(error) => tr!("app.error.run_git", detail = error),
         Error::Timeout(duration) => tr!("app.error.git_timeout", seconds = duration.as_secs()),
         Error::Git { message, .. } => tr!("app.error.git_failed", detail = message),
+        Error::PushRejected(_) => tr!("app.push.rejected"),
         Error::Exited(status) => tr!("app.error.git_exited", status = status),
         Error::PreviewRead(status) => tr!("app.error.preview_read", status = status),
         Error::Io(error) => tr!("app.error.io", detail = error),

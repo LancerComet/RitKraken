@@ -163,6 +163,7 @@
       "line_staged": "Line staged",
       "line_unstaged": "Line unstaged",
       "popped": "Stash restored",
+      "pulled": "Remote changes pulled",
       "pushed": "Branch pushed",
       "staged": "Changes staged",
       "stashed": "Changes stashed",
@@ -304,10 +305,16 @@
       "create_branch_hint": "Create branch",
       "fetch": "Fetch",
       "fetch_all": "Fetch All",
-      "fetch_options": "Fetch options",
       "fetch_remote": "Fetch %{remote}",
       "pop": "Pop",
       "pop_hint": "Pop latest stash",
+      "pull": "Pull",
+      "pull_default_hint": "Select a default pull/fetch operation to execute when clicking this button",
+      "pull_ff": "Pull (fast-forward if possible)",
+      "pull_ff_only": "Pull (fast-forward only)",
+      "pull_no_upstream": "The current branch has no upstream branch to pull from",
+      "pull_options": "Pull and fetch options",
+      "pull_rebase": "Pull (rebase)",
       "push": "Push",
       "push_and_track": "Push and track %{upstream}",
       "push_hint": "Push current branch",
@@ -348,6 +355,12 @@
       "stash_list_changed": "The file was restored, but the stash list changed. The saved stash was kept.",
       "stopped_tracking": "Ignore rule added and file removed from Git tracking.",
       "uncommitted": "Uncommitted changes"
+    },
+    "push": {
+      "rejected": "The remote branch cannot be fast-forwarded. Pull its changes or confirm a force push.",
+      "rejected_detail": "Branch \"%{branch}\" cannot fast-forward \"%{upstream}\". Pull to integrate remote changes, or Force Push to overwrite remote history.",
+      "pull": "Pull",
+      "force": "Force Push"
     },
     "ref_menu": {
       "checkout": "Switch to this branch",
