@@ -1,0 +1,88 @@
+# Builds Windows and macOS packages for tags such as v0.1.0 and publishes them
+# as a GitHub release once both builds succeed.
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    name: Windows x64
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Update Rust
+        run: rustup update stable --no-self-update && rustup default stable
+
+      - name: Build
+        shell: cmd
+        run: .\build-windows.cmd
+
+      - name: Package
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist | Out-Null
+          Compress-Archive `
+            -Path target/windows/x86_64-pc-windows-msvc/release/ritkraken.exe `
+            -DestinationPath "dist/RitKraken-$env:GITHUB_REF_NAME-windows-x64.zip"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-x64
+          path: dist/*
+          if-no-files-found: error
+
+  macos:
+    name: macOS arm64
+    # The app requires macOS 15; this runner is Apple Silicon.
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Update Rust
+        run: rustup update stable --no-self-update && rustup default stable
+
+      - name: Build
+        run: bash ./build-macos.sh
+
+      - name: Package
+        run: |
+          mkdir -p dist
+          # ditto keeps the bundle's symlinks, permissions and signature.
+          ditto -c -k --keepParent \
+            target/macos/aarch64-apple-darwin/release/RitKraken.app \
+            "dist/RitKraken-${GITHUB_REF_NAME}-macos-arm64.zip"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-arm64
+          path: dist/*
+          if-no-files-found: error
+
+  release:
+    name: Publish release
+    needs: [windows, macos]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "RitKraken $GITHUB_REF_NAME" \
+            --generate-notes \
+            --verify-tag
