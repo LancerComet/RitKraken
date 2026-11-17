@@ -7,6 +7,35 @@ use gpui_kit::*;
 use ritkraken_git::{ExportedFile, FileTarget, Scope};
 
 use super::{Client, Message, Notice};
+use crate::i18n::tr;
+
+/// Shows the system folder picker and passes the chosen folder, or the
+/// reason the picker failed, to `chosen`. Cancelling does nothing.
+pub(super) fn choose_directory<V: 'static>(
+    prompt_key: &'static str,
+    window: &mut Window,
+    cx: &mut Context<V>,
+    chosen: impl FnOnce(&mut V, Result<PathBuf, Message>, &mut Window, &mut Context<V>) + 'static,
+) {
+    let prompt = cx.prompt_for_paths(PathPromptOptions {
+        files: false,
+        directories: true,
+        multiple: false,
+        prompt: Some(tr!(prompt_key).into()),
+    });
+    cx.spawn_in(window, async move |view, cx| {
+        let result = match prompt.await {
+            Ok(Ok(Some(paths))) => match paths.into_iter().next() {
+                Some(path) => Ok(path),
+                None => return,
+            },
+            Ok(Err(error)) => Err(Message::detail("app.error.choose_directory", error)),
+            _ => return,
+        };
+        let _ = view.update_in(cx, |this, window, cx| chosen(this, result, window, cx));
+    })
+    .detach();
+}
 
 #[cfg(windows)]
 mod windows;

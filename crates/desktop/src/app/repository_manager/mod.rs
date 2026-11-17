@@ -6,10 +6,10 @@ use std::{fs, path::PathBuf, sync::Arc};
 use gpui_kit::*;
 use ritkraken_git::{self as git, Repo};
 
-use crate::i18n::{LocalizedInput, tr};
+use crate::i18n::LocalizedInput;
 
 use self::list::NameOrder;
-use super::{Client, Message, history::History};
+use super::{Client, Message, history::History, system::choose_directory};
 
 const ICON_SIZE: Pixels = px(12. * 1.2);
 
@@ -117,47 +117,38 @@ impl Client {
             return;
         }
         let mode = self.manager.mode;
-        let prompt = cx.prompt_for_paths(PathPromptOptions {
-            files: false,
-            directories: true,
-            multiple: false,
-            prompt: Some(
-                tr!(if project {
-                    "app.repositories.choose_project"
-                } else {
-                    "app.repositories.choose_repository"
-                })
-                .into(),
-            ),
-        });
-        cx.spawn_in(window, async move |view, cx| {
-            let result = prompt.await;
-            let _ = view.update_in(cx, |this, window, cx| match result {
-                Ok(Ok(Some(paths))) if mode == this.manager.mode => {
-                    if let Some(path) = paths.into_iter().next() {
-                        if project {
-                            if !this.saved.projects.contains(&path) {
-                                this.saved.projects.push(path.clone());
-                                this.saved.save();
-                            }
-                            this.change_repo_list(RepoList::Project(path), window, cx);
-                        } else if mode == Some(ManagerMode::Open) {
-                            this.open_repo(OpenRepo::Open(path), window, cx);
-                        } else {
-                            this.manager.path.update(cx, |input, cx| {
-                                input.set_value(path.to_string_lossy().into_owned(), window, cx)
-                            });
+        let prompt = if project {
+            "app.repositories.choose_project"
+        } else {
+            "app.repositories.choose_repository"
+        };
+        choose_directory(
+            prompt,
+            window,
+            cx,
+            move |this, result, window, cx| match result {
+                Ok(path) if mode == this.manager.mode => {
+                    if project {
+                        if !this.saved.projects.contains(&path) {
+                            this.saved.projects.push(path.clone());
+                            this.saved.save();
                         }
+                        this.change_repo_list(RepoList::Project(path), window, cx);
+                    } else if mode == Some(ManagerMode::Open) {
+                        this.open_repo(OpenRepo::Open(path), window, cx);
+                    } else {
+                        this.manager.path.update(cx, |input, cx| {
+                            input.set_value(path.to_string_lossy().into_owned(), window, cx)
+                        });
                     }
                 }
-                Ok(Err(error)) => {
-                    this.manager.error = Some(Message::detail("app.error.choose_directory", error));
+                Ok(_) => {}
+                Err(message) => {
+                    this.manager.error = Some(message);
                     cx.notify();
                 }
-                _ => {}
-            });
-        })
-        .detach();
+            },
+        );
     }
 
     fn change_repo_list(&mut self, list: RepoList, window: &mut Window, cx: &mut Context<Self>) {

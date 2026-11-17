@@ -470,7 +470,8 @@
       "path": "New worktree directory",
       "branch": "Branch name",
       "new_branch": "Create new branch at HEAD",
-      "completed": "Worktrees updated."
+      "completed": "Worktrees updated.",
+      "choose_directory": "Choose a folder for the new worktree"
     },
     "recovery": {
       "title": "Operation history and recovery",

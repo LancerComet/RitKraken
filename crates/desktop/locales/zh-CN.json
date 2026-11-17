@@ -470,7 +470,8 @@
       "path": "新 Worktree 目录",
       "branch": "分支名称",
       "new_branch": "从 HEAD 创建新分支",
-      "completed": "Worktree 已更新。"
+      "completed": "Worktree 已更新。",
+      "choose_directory": "选择新 Worktree 的目录"
     },
     "recovery": {
       "title": "操作记录与恢复",

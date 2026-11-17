@@ -15,6 +15,7 @@ use super::{
     Client, Escape, Load, Message, RepoOperation,
     modals::{ContentModal, ModalHandle},
     repository_manager::OpenRepo,
+    system::choose_directory,
     theme::palette,
     widgets::{Tone, button, error_text},
 };
@@ -174,6 +175,26 @@ impl WorktreeForm {
             }),
             window,
             cx,
+        );
+    }
+
+    fn browse(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.modal.is_busy() || !self.modal.is_open() {
+            return;
+        }
+        choose_directory(
+            "app.worktrees.choose_directory",
+            window,
+            cx,
+            |this, result, window, cx| {
+                match result {
+                    Ok(path) => this.path.update(cx, |input, cx| {
+                        input.set_value(path.to_string_lossy().into_owned(), window, cx)
+                    }),
+                    Err(message) => this.error = Some(message),
+                }
+                cx.notify();
+            },
         );
     }
 
@@ -365,7 +386,25 @@ impl Render for WorktreeForm {
                             .font_weight(FontWeight::SEMIBOLD)
                             .child(tr!("app.worktrees.create")),
                     )
-                    .child(Input::new(&self.path).disabled(busy).w_full())
+                    .child(
+                        div()
+                            .flex()
+                            .gap(px(8.))
+                            .items_center()
+                            .child(Input::new(&self.path).disabled(busy).flex_1().min_w_0())
+                            .child(
+                                button(
+                                    "browse-worktree-path",
+                                    tr!("app.common.browse"),
+                                    Tone::Outline,
+                                    !busy,
+                                    cx,
+                                    cx.listener(|this, _, window, cx| this.browse(window, cx)),
+                                )
+                                .rounded_full()
+                                .px(px(14.)),
+                            ),
+                    )
                     .child(
                         div()
                             .flex()

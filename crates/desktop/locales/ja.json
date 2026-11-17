@@ -470,7 +470,8 @@
       "path": "新しい Worktree ディレクトリ",
       "branch": "ブランチ名",
       "new_branch": "HEAD から新しいブランチを作成",
-      "completed": "Worktree を更新しました。"
+      "completed": "Worktree を更新しました。",
+      "choose_directory": "新しい Worktree のフォルダーを選択"
     },
     "recovery": {
       "title": "操作履歴と復元",
