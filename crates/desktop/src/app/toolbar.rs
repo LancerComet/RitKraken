@@ -207,7 +207,7 @@ impl Client {
     }
 }
 
-pub(super) fn edit_item(
+fn edit_item(
     label: impl Into<SharedString>,
     id: u64,
     edit: RepoOperation,

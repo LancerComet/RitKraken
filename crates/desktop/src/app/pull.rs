@@ -6,7 +6,7 @@ use super::{
     Client, RepoOperation, RepoTab,
     session::ActiveOp,
     theme::{Palette, palette},
-    toolbar::{edit_item, toolbar_button, toolbar_tile},
+    toolbar::{toolbar_button, toolbar_tile},
     widgets::icon,
 };
 use crate::i18n::tr;
@@ -127,6 +127,7 @@ impl Client {
                     div()
                         .w(MENU_WIDTH - px(40.))
                         .py(px(4.))
+                        .text_xs()
                         .text_color(rgb(p.text_muted))
                         .child(tr!("app.toolbar.pull_default_hint"))
                 })
@@ -144,12 +145,17 @@ impl Client {
                 )
             });
             remotes.iter().fold(menu.separator(), |menu, remote| {
-                menu.item(edit_item(
-                    tr!("app.toolbar.fetch_remote", remote = remote),
-                    id,
-                    RepoOperation::Fetch(Some(remote.clone())),
-                    &view,
-                ))
+                let view = view.clone();
+                let label: SharedString = tr!("app.toolbar.fetch_remote", remote = remote).into();
+                let edit = RepoOperation::Fetch(Some(remote.clone()));
+                menu.item(
+                    PopupMenuItem::element(move |_, _| div().text_xs().child(label.clone()))
+                        .on_click(move |_, window, cx| {
+                            let _ = view.update(cx, |this, cx| {
+                                this.update_repo(id, Some(edit.clone()), window, cx)
+                            });
+                        }),
+                )
             })
         });
         [tile.into_any_element(), menu.into_any_element()]
@@ -164,7 +170,8 @@ impl Client {
     }
 }
 
-const MENU_WIDTH: Pixels = px(300.);
+// Menu text is one step below the shared menu size (text_sm).
+const MENU_WIDTH: Pixels = px(260.);
 
 fn radio_row(label: SharedString, checked: bool, p: Palette) -> Div {
     let ring = if checked { p.accent } else { p.text_muted };
@@ -172,6 +179,7 @@ fn radio_row(label: SharedString, checked: bool, p: Palette) -> Div {
         .flex()
         .items_center()
         .gap(px(8.))
+        .text_xs()
         .child(
             div()
                 .size(px(14.))
