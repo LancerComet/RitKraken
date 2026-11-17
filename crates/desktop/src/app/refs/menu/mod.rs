@@ -1,4 +1,5 @@
 mod commands;
+mod delete;
 
 use std::rc::Rc;
 

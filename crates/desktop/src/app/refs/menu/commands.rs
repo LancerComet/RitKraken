@@ -1,5 +1,7 @@
 use gpui_kit::*;
-use ritkraken_git::{RefOperation, RefRequest};
+use ritkraken_git::{RefKind, RefOperation, RefRequest};
+
+use super::delete::DeleteBranchDialog;
 
 use crate::{
     app::{Client, RepoOperation, widgets::name_dialog::NameDialog},
@@ -14,7 +16,8 @@ impl Client {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if self.session.active != Some(id)
+        if self.modal_is_present()
+            || self.session.active != Some(id)
             || !self.tab(id).is_some_and(|tab| {
                 !tab.busy && tab.rebase.is_none() && tab.history.data.snapshot.sequence.is_none()
             })
@@ -56,6 +59,9 @@ impl Client {
                         });
                     },
                 );
+            }
+            RefOperation::Delete if request.reference.kind != RefKind::Tag => {
+                DeleteBranchDialog::open(id, request, window, cx);
             }
             RefOperation::Checkout | RefOperation::Delete => {
                 self.update_repo(id, Some(RepoOperation::Reference(request)), window, cx)
