@@ -1,12 +1,6 @@
-use gpui_kit::{
-    component::{
-        Sizable,
-        button::{Button, ButtonVariants},
-    },
-    prelude::*,
-    *,
-};
+use gpui_kit::{prelude::*, *};
 
+use super::{Tone, button};
 use crate::{
     app::{
         Client, Escape, RepoOperation, Submit,
@@ -92,21 +86,29 @@ impl Render for DeleteDialog {
                     .justify_end()
                     .gap(px(8.))
                     .child(
-                        Button::new("cancel-delete")
-                            .label(tr!("app.common.cancel"))
-                            .outline()
-                            .small()
-                            .track_focus(&self.cancel_focus)
-                            .on_click(cx.listener(|this, _, window, cx| {
-                                this.modal.close(window, cx);
-                            })),
+                        button(
+                            "cancel-delete",
+                            tr!("app.common.cancel"),
+                            Tone::Outline,
+                            true,
+                            cx,
+                            cx.listener(|this, _, window, cx| this.modal.close(window, cx)),
+                        )
+                        .track_focus(&self.cancel_focus)
+                        .rounded_full()
+                        .px(px(14.)),
                     )
                     .child(
-                        Button::new("confirm-delete")
-                            .label(tr!("app.ref_menu.confirm_delete"))
-                            .danger()
-                            .small()
-                            .on_click(cx.listener(|this, _, window, cx| this.submit(window, cx))),
+                        button(
+                            "confirm-delete",
+                            tr!("app.ref_menu.confirm_delete"),
+                            Tone::Red,
+                            true,
+                            cx,
+                            cx.listener(|this, _, window, cx| this.submit(window, cx)),
+                        )
+                        .rounded_full()
+                        .px(px(14.)),
                     ),
             )
     }
