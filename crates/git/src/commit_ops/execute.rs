@@ -1,6 +1,6 @@
 use crate::{
     Repo, Result, RuleError,
-    command::{run_read, run_write},
+    command::{join, run_read, run_write, spawn},
     worktree::WorkspaceVersion,
 };
 
@@ -45,13 +45,11 @@ impl Repo {
         context: CommitContext,
         operation: CommitOperation,
     ) -> Result<PreparedCommitOperation> {
-        let workspace = matches!(
+        let needs_workspace = matches!(
             operation,
             CommitOperation::Reset(ResetMode::Mixed | ResetMode::Hard)
                 | CommitOperation::Amend { .. }
-        )
-        .then(|| self.workspace_version())
-        .transpose()?;
+        );
         let rewrites = matches!(
             operation,
             CommitOperation::Amend { .. }
@@ -59,55 +57,86 @@ impl Repo {
                 | CommitOperation::Rebase
                 | CommitOperation::InteractiveRebase(_)
         );
-        let affected_count = if matches!(operation, CommitOperation::Amend { .. }) {
-            1
-        } else if rewrites {
-            crate::protocol::text(&self.read(&[
-                "rev-list",
-                "--count",
-                &format!("{}..{}", context.commit.id, context.head),
-                "--",
-            ])?)
-            .trim()
-            .parse()
-            .map_err(|_| RuleError::InvalidCommit)?
-        } else {
-            0
-        };
-        let mut published = Vec::new();
-        let references = rewrites
-            .then(|| self.references(None).map(|(references, _)| references))
-            .transpose()?;
-        if rewrites {
-            for reference in references
-                .as_ref()
-                .into_iter()
-                .flatten()
-                .filter(|reference| reference.kind == crate::RefKind::Remote)
-            {
-                let included = if matches!(operation, CommitOperation::Amend { .. }) {
-                    self.is_ancestor(&context.head, &reference.id)?
+        let (workspace, affected_count, references) = std::thread::scope(|scope| -> Result<_> {
+            let workspace = needs_workspace
+                .then(|| spawn(scope, || self.workspace_version()))
+                .transpose()?;
+            let count = (rewrites && !matches!(operation, CommitOperation::Amend { .. }))
+                .then(|| {
+                    spawn(scope, || {
+                        crate::protocol::text(&self.read(&[
+                            "rev-list",
+                            "--count",
+                            &format!("{}..{}", context.commit.id, context.head),
+                            "--",
+                        ])?)
+                        .trim()
+                        .parse()
+                        .map_err(|_| RuleError::InvalidCommit.into())
+                    })
+                })
+                .transpose()?;
+            let references = rewrites
+                .then(|| {
+                    spawn(scope, || {
+                        self.references(None).map(|(references, _)| references)
+                    })
+                })
+                .transpose()?;
+            Ok((
+                workspace.map(join).transpose()?,
+                if matches!(operation, CommitOperation::Amend { .. }) {
+                    1
                 } else {
-                    let common = crate::command::read_output(self.git().args([
-                        "merge-base",
-                        "--all",
-                        &context.head,
-                        &reference.id,
-                    ]))?;
-                    if common.status.code() == Some(1) {
-                        continue;
+                    count.map(join).transpose()?.unwrap_or(0)
+                },
+                references.map(join).transpose()?,
+            ))
+        })?;
+        let mut published = Vec::new();
+        if rewrites {
+            published = std::thread::scope(|scope| -> Result<Vec<String>> {
+                let remote_refs: Vec<_> = references
+                    .iter()
+                    .flatten()
+                    .filter(|reference| reference.kind == crate::RefKind::Remote)
+                    .collect();
+                let readers: Vec<_> = remote_refs
+                    .iter()
+                    .map(|reference| {
+                        let included = if matches!(operation, CommitOperation::Amend { .. }) {
+                            spawn(scope, || self.is_ancestor(&context.head, &reference.id))?
+                        } else {
+                            spawn(scope, || {
+                                let common = crate::command::read_output(self.git().args([
+                                    "merge-base",
+                                    "--all",
+                                    &context.head,
+                                    &reference.id,
+                                ]))?;
+                                if common.status.code() == Some(1) {
+                                    return Ok(false);
+                                }
+                                let bases =
+                                    crate::protocol::text(&crate::command::checked(common)?);
+                                let mut included = false;
+                                for base in bases.lines() {
+                                    included |= !self.is_ancestor(base, &context.commit.id)?;
+                                }
+                                Ok(included)
+                            })?
+                        };
+                        Ok((reference.name.clone(), included))
+                    })
+                    .collect::<Result<_>>()?;
+                let mut published = Vec::new();
+                for (name, reader) in readers {
+                    if join(reader)? {
+                        published.push(name);
                     }
-                    let bases = crate::protocol::text(&crate::command::checked(common)?);
-                    let mut included = false;
-                    for base in bases.lines() {
-                        included |= !self.is_ancestor(base, &context.commit.id)?;
-                    }
-                    included
-                };
-                if included {
-                    published.push(reference.name.clone());
                 }
-            }
+                Ok(published)
+            })?;
         }
         Ok(PreparedCommitOperation {
             context,
@@ -125,16 +154,40 @@ impl Repo {
         editor: &GitEditor,
     ) -> Result<()> {
         let context = self.validate_commit_operation(&expected.context, &expected.operation)?;
-        if let Some(references) = &expected.references
-            && self.references(None)?.0 != *references
-        {
-            return Err(RuleError::StaleCommit.into());
-        }
-        if let Some(workspace) = &expected.workspace
-            && self.workspace_version()? != *workspace
-        {
-            return Err(RuleError::StaleCommit.into());
-        }
+        std::thread::scope(|scope| -> Result<()> {
+            let references = expected
+                .references
+                .as_ref()
+                .map(|expected| {
+                    let expected = expected.clone();
+                    spawn(scope, move || {
+                        self.references(None)
+                            .map(|(references, _)| (references, expected))
+                    })
+                })
+                .transpose()?;
+            let workspace = expected
+                .workspace
+                .as_ref()
+                .map(|expected| {
+                    let expected = expected.clone();
+                    spawn(scope, move || {
+                        self.workspace_version().map(|fresh| (fresh, expected))
+                    })
+                })
+                .transpose()?;
+            if let Some((references, expected)) = references.map(join).transpose()?
+                && references != expected
+            {
+                return Err(RuleError::StaleCommit.into());
+            }
+            if let Some((workspace, expected)) = workspace.map(join).transpose()?
+                && workspace != expected
+            {
+                return Err(RuleError::StaleCommit.into());
+            }
+            Ok(())
+        })?;
         let target = &context.commit.id;
         match &expected.operation {
             // The name was checked against fresh state above, and neither

@@ -1,5 +1,8 @@
 use super::Upstream;
-use crate::{Repo, Result, RuleError, command::run_write};
+use crate::{
+    Repo, Result, RuleError,
+    command::{join, run_write, spawn},
+};
 
 /// How a pull integrates the upstream branch into the checked-out branch.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -17,10 +20,15 @@ impl Repo {
         if self.checked_out_branch()?.as_deref() != Some(branch) {
             return Err(RuleError::BranchChanged.into());
         }
-        if self.references(Some(branch))?.1.as_ref() != Some(upstream) {
-            return Err(RuleError::UpstreamChanged.into());
-        }
-        self.ensure_remote(&upstream.remote)?;
+        std::thread::scope(|scope| -> Result<()> {
+            let references = spawn(scope, || self.references(Some(branch)))?;
+            let remote = spawn(scope, || self.ensure_remote(&upstream.remote))?;
+            if join(references)?.1.as_ref() != Some(upstream) {
+                return Err(RuleError::UpstreamChanged.into());
+            }
+            join(remote)?;
+            Ok(())
+        })?;
         if self.operation_state()?.kind.is_some() {
             return Err(RuleError::SequenceInProgress.into());
         }

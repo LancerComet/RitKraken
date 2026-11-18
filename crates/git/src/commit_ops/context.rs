@@ -1,12 +1,12 @@
 use std::{
     path::{Path, PathBuf},
     process::Output,
-    thread::{self, Scope, ScopedJoinHandle},
+    thread,
 };
 
 use crate::{
     Commit, Error, Repo, Result, RuleError,
-    command::{checked, read_output},
+    command::{checked, join, read_output, spawn},
     history::{COMMIT_DATE_FORMAT, COMMIT_LOG_FORMAT, parse_log},
     protocol::text,
 };
@@ -53,26 +53,27 @@ impl Repo {
             let operation = spawn(scope, || self.operation_state())?;
             let references = spawn(scope, || {
                 let branch = self.checked_out_branch()?;
-                let references = self.references(branch.as_deref())?;
-                Ok((branch, references))
+                let (references, upstream) = self.references(branch.as_deref())?;
+                let head = self.head_oid(&references)?;
+                Ok((branch, references, upstream, head))
             })?;
-            let head = self.resolve_ref("HEAD")?.ok_or(RuleError::InvalidCommit)?;
-            let staged_version = {
-                let head = head.clone();
-                spawn(scope, move || {
-                    self.read(&[
-                        "diff",
-                        "--cached",
-                        "--raw",
-                        "--no-abbrev",
-                        "--no-ext-diff",
-                        "--no-textconv",
-                        &head,
-                        "--",
-                    ])
-                })?
-            };
+            // HEAD resolves inside Git: the diff starts without waiting for
+            // the reference listing that carries the resolved id.
+            let staged_version = spawn(scope, || {
+                self.read(&[
+                    "diff",
+                    "--cached",
+                    "--raw",
+                    "--no-abbrev",
+                    "--no-ext-diff",
+                    "--no-textconv",
+                    "HEAD",
+                    "--",
+                ])
+            })?;
             let commit = join(commit)?;
+            let (branch, references, upstream, head) = join(references)?;
+            let head = head.ok_or(RuleError::InvalidCommit)?;
             let relation = self.commit_relation(&commit.id, &head)?;
             let linear_rebase = match self.rebase_upstream(&head, &commit.id, relation)? {
                 Some(upstream) => self
@@ -87,7 +88,6 @@ impl Repo {
                 None => false,
             };
             let status = join(status)?;
-            let (branch, (references, upstream)) = join(references)?;
             let (remotes, remote_url) = join(remotes)?;
             let operation = join(operation)?;
             let message = join(message)?;
@@ -284,15 +284,4 @@ fn ensure_object_id(id: &str) -> Result<()> {
     } else {
         Err(RuleError::InvalidCommit.into())
     }
-}
-
-fn spawn<'scope, T: Send + 'scope>(
-    scope: &'scope Scope<'scope, '_>,
-    read: impl FnOnce() -> Result<T> + Send + 'scope,
-) -> Result<ScopedJoinHandle<'scope, Result<T>>> {
-    Ok(thread::Builder::new().spawn_scoped(scope, read)?)
-}
-
-fn join<T>(reader: ScopedJoinHandle<'_, Result<T>>) -> Result<T> {
-    reader.join().expect("Git reader panicked")
 }

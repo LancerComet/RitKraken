@@ -2,8 +2,8 @@ use std::process::Command;
 
 use super::{PullMode, Upstream};
 use crate::{
-    Error, Repo, Result, RuleError, Snapshot,
-    command::{checked, run_output, run_write},
+    Error, Reference, Repo, Result, RuleError, Snapshot,
+    command::{checked, join, run_output, run_write, spawn},
     protocol::text,
 };
 
@@ -29,10 +29,11 @@ impl PushRejection {
 
 impl Repo {
     pub fn push(&self, branch: &str, upstream: &Upstream, set_upstream: bool) -> Result<()> {
-        self.validate_push(branch, upstream, set_upstream)?;
-        let head = self.resolve_ref("HEAD")?.ok_or(RuleError::InvalidCommit)?;
-        let previous_upstream = self.references(Some(branch))?.1;
-        let urls = self.push_urls(&upstream.remote)?;
+        let (references, previous_upstream, urls) =
+            self.validate_push(branch, upstream, set_upstream)?;
+        let head = self
+            .head_oid(&references)?
+            .ok_or(RuleError::InvalidCommit)?;
         let mut git = self.push_command(set_upstream);
         let refspec = format!("refs/heads/{branch}:{}", upstream.reference);
         let output = run_output(git.arg("--").arg(&upstream.remote).arg(&refspec))?;
@@ -88,24 +89,38 @@ impl Repo {
         self.run_pull(&request.upstream, PullMode::FastForwardOrMerge)
     }
 
-    fn validate_push(&self, branch: &str, upstream: &Upstream, set_upstream: bool) -> Result<()> {
+    /// Checks checkout, upstream, and remote configuration, returning the
+    /// fresh reference list, upstream state, and push URLs so callers need
+    /// no second round of Git processes.
+    fn validate_push(
+        &self,
+        branch: &str,
+        upstream: &Upstream,
+        set_upstream: bool,
+    ) -> Result<(Vec<Reference>, Option<Upstream>, Vec<String>)> {
         if self.checked_out_branch()?.as_deref() != Some(branch) {
             return Err(RuleError::BranchChanged.into());
         }
-        if !set_upstream && self.references(Some(branch))?.1.as_ref() != Some(upstream) {
-            return Err(RuleError::UpstreamChanged.into());
-        }
-        self.ensure_remote(&upstream.remote)
+        std::thread::scope(|scope| -> Result<_> {
+            let references = spawn(scope, || self.references(Some(branch)))?;
+            let remote = spawn(scope, || self.ensure_remote(&upstream.remote))?;
+            let urls = spawn(scope, || self.push_urls(&upstream.remote))?;
+            let (references, current_upstream) = join(references)?;
+            if !set_upstream && current_upstream.as_ref() != Some(upstream) {
+                return Err(RuleError::UpstreamChanged.into());
+            }
+            join(remote)?;
+            Ok((references, current_upstream, join(urls)?))
+        })
     }
 
     fn validate_push_rejection(&self, request: &PushRejection) -> Result<()> {
-        self.validate_push(&request.branch, &request.upstream, request.set_upstream)?;
-        if self.resolve_ref("HEAD")?.as_ref() != Some(&request.head) {
+        let (references, previous_upstream, urls) =
+            self.validate_push(&request.branch, &request.upstream, request.set_upstream)?;
+        if self.head_oid(&references)?.as_ref() != Some(&request.head) {
             return Err(RuleError::BranchChanged.into());
         }
-        if self.references(Some(&request.branch))?.1 != request.previous_upstream
-            || self.push_urls(&request.upstream.remote)? != [request.push_url.clone()]
-        {
+        if previous_upstream != request.previous_upstream || urls != [request.push_url.clone()] {
             return Err(RuleError::UpstreamChanged.into());
         }
         if self.operation_state()?.kind.is_some() {

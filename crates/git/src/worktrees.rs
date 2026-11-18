@@ -39,27 +39,45 @@ impl Repo {
                 Err(error) if error.kind() == std::io::ErrorKind::NotFound => false,
                 Err(error) => return Err(error.into()),
             };
-            if !entry.bare && entry.prunable.is_none() && entry.path.is_dir() {
-                // Run at the listed root: Repo::open could discover a parent
-                // repository if a missing worktree was replaced by a directory.
-                let top =
-                    run_read(command(Some(&entry.path)).args(["rev-parse", "--show-toplevel"]))?;
-                let top =
-                    crate::protocol::path_from_bytes(crate::protocol::without_final_newline(&top));
-                if registered_path_eq(&top, &entry.path) {
-                    entry.dirty = !run_read(command(Some(&entry.path)).args([
-                        "status",
-                        "--porcelain=v1",
-                        "-z",
-                        "--untracked-files=all",
-                        "--ignore-submodules=none",
-                    ]))?
-                    .is_empty();
-                } else {
-                    return Err(RuleError::StaleWorktree.into());
-                }
-            }
         }
+        // Each registered checkout gets its own reader: a worktree's status
+        // and identity checks are independent processes.
+        std::thread::scope(|scope| -> Result<()> {
+            let readers: Vec<_> = entries
+                .iter()
+                .enumerate()
+                .filter(|(_, entry)| !entry.bare && entry.prunable.is_none() && entry.path.is_dir())
+                .map(|(index, entry)| {
+                    let path = entry.path.clone();
+                    let dirty = crate::command::spawn(scope, move || {
+                        // Run at the listed root: Repo::open could discover a
+                        // parent repository if a missing worktree was replaced
+                        // by a directory.
+                        let top =
+                            run_read(command(Some(&path)).args(["rev-parse", "--show-toplevel"]))?;
+                        let top = crate::protocol::path_from_bytes(
+                            crate::protocol::without_final_newline(&top),
+                        );
+                        if !registered_path_eq(&top, &path) {
+                            return Err(RuleError::StaleWorktree.into());
+                        }
+                        Ok(run_read(command(Some(&path)).args([
+                            "status",
+                            "--porcelain=v1",
+                            "-z",
+                            "--untracked-files=all",
+                            "--ignore-submodules=none",
+                        ]))?
+                        .is_empty())
+                    })?;
+                    Ok((index, dirty))
+                })
+                .collect::<Result<_>>()?;
+            for (index, reader) in readers {
+                entries[index].dirty = !crate::command::join(reader)?;
+            }
+            Ok(())
+        })?;
         Ok(entries)
     }
 

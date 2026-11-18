@@ -2,7 +2,7 @@ use std::thread;
 
 use crate::{
     RefKind, Reference, Repo, Result, RuleError, Snapshot,
-    command::{run_with_input, run_write},
+    command::{join, run_with_input, run_write, spawn},
 };
 
 #[derive(Clone, Debug)]
@@ -93,32 +93,24 @@ impl Repo {
             (RefKind::Remote, RefOperation::Delete) | (RefKind::Tag, RefOperation::PushTag(_))
         );
         let (references, remotes) = thread::scope(|scope| -> Result<_> {
-            let references =
-                thread::Builder::new().spawn_scoped(scope, || self.references(None))?;
+            let references = spawn(scope, || self.references(None))?;
             let name_check = new_name
-                .map(|name| {
-                    thread::Builder::new()
-                        .spawn_scoped(scope, || self.validate_ref_name(name, new_namespace))
-                })
+                .map(|name| spawn(scope, || self.validate_ref_name(name, new_namespace)))
                 .transpose()?;
             let remotes = remotes_needed
-                .then(|| thread::Builder::new().spawn_scoped(scope, || self.remotes()))
+                .then(|| spawn(scope, || self.remotes()))
                 .transpose()?;
             let branch = self.checked_out_branch()?;
             let operation = self.operation_state()?;
-            let (references, _) = references.join().expect("references reader panicked")?;
-            name_check
-                .map(|check| check.join().expect("name checker panicked"))
-                .transpose()?;
+            let (references, _) = join(references)?;
+            name_check.map(join).transpose()?;
             if self.head_oid(&references)? != request.head || branch != request.branch {
                 return Err(RuleError::StaleReference.into());
             }
             if operation.kind.is_some() {
                 return Err(RuleError::SequenceInProgress.into());
             }
-            let remotes = remotes
-                .map(|reader| reader.join().expect("remotes reader panicked"))
-                .transpose()?;
+            let remotes = remotes.map(join).transpose()?;
             Ok((references, remotes))
         })?;
         let current = references

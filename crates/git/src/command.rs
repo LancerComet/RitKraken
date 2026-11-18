@@ -9,6 +9,7 @@ use std::{
     io::Write,
     path::Path,
     process::{Command, Output, Stdio},
+    thread::{Scope, ScopedJoinHandle},
 };
 
 use crate::{Error, Result, protocol::text};
@@ -121,6 +122,19 @@ pub(crate) fn output_with_input(command: &mut Command, parts: &[&[u8]]) -> Resul
         written.map_err(process_error)?;
     }
     Ok(output)
+}
+
+/// Runs an independent Git read on a scoped thread: every process costs tens
+/// of milliseconds to start on Windows, so reads run side by side.
+pub(crate) fn spawn<'scope, T: Send + 'scope>(
+    scope: &'scope Scope<'scope, '_>,
+    read: impl FnOnce() -> Result<T> + Send + 'scope,
+) -> Result<ScopedJoinHandle<'scope, Result<T>>> {
+    Ok(std::thread::Builder::new().spawn_scoped(scope, read)?)
+}
+
+pub(crate) fn join<T>(reader: ScopedJoinHandle<'_, Result<T>>) -> Result<T> {
+    reader.join().expect("Git reader panicked")
 }
 
 pub(crate) fn checked(output: Output) -> Result<Vec<u8>> {

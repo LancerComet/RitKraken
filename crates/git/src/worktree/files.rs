@@ -1,11 +1,12 @@
 use std::{
+    collections::{HashMap, HashSet},
     fs, io,
     path::{Component, Path, PathBuf},
 };
 
 use crate::{
     Change, FileTarget, Repo, Result, RuleError, Scope,
-    command::{run_read, run_write},
+    command::{join, run_read, run_with_input, run_write, spawn},
     worktree::append_paths,
 };
 
@@ -40,22 +41,20 @@ pub(crate) struct WorkspaceVersion {
 
 impl Repo {
     pub(crate) fn workspace_version(&self) -> Result<WorkspaceVersion> {
-        let status = self.status()?;
-        let index = self.read(&["ls-files", "--stage", "-z"])?;
+        let (status, index) = std::thread::scope(|scope| -> Result<_> {
+            let status = spawn(scope, || self.status())?;
+            let index = spawn(scope, || self.read(&["ls-files", "--stage", "-z"]))?;
+            Ok((join(status)?, join(index)?))
+        })?;
         let mut paths: Vec<_> = status
             .distinct_changes()
             .flat_map(|change| std::iter::once(change.path.clone()).chain(change.previous.clone()))
             .collect();
         paths.sort();
         paths.dedup();
-        let mut worktree = Vec::new();
-        for path in paths {
-            // Non-recursive Git operations leave submodule working trees alone.
-            if self.root().join(&path).is_dir() {
-                continue;
-            }
-            worktree.push((path.clone(), self.worktree_version(&path)?));
-        }
+        // Non-recursive Git operations leave submodule working trees alone.
+        paths.retain(|path| !self.root().join(path).is_dir());
+        let worktree = self.worktree_versions(&paths)?;
         Ok(WorkspaceVersion {
             status,
             index,
@@ -64,37 +63,107 @@ impl Repo {
     }
 
     pub fn prepare_discard(&self, file: &FileTarget) -> Result<DiscardFile> {
-        validate_change(&file.change)?;
-        let status = self.status()?;
-        let changes = match file.scope {
-            Scope::Worktree => &status.unstaged,
-            Scope::Index => &status.staged,
-            Scope::Commit { .. } => return Err(RuleError::ReadOnlyFile.into()),
-        };
-        if !changes.contains(&file.change) {
+        let prepared = self.prepare_discards(std::slice::from_ref(file))?;
+        let Some(prepared) = prepared.into_iter().next() else {
             return Err(RuleError::StaleFile.into());
+        };
+        Ok(prepared)
+    }
+
+    /// Reads the versions for a whole selection with one process per Git
+    /// command instead of one per file.
+    pub(crate) fn prepare_discards(&self, files: &[FileTarget]) -> Result<Vec<DiscardFile>> {
+        if files.is_empty() {
+            return Ok(Vec::new());
         }
-        let mut git = self.git_with_literal_paths();
-        git.args(["ls-files", "--stage", "-z", "--"]);
-        append_paths(&mut git, &file.change);
-        let index = run_read(&mut git)?;
-        let mut worktree = vec![self.worktree_version(&file.change.path)?];
-        if let Some(previous) = &file.change.previous
-            && file.change.code == b'R'
-        {
-            let old = self.worktree_version(previous)?;
-            // A newly created file at the old name is outside this rename.
-            if old != WorktreeVersion::Missing {
-                return Err(RuleError::StaleFile.into());
-            }
-            worktree.push(old);
+        for file in files {
+            validate_change(&file.change)?;
         }
-        Ok(DiscardFile {
-            file: file.clone(),
-            head: self.resolve_ref("HEAD")?,
-            index,
-            worktree,
-        })
+        let mut index_git = self.git_with_literal_paths();
+        index_git.args(["ls-files", "--stage", "-z", "--"]);
+        for file in files {
+            append_paths(&mut index_git, &file.change);
+        }
+        let (status, index, head) = std::thread::scope(|scope| -> Result<_> {
+            let status = spawn(scope, || self.status())?;
+            let index = spawn(scope, || run_read(&mut index_git))?;
+            let head = spawn(scope, || self.resolve_ref("HEAD"))?;
+            Ok((join(status)?, join(index)?, join(head)?))
+        })?;
+        let mut paths: Vec<_> = files
+            .iter()
+            .flat_map(|file| {
+                let change = &file.change;
+                // The rename's old name is hashed only for a real rename.
+                std::iter::once(change.path.clone())
+                    .chain(change.previous.clone().filter(|_| change.code == b'R'))
+            })
+            .collect();
+        paths.sort();
+        paths.dedup();
+        // Non-recursive Git operations leave submodule working trees alone.
+        paths.retain(|path| !self.root().join(path).is_dir());
+        let worktree = self.worktree_versions(&paths)?;
+        let versions: HashMap<_, _> = worktree.into_iter().collect();
+        let index_records: Vec<&[u8]> = index
+            .split(|byte| *byte == 0)
+            .filter(|record| !record.is_empty())
+            .collect();
+        files
+            .iter()
+            .map(|file| {
+                let changes = match file.scope {
+                    Scope::Worktree => &status.unstaged,
+                    Scope::Index => &status.staged,
+                    Scope::Commit { .. } => return Err(RuleError::ReadOnlyFile.into()),
+                };
+                if !changes.contains(&file.change) {
+                    return Err(RuleError::StaleFile.into());
+                }
+                let mut owned_paths: HashSet<&Path> = std::iter::once(&*file.change.path).collect();
+                if let Some(previous) = &file.change.previous
+                    && file.change.code != b'C'
+                {
+                    owned_paths.insert(previous);
+                }
+                let mut index = Vec::new();
+                for record in &index_records {
+                    let Some(tab) = record.iter().position(|byte| *byte == b'\t') else {
+                        continue;
+                    };
+                    let path = crate::protocol::path_from_bytes(&record[tab + 1..]);
+                    if owned_paths.contains(path.as_path()) {
+                        index.extend_from_slice(record);
+                        index.push(0);
+                    }
+                }
+                let mut worktree = vec![
+                    versions
+                        .get(&file.change.path)
+                        .cloned()
+                        .ok_or(RuleError::NoFileContents)?,
+                ];
+                if let Some(previous) = &file.change.previous
+                    && file.change.code == b'R'
+                {
+                    let old = versions
+                        .get(previous)
+                        .cloned()
+                        .ok_or(RuleError::NoFileContents)?;
+                    // A newly created file at the old name is outside this rename.
+                    if old != WorktreeVersion::Missing {
+                        return Err(RuleError::StaleFile.into());
+                    }
+                    worktree.push(old);
+                }
+                Ok(DiscardFile {
+                    file: file.clone(),
+                    head: head.clone(),
+                    index,
+                    worktree,
+                })
+            })
+            .collect()
     }
 
     pub fn discard_file(&self, expected: &DiscardFile) -> Result<()> {
@@ -121,8 +190,9 @@ impl Repo {
 
     pub fn discard_files(&self, expected: &[DiscardFile]) -> Result<()> {
         // Validate the complete selection before discarding any selected file.
-        for file in expected {
-            self.verify_discard(file)?;
+        let files: Vec<_> = expected.iter().map(|file| file.file.clone()).collect();
+        if self.prepare_discards(&files)?.as_slice() != expected {
+            return Err(RuleError::StaleFile.into());
         }
         for file in expected {
             self.discard_file(file)?;
@@ -145,22 +215,81 @@ impl Repo {
         run_write(&mut git)
     }
 
-    fn worktree_version(&self, path: &Path) -> Result<WorktreeVersion> {
-        let full_path = self.root().join(path);
-        match fs::symlink_metadata(&full_path) {
-            Ok(metadata) if metadata.file_type().is_symlink() => {
-                Ok(WorktreeVersion::Symlink(fs::read_link(full_path)?))
+    /// Classifies each path and hashes every regular file in one
+    /// `hash-object --stdin-paths` process instead of a process per file.
+    fn worktree_versions(&self, paths: &[PathBuf]) -> Result<Vec<(PathBuf, WorktreeVersion)>> {
+        let mut versions: Vec<Option<WorktreeVersion>> = Vec::with_capacity(paths.len());
+        let mut files = Vec::new();
+        for path in paths {
+            let full_path = self.root().join(path);
+            match fs::symlink_metadata(&full_path) {
+                Ok(metadata) if metadata.file_type().is_symlink() => {
+                    versions.push(Some(WorktreeVersion::Symlink(fs::read_link(full_path)?)));
+                }
+                Ok(metadata) if metadata.is_file() => {
+                    files.push(path.clone());
+                    versions.push(None);
+                }
+                Ok(_) => return Err(RuleError::NoFileContents.into()),
+                Err(error) if error.kind() == io::ErrorKind::NotFound => {
+                    versions.push(Some(WorktreeVersion::Missing));
+                }
+                Err(error) => return Err(error.into()),
             }
-            Ok(metadata) if metadata.is_file() => run_read(
-                self.git()
-                    .args(["hash-object", "--no-filters", "--"])
-                    .arg(path),
-            )
-            .map(WorktreeVersion::File),
-            Ok(_) => Err(RuleError::NoFileContents.into()),
-            Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(WorktreeVersion::Missing),
-            Err(error) => Err(error.into()),
         }
+        let mut hashed = self.hash_objects(&files)?.into_iter();
+        Ok(paths
+            .iter()
+            .zip(versions)
+            .map(|(path, version)| {
+                (
+                    path.clone(),
+                    version.unwrap_or_else(|| {
+                        WorktreeVersion::File(hashed.next().expect("hashed file"))
+                    }),
+                )
+            })
+            .collect())
+    }
+
+    fn hash_objects(&self, paths: &[PathBuf]) -> Result<Vec<Vec<u8>>> {
+        let mut input = Vec::new();
+        for path in paths {
+            let encoded = path.as_os_str().as_encoded_bytes();
+            if encoded.contains(&b'\n') {
+                // stdin paths are line-separated; hash the unusual name alone.
+                return paths.iter().map(|path| self.hash_object(path)).collect();
+            }
+            input.extend_from_slice(encoded);
+            input.push(b'\n');
+        }
+        if input.is_empty() {
+            return Ok(Vec::new());
+        }
+        let mut git = self.git();
+        git.args(["hash-object", "--no-filters", "--stdin-paths"]);
+        let bytes = run_with_input(&mut git, &[&input])?;
+        let hashed: Vec<Vec<u8>> = bytes
+            .split(|byte| *byte == b'\n')
+            .filter(|line| !line.is_empty())
+            .map(|line| {
+                let mut oid = line.to_vec();
+                oid.push(b'\n');
+                oid
+            })
+            .collect();
+        if hashed.len() != paths.len() {
+            return Err(RuleError::StaleFile.into());
+        }
+        Ok(hashed)
+    }
+
+    fn hash_object(&self, path: &Path) -> Result<Vec<u8>> {
+        run_read(
+            self.git()
+                .args(["hash-object", "--no-filters", "--"])
+                .arg(path),
+        )
     }
 }
 

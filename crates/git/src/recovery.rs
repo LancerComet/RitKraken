@@ -59,10 +59,10 @@ impl Repo {
     ) -> Result<()> {
         self.validate_recovery(history, target)?;
         let exists = std::thread::scope(|scope| -> Result<bool> {
-            let name_check = std::thread::Builder::new()
-                .spawn_scoped(scope, || self.validate_ref_name(name, "heads"))?;
+            let name_check =
+                crate::command::spawn(scope, || self.validate_ref_name(name, "heads"))?;
             let exists = self.resolve_ref(&format!("refs/heads/{name}"))?.is_some();
-            name_check.join().expect("name checker panicked")?;
+            crate::command::join(name_check)?;
             Ok(exists)
         })?;
         if exists {
@@ -76,10 +76,9 @@ impl Repo {
             return Err(RuleError::InvalidCommit.into());
         }
         std::thread::scope(|scope| -> Result<()> {
-            let unmerged = std::thread::Builder::new()
-                .spawn_scoped(scope, || self.read(&["ls-files", "--unmerged", "-z"]))?;
-            let commit =
-                std::thread::Builder::new().spawn_scoped(scope, || self.commit_at(target))?;
+            let unmerged =
+                crate::command::spawn(scope, || self.read(&["ls-files", "--unmerged", "-z"]))?;
+            let commit = crate::command::spawn(scope, || self.commit_at(target))?;
             if self.resolve_ref("HEAD")? != history.head
                 || self.checked_out_branch()? != history.branch
             {
@@ -88,14 +87,10 @@ impl Repo {
             if self.operation_state()?.kind.is_some() {
                 return Err(RuleError::SequenceInProgress.into());
             }
-            if !unmerged
-                .join()
-                .expect("unmerged reader panicked")?
-                .is_empty()
-            {
+            if !crate::command::join(unmerged)?.is_empty() {
                 return Err(RuleError::UnresolvedConflicts.into());
             }
-            if commit.join().expect("commit reader panicked")?.id != target {
+            if crate::command::join(commit)?.id != target {
                 return Err(RuleError::InvalidCommit.into());
             }
             Ok(())
