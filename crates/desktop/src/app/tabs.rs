@@ -7,7 +7,7 @@ use crate::i18n::tr;
 use super::{
     Client,
     theme::{Palette, palette},
-    widgets::{Tone, button, icon, loading::app_logo},
+    widgets::{Tone, button, icon},
 };
 
 #[derive(Clone)]
@@ -87,23 +87,18 @@ impl Client {
                     .min_w_0()
                     .items_center()
                     .h_full()
-                    .pr(px(4.))
-                    .when(!cfg!(target_os = "macos"), |bar| {
-                        bar.child(
-                            div()
-                                .w(px(34.))
-                                .flex_shrink_0()
-                                .flex()
-                                .items_center()
-                                .justify_center()
-                                .child(img(app_logo(cx)).size(px(22.)).flex_shrink_0()),
-                        )
-                    })
+                    .px(px(4.))
                     .child(
-                        Self::repository_manager_button("open-repos", tr!("app.common.open"), cx)
+                        Self::repository_manager_button("open-repos", "", cx)
+                            .size(px(28.))
+                            .px(px(0.))
                             .rounded_full()
-                            .px(px(12.))
-                            .mr(action_gap),
+                            .mr(action_gap)
+                            .tooltip(|window, cx| {
+                                gpui_kit::component::tooltip::Tooltip::new(tr!("app.common.open"))
+                                    .build(window, cx)
+                            })
+                            .child(icon("icons/folder-open.svg", p.chrome_text)),
                     )
                     .child(
                         div().flex_1().min_w_0().h_full().overflow_hidden().child(
