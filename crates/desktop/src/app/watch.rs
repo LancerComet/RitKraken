@@ -35,11 +35,14 @@ impl Client {
             let mut last_refresh = last_attempt;
             // Covers edits between loading the snapshot and installing watches,
             // and changes made while this tab was inactive.
-            let mut dirty = true;
+            let mut dirty_since = Some(last_attempt);
             loop {
                 executor.timer(CHECK_INTERVAL).await;
-                let Ok(live) = view.update_in(cx, |this, _, _| {
-                    this.session.active == Some(id) && this.tab(id).is_some()
+                let Ok((live, covered_at)) = view.update_in(cx, |this, _, _| {
+                    (
+                        this.session.active == Some(id) && this.tab(id).is_some(),
+                        this.tab(id).and_then(|tab| tab.watch_covered_at),
+                    )
                 }) else {
                     return;
                 };
@@ -54,37 +57,58 @@ impl Client {
                         .await
                         .ok();
                     last_attempt = Instant::now();
-                    dirty = true;
+                    dirty_since = Some(now);
                 }
                 let changes = watcher.as_ref().and_then(RepoWatch::take_changes);
                 if let Some(changes) = changes {
-                    if changes.needs_restart() {
+                    let restart = changes.needs_restart();
+                    if restart {
                         watcher = None;
                         last_attempt = now;
                     }
-                    let repo = repo.clone();
-                    dirty |= executor
-                        .spawn(async move { changes.needs_refresh(&repo) })
-                        .await
-                        .unwrap_or(true);
+                    // A completed update already read the state these events
+                    // describe; a lost event stream still forces a refresh.
+                    let covered = !restart
+                        && covered_at.is_some_and(|at| {
+                            changes.last_event_at().is_some_and(|last| last <= at)
+                        });
+                    if !covered {
+                        let changed_at = changes.last_event_at().unwrap_or(now);
+                        let repo = repo.clone();
+                        let needed = executor
+                            .spawn(async move { changes.needs_refresh(&repo) })
+                            .await
+                            .unwrap_or(true);
+                        if needed {
+                            dirty_since =
+                                Some(dirty_since.map_or(changed_at, |since| since.max(changed_at)));
+                        }
+                    }
                 }
                 // Filesystems that cannot install native watches still update;
                 // normal watchers cause no periodic Git queries while idle.
-                dirty |= watcher.is_none() && now.duration_since(last_refresh) >= FALLBACK_INTERVAL;
-                if dirty {
-                    let Ok(refreshed) = view.update_in(cx, |this, window, cx| {
-                        if this.session.active != Some(id)
-                            || !this.tab(id).is_some_and(|tab| !tab.busy)
-                        {
-                            return false;
+                dirty_since = dirty_since.or_else(|| {
+                    (watcher.is_none() && now.duration_since(last_refresh) >= FALLBACK_INTERVAL)
+                        .then_some(now)
+                });
+                if let Some(since) = dirty_since {
+                    if covered_at.is_some_and(|at| since <= at) {
+                        dirty_since = None;
+                    } else {
+                        let Ok(refreshed) = view.update_in(cx, |this, window, cx| {
+                            if this.session.active != Some(id)
+                                || !this.tab(id).is_some_and(|tab| !tab.busy)
+                            {
+                                return false;
+                            }
+                            this.refresh_watched_repo(id, window, cx)
+                        }) else {
+                            return;
+                        };
+                        if refreshed {
+                            dirty_since = None;
+                            last_refresh = Instant::now();
                         }
-                        this.refresh_watched_repo(id, window, cx)
-                    }) else {
-                        return;
-                    };
-                    if refreshed {
-                        dirty = false;
-                        last_refresh = Instant::now();
                     }
                 }
             }

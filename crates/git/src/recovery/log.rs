@@ -4,15 +4,12 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use crate::{
-    ReflogEntry, Repo, Result,
-    protocol::{path_from_bytes, text, without_final_newline},
-};
+use crate::{ReflogEntry, Repo, Result, protocol::text};
 
 impl Repo {
     pub(super) fn deleted_branch_log(&self) -> Result<PathBuf> {
-        let common = self.read(&["rev-parse", "--path-format=absolute", "--git-common-dir"])?;
-        Ok(path_from_bytes(without_final_newline(&common))
+        Ok(self
+            .common_dir()
             .join("logs")
             .join("ritkraken-deleted-branches"))
     }
@@ -21,17 +18,12 @@ impl Repo {
     /// normal reflog retention and garbage collection apply to these entries.
     /// Write before deletion: a failed preservation must leave the branch intact.
     pub(crate) fn preserve_deleted_branch(&self, name: &str, id: &str) -> Result<()> {
-        let ident = self.read(&[
-            "-c",
-            "user.name=RitKraken",
-            "-c",
-            "user.email=recovery@ritkraken.invalid",
-            "var",
-            "GIT_COMMITTER_IDENT",
-        ])?;
+        // Same committer identity Git would stamp, without a `git var` call.
+        let now = chrono::Local::now();
         let record = format!(
-            "{id} {id} {}\tdeleted branch: {name}\n",
-            text(without_final_newline(&ident))
+            "{id} {id} RitKraken <recovery@ritkraken.invalid> {} {}\tdeleted branch: {name}\n",
+            now.timestamp(),
+            now.format("%z"),
         );
         let path = self.deleted_branch_log()?;
         if let Some(parent) = path.parent() {

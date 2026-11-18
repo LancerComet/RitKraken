@@ -374,7 +374,7 @@ impl Repo {
         self.run_create_branch(name, target, checkout, track)
     }
 
-    fn run_create_branch(
+    pub(crate) fn run_create_branch(
         &self,
         name: &str,
         target: Option<&str>,

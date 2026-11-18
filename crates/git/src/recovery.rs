@@ -24,7 +24,7 @@ impl Repo {
     pub fn recovery_history(&self) -> Result<RecoveryHistory> {
         let head = self.resolve_ref("HEAD")?;
         let branch = self.checked_out_branch()?;
-        let mut entries = log::read_log(&self.git_path("logs/HEAD")?, "HEAD")?;
+        let mut entries = log::read_log(&self.git_dir().join("logs").join("HEAD"), "HEAD")?;
         let undo_target = entries
             .iter()
             .find(|entry| Some(&entry.id) != head.as_ref())
@@ -58,29 +58,47 @@ impl Repo {
         name: &str,
     ) -> Result<()> {
         self.validate_recovery(history, target)?;
-        self.validate_ref_name(name, "heads")?;
-        if self.resolve_ref(&format!("refs/heads/{name}"))?.is_some() {
+        let exists = std::thread::scope(|scope| -> Result<bool> {
+            let name_check = std::thread::Builder::new()
+                .spawn_scoped(scope, || self.validate_ref_name(name, "heads"))?;
+            let exists = self.resolve_ref(&format!("refs/heads/{name}"))?.is_some();
+            name_check.join().expect("name checker panicked")?;
+            Ok(exists)
+        })?;
+        if exists {
             return Err(RuleError::RefExists.into());
         }
-        self.create_branch_at(name, Some(target), false, None)
+        self.run_create_branch(name, Some(target), false, None)
     }
 
     fn validate_recovery(&self, history: &RecoveryHistory, target: &str) -> Result<()> {
-        if self.resolve_ref("HEAD")? != history.head || self.checked_out_branch()? != history.branch
-        {
-            return Err(RuleError::StaleCommit.into());
-        }
-        if self.operation_state()?.kind.is_some() {
-            return Err(RuleError::SequenceInProgress.into());
-        }
-        if !self.read(&["ls-files", "--unmerged", "-z"])?.is_empty() {
-            return Err(RuleError::UnresolvedConflicts.into());
-        }
-        if !history.entries.iter().any(|entry| entry.id == target)
-            || self.commit_at(target)?.id != target
-        {
+        if !history.entries.iter().any(|entry| entry.id == target) {
             return Err(RuleError::InvalidCommit.into());
         }
-        Ok(())
+        std::thread::scope(|scope| -> Result<()> {
+            let unmerged = std::thread::Builder::new()
+                .spawn_scoped(scope, || self.read(&["ls-files", "--unmerged", "-z"]))?;
+            let commit =
+                std::thread::Builder::new().spawn_scoped(scope, || self.commit_at(target))?;
+            if self.resolve_ref("HEAD")? != history.head
+                || self.checked_out_branch()? != history.branch
+            {
+                return Err(RuleError::StaleCommit.into());
+            }
+            if self.operation_state()?.kind.is_some() {
+                return Err(RuleError::SequenceInProgress.into());
+            }
+            if !unmerged
+                .join()
+                .expect("unmerged reader panicked")?
+                .is_empty()
+            {
+                return Err(RuleError::UnresolvedConflicts.into());
+            }
+            if commit.join().expect("commit reader panicked")?.id != target {
+                return Err(RuleError::InvalidCommit.into());
+            }
+            Ok(())
+        })
     }
 }

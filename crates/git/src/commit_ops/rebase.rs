@@ -97,8 +97,14 @@ impl GitEditor {
             .env("GIT_SEQUENCE_EDITOR", &self.sequence)
             .env("GIT_EDITOR", &self.message)
             .env("GIT_MERGE_AUTOEDIT", "no")
-            .env("RITKRAKEN_REBASE_DATA", repo.git_path("ritkraken-rebase")?)
-            .env("RITKRAKEN_REBASE_DONE", repo.git_path("rebase-merge/done")?);
+            .env(
+                "RITKRAKEN_REBASE_DATA",
+                repo.git_dir().join("ritkraken-rebase"),
+            )
+            .env(
+                "RITKRAKEN_REBASE_DONE",
+                repo.git_dir().join("rebase-merge").join("done"),
+            );
         Ok(())
     }
 }
@@ -253,7 +259,7 @@ impl Repo {
         editor: &GitEditor,
     ) -> Result<()> {
         self.clean_rebase_files()?;
-        let directory = self.git_path("ritkraken-rebase")?;
+        let directory = self.git_dir().join("ritkraken-rebase");
         fs::create_dir(&directory)?;
         let mut todo = String::new();
         for entry in &plan.entries {
@@ -313,7 +319,7 @@ impl Repo {
     }
 
     pub(crate) fn clean_rebase_files(&self) -> Result<()> {
-        let directory = self.git_path("ritkraken-rebase")?;
+        let directory = self.git_dir().join("ritkraken-rebase");
         if !directory.exists() {
             return Ok(());
         }

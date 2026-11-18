@@ -3,7 +3,10 @@ mod updates;
 
 pub(super) use updates::RepoUpdates;
 
-use std::{sync::Arc, time::Duration};
+use std::{
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 use gpui_kit::*;
 use ritkraken_git::{self as git, Change, FileTarget, Patch, PatchSelection, Repo, Scope};
@@ -321,6 +324,9 @@ impl Client {
             cx,
             move || {
                 let result = edit.as_ref().map(|edit| edit.execute(&repo));
+                // Watcher changes before this instant are covered by the
+                // snapshot the reload below is about to read.
+                let covered_at = Instant::now();
                 let history =
                     History::reload(&repo, limit, Some(&previous)).map(|history| (history, limit));
                 let reported =
@@ -329,9 +335,9 @@ impl Client {
                     } else {
                         None
                     };
-                (reported, history)
+                (reported, history, covered_at)
             },
-            move |this, (result, history), window, cx| {
+            move |this, (result, history, covered_at), window, cx| {
                 if !this
                     .tab_mut(id)
                     .is_some_and(|tab| tab.updates.finish(generation))
@@ -339,7 +345,7 @@ impl Client {
                     return;
                 }
                 let succeeded = result.as_ref().is_some_and(|(result, _)| result.is_ok());
-                this.finish_update(id, result, history, window, cx);
+                this.finish_update(id, result, history, covered_at, window, cx);
                 if let Some(complete) = complete {
                     complete(this, succeeded, window, cx);
                 }
@@ -356,6 +362,7 @@ impl Client {
         id: u64,
         result: Option<(git::Result<()>, RepoOperation)>,
         history: git::Result<(Arc<History>, Option<usize>)>,
+        covered_at: Instant,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
@@ -402,6 +409,12 @@ impl Client {
         }
         let Some(tab) = self.tab_mut(id) else { return };
         let was_busy = tab.busy;
+        if history.is_ok() {
+            tab.watch_covered_at = Some(
+                tab.watch_covered_at
+                    .map_or(covered_at, |previous| previous.max(covered_at)),
+            );
+        }
         let was_paused = tab.history.data.snapshot.sequence.is_some();
         tab.busy = false;
         tab.active_op = None;

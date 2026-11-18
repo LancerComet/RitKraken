@@ -10,7 +10,7 @@ use notify::{Event, RecommendedWatcher, RecursiveMode, Watcher};
 use crate::{
     Repo, Result,
     command::{checked, output_with_input, without_optional_locks},
-    protocol::{path_from_bytes, without_final_newline},
+    protocol::path_from_bytes,
 };
 
 const QUIET_PERIOD: Duration = Duration::from_millis(250);
@@ -35,6 +35,7 @@ pub struct RepoChanges {
     metadata: bool,
     restart: bool,
     paths: HashSet<PathBuf>,
+    last: Option<Instant>,
 }
 
 struct WatchPaths {
@@ -98,6 +99,12 @@ impl RepoChanges {
         self.restart
     }
 
+    /// When the newest change in this batch arrived. A batch fully covered by
+    /// a refresh that started later can be skipped entirely.
+    pub fn last_event_at(&self) -> Option<Instant> {
+        self.last
+    }
+
     fn is_empty(&self) -> bool {
         !self.metadata && self.paths.is_empty()
     }
@@ -135,17 +142,10 @@ impl RepoChanges {
 
 impl WatchPaths {
     fn new(repo: &Repo) -> Result<Self> {
-        let metadata = |argument| -> Result<PathBuf> {
-            let bytes = repo.read(&["rev-parse", argument])?;
-            Ok(repo
-                .root()
-                .join(path_from_bytes(without_final_newline(&bytes)))
-                .canonicalize()?)
-        };
         Ok(Self {
             root: repo.root().canonicalize()?,
-            git: metadata("--absolute-git-dir")?,
-            common: metadata("--git-common-dir")?,
+            git: repo.git_dir().canonicalize()?,
+            common: repo.common_dir().canonicalize()?,
         })
     }
 
@@ -253,7 +253,9 @@ impl Pending {
         }
         self.first = None;
         self.last = None;
-        Some(std::mem::take(&mut self.changes))
+        let mut changes = std::mem::take(&mut self.changes);
+        changes.last = Some(last);
+        Some(changes)
     }
 }
 

@@ -1,3 +1,5 @@
+use std::thread;
+
 use crate::{
     RefKind, Reference, Repo, Result, RuleError, Snapshot,
     command::{run_with_input, run_write},
@@ -73,17 +75,52 @@ pub fn remote_branch<'a, 'b>(name: &'a str, remotes: &'b [String]) -> Option<(&'
 }
 
 impl Repo {
+    /// Reads run side by side: each Git process costs tens of milliseconds to
+    /// start on Windows, and the name check, reference list, and remote list
+    /// are independent.
     pub fn apply_ref_operation(&self, request: &RefRequest) -> Result<()> {
         let reference = &request.reference;
-        self.validate_ref_name(&reference.name, reference.namespace())?;
-        if self.resolve_ref("HEAD")? != request.head || self.checked_out_branch()? != request.branch
-        {
-            return Err(RuleError::StaleReference.into());
-        }
-        if self.operation_state()?.kind.is_some() {
-            return Err(RuleError::SequenceInProgress.into());
-        }
-        let (references, _) = self.references(request.branch.as_deref())?;
+        // Existing names came from Git's own reference listing and are valid
+        // by construction; only names typed into dialogs need checking. Track
+        // always creates a local branch while Rename keeps the source kind.
+        let (new_name, new_namespace) = match &request.operation {
+            RefOperation::Track(name) => (Some(name.as_str()), "heads"),
+            RefOperation::Rename(name) => (Some(name.as_str()), reference.namespace()),
+            _ => (None, ""),
+        };
+        let remotes_needed = matches!(
+            (reference.kind, &request.operation),
+            (RefKind::Remote, RefOperation::Delete) | (RefKind::Tag, RefOperation::PushTag(_))
+        );
+        let (references, remotes) = thread::scope(|scope| -> Result<_> {
+            let references =
+                thread::Builder::new().spawn_scoped(scope, || self.references(None))?;
+            let name_check = new_name
+                .map(|name| {
+                    thread::Builder::new()
+                        .spawn_scoped(scope, || self.validate_ref_name(name, new_namespace))
+                })
+                .transpose()?;
+            let remotes = remotes_needed
+                .then(|| thread::Builder::new().spawn_scoped(scope, || self.remotes()))
+                .transpose()?;
+            let branch = self.checked_out_branch()?;
+            let operation = self.operation_state()?;
+            let (references, _) = references.join().expect("references reader panicked")?;
+            name_check
+                .map(|check| check.join().expect("name checker panicked"))
+                .transpose()?;
+            if self.head_oid(&references)? != request.head || branch != request.branch {
+                return Err(RuleError::StaleReference.into());
+            }
+            if operation.kind.is_some() {
+                return Err(RuleError::SequenceInProgress.into());
+            }
+            let remotes = remotes
+                .map(|reader| reader.join().expect("remotes reader panicked"))
+                .transpose()?;
+            Ok((references, remotes))
+        })?;
         let current = references
             .iter()
             .find(|current| current.kind == reference.kind && current.name == reference.name)
@@ -105,12 +142,14 @@ impl Repo {
                 _ => Err(RuleError::RefUnavailable.into()),
             },
             RefOperation::Track(name) if current.kind == RefKind::Remote => {
-                self.create_branch_at(name, None, true, Some(&current.name))
+                self.run_create_branch(name, None, true, Some(&current.name))
             }
             RefOperation::Rename(name) if current.kind != RefKind::Remote => {
-                self.validate_ref_name(name, current.namespace())?;
                 let destination = format!("refs/{}/{name}", current.namespace());
-                if self.resolve_ref(&destination)?.is_some() {
+                if references
+                    .iter()
+                    .any(|reference| reference.full_name() == destination)
+                {
                     return Err(RuleError::RefExists.into());
                 }
                 if current.kind == RefKind::Local {
@@ -135,7 +174,14 @@ impl Repo {
                 }
             }
             RefOperation::PushTag(remote) if current.kind == RefKind::Tag => {
-                self.ensure_remote(remote)?;
+                if !remotes
+                    .as_deref()
+                    .unwrap_or_default()
+                    .iter()
+                    .any(|configured| configured == remote)
+                {
+                    return Err(RuleError::MissingRemote(remote.clone()).into());
+                }
                 // Push the reviewed tag object, not whatever the name resolves
                 // to by the time the transport starts.
                 run_write(self.git().args([
@@ -164,9 +210,9 @@ impl Repo {
                     &current.object_id,
                 ])),
                 RefKind::Remote => {
-                    let remotes = self.remotes()?;
                     let (remote, branch) =
-                        remote_branch(&current.name, &remotes).ok_or(RuleError::RefUnavailable)?;
+                        remote_branch(&current.name, remotes.as_deref().unwrap_or_default())
+                            .ok_or(RuleError::RefUnavailable)?;
                     let target = format!("refs/heads/{branch}");
                     // Reject deletion if the server branch moved after the displayed snapshot.
                     run_write(self.git().args([

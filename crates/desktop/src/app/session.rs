@@ -114,6 +114,9 @@ pub(super) struct RepoTab {
     pub(super) review: ReviewState,
     pub(super) rebase: Option<super::history::rebase::RebaseSession>,
     pub(super) busy: bool,
+    /// Watcher batches at or before this instant are already covered by the
+    /// repository read that started then.
+    pub(super) watch_covered_at: Option<std::time::Instant>,
     pub(super) active_op: Option<ActiveOp>,
     pub(super) updates: RepoUpdates,
     pub(super) notice: Option<Notice>,
@@ -139,6 +142,7 @@ impl RepoTab {
             review: ReviewState::new(preferences),
             rebase: None,
             busy: false,
+            watch_covered_at: None,
             active_op: None,
             updates: RepoUpdates::default(),
             notice: None,

@@ -8,7 +8,7 @@ use crate::{
     Commit, Error, Repo, Result, RuleError,
     command::{checked, read_output},
     history::{COMMIT_DATE_FORMAT, COMMIT_LOG_FORMAT, parse_log},
-    protocol::{path_from_bytes, text, without_final_newline},
+    protocol::text,
 };
 
 use super::{CommitContext, CommitMenuState, CommitRelation, SequenceKind, SequenceProgress};
@@ -192,17 +192,14 @@ impl Repo {
         ])))
     }
 
-    pub(crate) fn git_path(&self, name: &str) -> Result<PathBuf> {
-        let bytes = self.read(&["rev-parse", "--path-format=absolute", "--git-path", name])?;
-        Ok(path_from_bytes(without_final_newline(&bytes)))
-    }
-
     pub fn sequence_kind(&self) -> Result<Option<SequenceKind>> {
         self.operation_state().map(|state| state.kind)
     }
 
+    /// Pure file reads inside the worktree's own `.git` directory: every name
+    /// checked here is per-worktree state.
     pub(crate) fn operation_state(&self) -> Result<OperationState> {
-        let directory = self.git_path(".")?;
+        let directory = self.git_dir().to_path_buf();
         let editing_head = read_trimmed(directory.join("rebase-merge").join("amend"));
         for (name, kind) in [
             ("rebase-merge", SequenceKind::Rebase),

@@ -100,17 +100,17 @@ impl Repo {
                 let branch = self.checked_out_branch()?;
                 let (refs, upstream, reference_version) =
                     self.reference_state(branch.as_deref())?;
+                let head = self.head_oid(&refs)?;
                 let operation = self.operation_state()?;
                 let version = crate::commit_ops::menu::GraphVersion::read(
                     reference_version,
                     &operation.directory,
                 )?;
-                Ok::<_, Error>((branch, refs, upstream, operation, version))
+                Ok::<_, Error>((branch, refs, upstream, head, operation, version))
             })?;
-            let head = self.resolve_ref("HEAD")?;
             let (remotes, remote_url) = self.remote_summary()?;
             let status = status.join().expect("status reader panicked")?;
-            let (branch, refs, upstream, operation, version) =
+            let (branch, refs, upstream, head, operation, version) =
                 references.join().expect("reference reader panicked")?;
             let (commits, history_limited, stashes) =
                 history.join().expect("history reader panicked")?;
@@ -182,6 +182,19 @@ impl Repo {
                 code: b' ',
             })
             .collect())
+    }
+
+    /// `.git/HEAD` as a commit id without running Git: the checked-out
+    /// branch's tip, the detached object id, or `None` for an unborn HEAD.
+    pub(crate) fn head_oid(&self, references: &[Reference]) -> Result<Option<String>> {
+        let head = self.head_file()?;
+        Ok(match head.strip_prefix("ref: ") {
+            Some(target) => references
+                .iter()
+                .find(|reference| reference.full_name() == target)
+                .map(|reference| reference.id.clone()),
+            None => (!head.is_empty()).then_some(head),
+        })
     }
 
     pub(crate) fn references(

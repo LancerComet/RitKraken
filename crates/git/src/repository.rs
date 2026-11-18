@@ -12,14 +12,37 @@ use crate::{
 #[derive(Clone, Debug)]
 pub struct Repo {
     root: PathBuf,
+    /// This worktree's own `.git` directory.
+    git_dir: PathBuf,
+    /// The `.git` directory shared by all linked worktrees.
+    common_dir: PathBuf,
 }
 
 impl Repo {
     pub fn open(path: &Path) -> Result<Self> {
-        let root = run_read(command(Some(path)).args(["rev-parse", "--show-toplevel"]))?;
-        Ok(Self {
-            root: path_from_bytes(without_final_newline(&root)),
-        })
+        // One process resolves every fixed location; worktree and common Git
+        // directories never move for the lifetime of the repository.
+        let output = run_read(command(Some(path)).args([
+            "rev-parse",
+            "--path-format=absolute",
+            "--show-toplevel",
+            "--absolute-git-dir",
+            "--git-common-dir",
+        ]))?;
+        let mut lines = output.split(|byte| *byte == b'\n');
+        let mut line = || path_from_bytes(without_final_newline(lines.next().unwrap_or_default()));
+        let repo = Self {
+            root: line(),
+            git_dir: line(),
+            common_dir: line(),
+        };
+        if repo.root.as_os_str().is_empty()
+            || repo.git_dir.as_os_str().is_empty()
+            || repo.common_dir.as_os_str().is_empty()
+        {
+            return Err("git rev-parse returned unexpected output".into());
+        }
+        Ok(repo)
     }
 
     pub fn name(&self) -> String {
@@ -60,6 +83,17 @@ impl Repo {
         &self.root
     }
 
+    /// This worktree's own `.git` directory, where per-worktree state such as
+    /// `HEAD`, `MERGE_HEAD`, and `rebase-merge` lives.
+    pub(crate) fn git_dir(&self) -> &Path {
+        &self.git_dir
+    }
+
+    /// The `.git` directory shared by all linked worktrees.
+    pub(crate) fn common_dir(&self) -> &Path {
+        &self.common_dir
+    }
+
     pub(crate) fn git(&self) -> Command {
         command(Some(&self.root))
     }
@@ -86,11 +120,19 @@ impl Repo {
         self.optional(&["rev-parse", "--verify", "--quiet", reference])
     }
 
+    /// `.git/HEAD` records the same answer `symbolic-ref` computes, including
+    /// unborn branches, without starting a process.
     pub(crate) fn checked_out_branch(&self) -> Result<Option<String>> {
-        self.optional(&["symbolic-ref", "--quiet", "HEAD"])
-            .map(|reference| {
-                reference
-                    .and_then(|reference| reference.strip_prefix("refs/heads/").map(str::to_owned))
-            })
+        Ok(self
+            .head_file()?
+            .strip_prefix("ref: refs/heads/")
+            .map(str::to_owned))
+    }
+
+    /// The trimmed contents of this worktree's `.git/HEAD`.
+    pub(crate) fn head_file(&self) -> Result<String> {
+        Ok(std::fs::read_to_string(self.git_dir().join("HEAD"))?
+            .trim()
+            .to_owned())
     }
 }

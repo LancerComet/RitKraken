@@ -9,7 +9,7 @@ use crate::{
 impl Repo {
     /// Complete a resolved single --no-commit pick while preserving its staged changes.
     pub(super) fn finish_applied_cherry_pick(&self) -> Result<bool> {
-        let directory = self.git_path("sequencer")?;
+        let directory = self.git_dir().join("sequencer");
         let options = directory.join("opts");
         if !options.is_file() {
             return Ok(false);
