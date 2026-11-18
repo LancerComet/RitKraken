@@ -23,7 +23,7 @@ esac
 export MACOSX_DEPLOYMENT_TARGET=15.0
 target_dir="$project_dir/target/macos"
 build_log="$(mktemp "${TMPDIR:-/tmp}/ritkraken-build.XXXXXX")"
-cargo build --locked --release --package ritkraken --bin ritkraken \
+cargo build --locked --release --package ritkraken --bin RitKraken \
     --target "$target" --target-dir "$target_dir" \
     --message-format=json-render-diagnostics > "$build_log"
 out_dir="$(python3 -c '
@@ -65,7 +65,7 @@ trap cleanup EXIT
 trap 'exit 1' INT TERM
 
 mkdir -p "$candidate/Contents/MacOS" "$candidate/Contents/Resources"
-install -m 755 "$release_dir/ritkraken" "$candidate/Contents/MacOS/ritkraken"
+install -m 755 "$release_dir/RitKraken" "$candidate/Contents/MacOS/RitKraken"
 install -m 644 "$out_dir/RitKraken.icns" "$candidate/Contents/Resources/RitKraken.icns"
 cat > "$candidate/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -77,7 +77,7 @@ cat > "$candidate/Contents/Info.plist" <<PLIST
     <key>CFBundleIdentifier</key>
     <string>org.ritkraken.desktop</string>
     <key>CFBundleExecutable</key>
-    <string>ritkraken</string>
+    <string>RitKraken</string>
     <key>CFBundleIconFile</key>
     <string>RitKraken</string>
     <key>CFBundlePackageType</key>

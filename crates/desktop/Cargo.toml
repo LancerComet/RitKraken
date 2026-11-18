@@ -3,6 +3,10 @@ name = "ritkraken"
 version.workspace = true
 edition.workspace = true
 
+[[bin]]
+name = "RitKraken"
+path = "src/main.rs"
+
 [dependencies]
 anyhow = "1"
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }

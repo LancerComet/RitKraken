@@ -29,7 +29,7 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force dist | Out-Null
           Compress-Archive `
-            -Path target/windows/x86_64-pc-windows-msvc/release/ritkraken.exe `
+            -Path target/windows/x86_64-pc-windows-msvc/release/RitKraken.exe `
             -DestinationPath "dist/RitKraken-$env:GITHUB_REF_NAME-windows-x64.zip"
 
       - uses: actions/upload-artifact@v4

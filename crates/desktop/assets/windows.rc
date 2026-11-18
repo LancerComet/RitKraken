@@ -1,1 +1,2 @@
 1 ICON "ritkraken.ico"
+#include "version.rc"

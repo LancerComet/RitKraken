@@ -20,11 +20,11 @@ if not "%RIT_TARGET%"=="x86_64-pc-windows-msvc" if not "%RIT_TARGET%"=="aarch64-
     goto finish
 )
 
-cargo build --locked --release --package ritkraken --bin ritkraken --target "%RIT_TARGET%" --target-dir target\windows
+cargo build --locked --release --package ritkraken --bin RitKraken --target "%RIT_TARGET%" --target-dir target\windows
 set "RIT_BUILD_STATUS=%ERRORLEVEL%"
 if not "%RIT_BUILD_STATUS%"=="0" goto finish
 
-set "RIT_EXE=%~dp0target\windows\%RIT_TARGET%\release\ritkraken.exe"
+set "RIT_EXE=%~dp0target\windows\%RIT_TARGET%\release\RitKraken.exe"
 if not exist "%RIT_EXE%" (
     >&2 echo Build finished without the expected executable "%RIT_EXE%".
     set "RIT_BUILD_STATUS=1"

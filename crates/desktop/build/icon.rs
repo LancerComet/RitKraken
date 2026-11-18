@@ -56,6 +56,46 @@ fn compile_platform(
     IcoEncoder::new(fs::File::create(output.join("ritkraken.ico"))?).encode_images(&frames)?;
 
     println!("cargo:rerun-if-changed=assets/windows.rc");
+    println!("cargo:rerun-if-changed=Cargo.toml");
+    let version = env!("CARGO_PKG_VERSION");
+    let mut fields: Vec<u32> = version
+        .split(['.', '-', '+'])
+        .filter_map(|field| field.parse().ok())
+        .collect();
+    fields.resize(4, 0);
+    fs::write(
+        output.join("version.rc"),
+        format!(
+            r#"1 VERSIONINFO
+ FILEVERSION {0},{1},{2},{3}
+ PRODUCTVERSION {0},{1},{2},{3}
+ FILEFLAGSMASK 0x3fL
+ FILEFLAGS 0x0L
+ FILEOS 0x40004L
+ FILETYPE 0x1L
+ FILESUBTYPE 0x0L
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904b0"
+        BEGIN
+            VALUE "FileDescription", "RitKraken"
+            VALUE "FileVersion", "{4}"
+            VALUE "InternalName", "RitKraken"
+            VALUE "OriginalFilename", "RitKraken.exe"
+            VALUE "ProductName", "RitKraken"
+            VALUE "ProductVersion", "{4}"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x409, 1200
+    END
+END
+"#,
+            fields[0], fields[1], fields[2], fields[3], version
+        ),
+    )?;
     embed_resource::compile(
         manifest.join("assets/windows.rc"),
         embed_resource::ParamsIncludeDirs([output]),

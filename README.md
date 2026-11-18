@@ -20,7 +20,7 @@
 ## Developer Requirements
 
 - **Rust 1.92 or newer** is required to build from source.
-- **Windows**: Requires the MSVC Rust toolchain, Visual Studio C++ Build Tools, and the Windows SDK. Close a running `ritkraken.exe` before rebuilding so the executable is not locked.
+- **Windows**: Requires the MSVC Rust toolchain, Visual Studio C++ Build Tools, and the Windows SDK. Close a running `RitKraken.exe` before rebuilding so the executable is not locked.
 - **macOS**: Requires Xcode Command Line Tools (`xcode-select --install`). The generated `.app` bundle uses ad hoc signing for local use.
 - **Python 3.11 or newer** is required to run the project checks.
 
@@ -30,7 +30,7 @@ Run the build script for your platform from the repository root:
 
 | Platform | Command | Output |
 | --- | --- | --- |
-| Windows | `.\build-windows.cmd` | `target/windows/<target>/release/ritkraken.exe` |
+| Windows | `.\build-windows.cmd` | `target/windows/<target>/release/RitKraken.exe` |
 | macOS | `bash ./build-macos.sh` | `target/macos/<target>/release/RitKraken.app` |
 
 You can also launch a repository directly via `cargo run --release` with `--target`, `--target-dir`, and `-- <repo-path>`.
