@@ -48,7 +48,18 @@ impl NameDialog {
                     .default_value(initial)
                     .placeholder(tr!("app.commit_menu.name"))
             });
-            let subscription = cx.subscribe(&name, |_, _, _: &InputEvent, cx| cx.notify());
+            // Enter applies the name, like the inline branch editor.
+            let subscription = cx.subscribe_in(
+                &name,
+                window,
+                |this: &mut Self, _, event: &InputEvent, window, cx| match event {
+                    InputEvent::PressEnter {
+                        secondary: false,
+                        shift: false,
+                    } => this.submit(window, cx),
+                    _ => cx.notify(),
+                },
+            );
             Self {
                 name,
                 checkbox,
