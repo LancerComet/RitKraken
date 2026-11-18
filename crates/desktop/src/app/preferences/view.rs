@@ -19,7 +19,7 @@ use crate::app::{
     widgets::{Tone, button_content, error_text, icon, loading::app_logo, modal::Modal},
 };
 
-const REPOSITORY_URL: &str = "https://github.com/LancerComet/RitKarken";
+const REPOSITORY_URL: &str = "https://github.com/LancerComet/RitKraken";
 
 impl Client {
     pub(in crate::app) fn preferences_view(
