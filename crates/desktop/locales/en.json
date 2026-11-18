@@ -174,7 +174,9 @@
       "switched": "Branch checked out",
       "unstaged": "Changes unstaged",
       "remote_added": "Remote added",
-      "cherry_picked": "Cherry-pick changes staged. Review and commit when ready."
+      "cherry_picked": "Cherry-pick changes staged. Review and commit when ready.",
+      "remote_updated": "Remote updated",
+      "remote_removed": "Remote removed"
     },
     "preferences": {
       "about": "About",
@@ -400,7 +402,16 @@
       "failed": "Could not add the remote.\n%{detail}",
       "invalid_name": "Enter a valid remote name.",
       "invalid_url": "Enter a valid remote URL.",
-      "pull_required": "Enter a pull URL."
+      "pull_required": "Enter a pull URL.",
+      "label": "Remote · %{name}",
+      "edit": "Edit Remote…",
+      "save": "Save",
+      "saving": "Saving…",
+      "delete": "Delete remote %{name}",
+      "delete_title": "Delete Remote",
+      "confirm_delete": "Delete the remote \"%{name}\"? Its remote-tracking branches are removed too.",
+      "exists": "A remote with that name already exists.",
+      "update_failed": "Could not update the remote.\n%{detail}"
     },
     "rebase": {
       "amend_commit": "Amend commit…",

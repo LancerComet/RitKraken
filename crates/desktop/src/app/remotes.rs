@@ -16,6 +16,8 @@ use crate::i18n::tr;
 struct RemoteForm {
     repo_id: u64,
     client: WeakEntity<Client>,
+    /// The remote's original name when editing; `None` means adding.
+    editing: Option<String>,
     inputs: [Entity<InputState>; 3],
     modal: ModalHandle,
     error: Option<Message>,
@@ -24,14 +26,60 @@ struct RemoteForm {
 
 impl Client {
     pub(super) fn open_add_remote(&mut self, id: u64, window: &mut Window, cx: &mut Context<Self>) {
+        self.open_remote_modal(id, None, "", "", "", window, cx);
+    }
+
+    pub(super) fn open_edit_remote(
+        &mut self,
+        id: u64,
+        name: &str,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let (pull, push) = self
+            .tab(id)
+            .and_then(|tab| tab.repo.remote_urls(name).ok())
+            .unwrap_or_default();
+        self.open_remote_modal(
+            id,
+            Some(name.to_owned()),
+            name,
+            &pull,
+            push.as_deref().unwrap_or(""),
+            window,
+            cx,
+        );
+    }
+
+    fn open_remote_modal(
+        &mut self,
+        id: u64,
+        editing: Option<String>,
+        name: &str,
+        pull: &str,
+        push: &str,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         if self.tab(id).is_none_or(|tab| tab.busy) || self.modal_is_present() {
             return;
         }
         let client = cx.entity().downgrade();
         let modal = ModalHandle::new(cx);
         let handle = modal.clone();
+        let title = tr!(if editing.is_some() {
+            "app.remotes.edit"
+        } else {
+            "app.remotes.add"
+        });
+        let values = [name.to_owned(), pull.to_owned(), push.to_owned()];
         let view = cx.new(|cx| {
-            let inputs = std::array::from_fn(|_| cx.new(|cx| InputState::new(window, cx)));
+            let inputs: [Entity<InputState>; 3] = std::array::from_fn(|_| {
+                cx.new(|cx| InputState::new(window, cx))
+            });
+            for (input, value) in inputs.iter().zip(&values) {
+                input.update(cx, |input, cx| input.set_value(value.clone(), window, cx));
+            }
             let subscriptions = inputs.each_ref().map(|input| {
                 cx.subscribe(input, |this: &mut RemoteForm, _, event: &InputEvent, cx| {
                     if matches!(event, InputEvent::Change) {
@@ -43,6 +91,7 @@ impl Client {
             RemoteForm {
                 repo_id: id,
                 client,
+                editing,
                 inputs,
                 modal: handle,
                 error: None,
@@ -51,14 +100,7 @@ impl Client {
         });
         let focus = view.read(cx).inputs[0].read(cx).focus_handle(cx);
         Self::present_content_modal(
-            ContentModal::new(
-                modal,
-                tr!("app.remotes.add"),
-                view,
-                size(px(500.), px(650.)),
-                true,
-            )
-            .focus(focus),
+            ContentModal::new(modal, title, view, size(px(500.), px(650.)), true).focus(focus),
             window,
             cx,
         );
@@ -69,6 +111,13 @@ impl RemoteForm {
     fn request(&self, cx: &App) -> ritkraken_git::Result<NewRemote> {
         let [name, pull, push] = self.inputs.each_ref().map(|input| input.read(cx).value());
         NewRemote::new(&name, &pull, Some(&push))
+    }
+
+    fn operation(&self, request: NewRemote) -> RepoOperation {
+        match &self.editing {
+            Some(original) => RepoOperation::UpdateRemote(original.clone(), request),
+            None => RepoOperation::AddRemote(request),
+        }
     }
 
     fn submit(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -90,13 +139,18 @@ impl RemoteForm {
         };
         let form = cx.entity().downgrade();
         let id = self.repo_id;
+        let failed_key = if self.editing.is_some() {
+            "app.remotes.update_failed"
+        } else {
+            "app.remotes.failed"
+        };
         self.modal.set_busy(true);
         let modal = self.modal.clone();
         self.error = None;
         let started = client.update(cx, |client, cx| {
             client.update_repo_with_completion(
                 id,
-                RepoOperation::AddRemote(request),
+                self.operation(request),
                 move |client, succeeded, window, cx| {
                     if succeeded {
                         client.set_sidebar(id, false, Some(ritkraken_git::RefKind::Remote), cx);
@@ -120,7 +174,7 @@ impl RemoteForm {
                         }
                         this.modal.set_busy(false);
                         if let Some(failure) = failure {
-                            this.error = Some(Message::detail("app.remotes.failed", failure));
+                            this.error = Some(Message::detail(failed_key, failure));
                         }
                         cx.notify();
                         window.refresh();
@@ -151,6 +205,7 @@ impl Render for RemoteForm {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let p = palette(cx);
         let busy = self.modal.is_busy();
+        let editing = self.editing.is_some();
         div()
             .id("add-remote-form")
             .key_context("CommitOperation")
@@ -198,7 +253,13 @@ impl Render for RemoteForm {
                 button(
                     "add-remote-submit",
                     tr!(if busy {
-                        "app.remotes.adding"
+                        if editing {
+                            "app.remotes.saving"
+                        } else {
+                            "app.remotes.adding"
+                        }
+                    } else if editing {
+                        "app.remotes.save"
                     } else {
                         "app.remotes.add"
                     }),

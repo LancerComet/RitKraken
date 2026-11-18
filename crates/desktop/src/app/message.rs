@@ -95,6 +95,7 @@ fn rule_error(rule: &RuleError) -> String {
         RuleError::BranchChanged => "app.error.branch_changed",
         RuleError::UpstreamChanged => "app.error.upstream_changed",
         RuleError::EmptyCommitSummary => "app.error.commit_summary",
+        RuleError::RemoteExists => "app.remotes.exists",
         RuleError::InvalidRemoteName => "app.remotes.invalid_name",
         RuleError::EmptyRemoteUrl => "app.remotes.pull_required",
         RuleError::InvalidRemoteUrl => "app.remotes.invalid_url",

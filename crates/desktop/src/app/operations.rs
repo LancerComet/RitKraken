@@ -37,6 +37,8 @@ pub(super) enum RepoOperation {
     Commit(String, String),
     Fetch(Option<String>),
     AddRemote(git::NewRemote),
+    UpdateRemote(String, git::NewRemote),
+    RemoveRemote(String),
     AutoFetch(Duration),
     Push {
         branch: String,
@@ -113,6 +115,8 @@ impl RepoOperation {
             Self::Commit(summary, description) => repo.commit(summary, description),
             Self::Fetch(remote) => repo.fetch(remote.as_deref()),
             Self::AddRemote(remote) => repo.add_remote(remote),
+            Self::UpdateRemote(name, remote) => repo.update_remote(name, remote),
+            Self::RemoveRemote(name) => repo.remove_remote(name),
             Self::AutoFetch(timeout) => repo.auto_fetch_with_timeout(*timeout),
             Self::Push {
                 branch,
@@ -158,6 +162,8 @@ impl RepoOperation {
             Self::Commit(..) => "app.notice.committed",
             Self::Fetch(_) | Self::AutoFetch(_) => "app.notice.fetched",
             Self::AddRemote(_) => "app.notice.remote_added",
+            Self::UpdateRemote(..) => "app.notice.remote_updated",
+            Self::RemoveRemote(_) => "app.notice.remote_removed",
             Self::Push { .. } | Self::ForcePush(_) => "app.notice.pushed",
             Self::PullRejected(_) | Self::Pull { .. } => "app.notice.pulled",
             Self::Stash => "app.notice.stashed",

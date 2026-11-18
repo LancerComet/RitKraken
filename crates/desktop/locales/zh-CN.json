@@ -174,7 +174,9 @@
       "switched": "分支已切换",
       "unstaged": "更改已取消暂存",
       "remote_added": "远端已添加",
-      "cherry_picked": "Cherry-pick 改动已暂存，请检查后手动提交。"
+      "cherry_picked": "Cherry-pick 改动已暂存，请检查后手动提交。",
+      "remote_updated": "远端已更新",
+      "remote_removed": "远端已删除"
     },
     "preferences": {
       "about": "关于",
@@ -400,7 +402,16 @@
       "failed": "无法添加远端。\n%{detail}",
       "invalid_name": "请输入有效的远端名称。",
       "invalid_url": "请输入有效的远端 URL。",
-      "pull_required": "请输入拉取 URL。"
+      "pull_required": "请输入拉取 URL。",
+      "label": "远端 · %{name}",
+      "edit": "修改远端…",
+      "save": "保存",
+      "saving": "正在保存…",
+      "delete": "删除远端 %{name}",
+      "delete_title": "删除远端",
+      "confirm_delete": "确定删除远端“%{name}”吗？其远程跟踪分支也会被移除。",
+      "exists": "已存在同名远端。",
+      "update_failed": "无法修改远端。\n%{detail}"
     },
     "rebase": {
       "amend_commit": "修补提交（Amend）…",

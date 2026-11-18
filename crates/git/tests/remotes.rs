@@ -93,6 +93,68 @@ fn duplicate_remote_names_never_replace_existing_configuration() {
 }
 
 #[test]
+fn updating_a_remote_rewrites_urls_and_renames() {
+    let (_directory, repo) = fixture();
+    repo.add_remote(&NewRemote::new("origin", "pull-a", Some("push-a")).unwrap())
+        .unwrap();
+    assert_eq!(
+        repo.remote_urls("origin").unwrap(),
+        ("pull-a".to_owned(), Some("push-a".to_owned()))
+    );
+    repo.update_remote(
+        "origin",
+        &NewRemote::new("upstream", "pull-b", None).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(repo.remote_urls("upstream").unwrap(), ("pull-b".to_owned(), None));
+    assert_eq!(repo.snapshot(None).unwrap().remotes, ["upstream"]);
+    for (key, expected) in [
+        ("remote.upstream.url", "pull-b"),
+        ("remote.upstream.fetch", "+refs/heads/*:refs/remotes/upstream/*"),
+    ] {
+        let output =
+            git_output(command(Some(repo.root())).args(["config", "--local", "--get", key]));
+        assert_eq!(String::from_utf8(output).unwrap().trim(), expected);
+    }
+    // The cleared push URL leaves no configured value behind.
+    let output = command(Some(repo.root()))
+        .args(["config", "--local", "--get", "remote.upstream.pushurl"])
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(1));
+}
+
+#[test]
+fn updating_a_remote_rejects_a_name_collision_before_writing() {
+    let (_directory, repo) = fixture();
+    repo.add_remote(&NewRemote::new("origin", "pull-a", Some("push-a")).unwrap())
+        .unwrap();
+    repo.add_remote(&NewRemote::new("backup", "pull-c", None).unwrap())
+        .unwrap();
+    assert!(matches!(
+        repo.update_remote("origin", &NewRemote::new("backup", "pull-d", None).unwrap()),
+        Err(Error::Rule(RuleError::RemoteExists))
+    ));
+    assert_eq!(
+        repo.remote_urls("origin").unwrap(),
+        ("pull-a".to_owned(), Some("push-a".to_owned()))
+    );
+}
+
+#[test]
+fn removing_a_remote_requires_it_to_exist() {
+    let (_directory, repo) = fixture();
+    repo.add_remote(&NewRemote::new("origin", "pull-a", None).unwrap())
+        .unwrap();
+    repo.remove_remote("origin").unwrap();
+    assert!(repo.snapshot(None).unwrap().remotes.is_empty());
+    assert!(matches!(
+        repo.remove_remote("origin"),
+        Err(Error::Rule(RuleError::MissingRemote(name))) if name == "origin"
+    ));
+}
+
+#[test]
 fn invalid_names_and_locked_configuration_do_not_leave_a_remote() {
     let (_directory, repo) = fixture();
     assert!(

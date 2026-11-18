@@ -174,7 +174,9 @@
       "switched": "ブランチを切り替えました",
       "unstaged": "変更のステージを解除しました",
       "remote_added": "リモートを追加しました",
-      "cherry_picked": "Cherry-pick の変更をステージしました。確認してから手動でコミットしてください。"
+      "cherry_picked": "Cherry-pick の変更をステージしました。確認してから手動でコミットしてください。",
+      "remote_updated": "リモートを更新しました",
+      "remote_removed": "リモートを削除しました"
     },
     "preferences": {
       "about": "このアプリについて",
@@ -400,7 +402,16 @@
       "failed": "リモートを追加できませんでした。\n%{detail}",
       "invalid_name": "有効なリモート名を入力してください。",
       "invalid_url": "有効なリモート URL を入力してください。",
-      "pull_required": "プル URL を入力してください。"
+      "pull_required": "プル URL を入力してください。",
+      "label": "リモート · %{name}",
+      "edit": "リモートを編集…",
+      "save": "保存",
+      "saving": "保存中…",
+      "delete": "リモート %{name} を削除",
+      "delete_title": "リモートを削除",
+      "confirm_delete": "リモート \"%{name}\" を削除しますか？リモート追跡ブランチも削除されます。",
+      "exists": "同名のリモートが既に存在します。",
+      "update_failed": "リモートを更新できませんでした。\n%{detail}"
     },
     "rebase": {
       "amend_commit": "コミットを修正（Amend）…",

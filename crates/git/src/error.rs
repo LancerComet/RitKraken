@@ -107,6 +107,8 @@ pub enum RuleError {
     UpstreamChanged,
     #[error("Remote {0} is no longer configured.")]
     MissingRemote(String),
+    #[error("A remote with that name already exists.")]
+    RemoteExists,
     #[error("Enter a valid remote name.")]
     InvalidRemoteName,
     #[error("Enter a pull URL.")]

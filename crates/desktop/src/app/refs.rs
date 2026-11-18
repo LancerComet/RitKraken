@@ -347,7 +347,7 @@ impl Client {
                 let key = format!("{title}/{}", parts[..=depth].join("/"));
                 let collapsed = tab.refs.closed_folders.contains(&key) && filter.is_empty();
                 if seen.insert(key.clone()) {
-                    group = group.child(ref_folder(
+                    let folder = ref_folder(
                         tab_id,
                         key,
                         parts[depth].to_owned(),
@@ -356,7 +356,12 @@ impl Client {
                         Some(!collapsed),
                         p,
                         cx,
-                    ));
+                    );
+                    group = group.child(if kind == RefKind::Remote && depth == 0 {
+                        menu.remote_target(folder, &parts[0])
+                    } else {
+                        folder.into_any_element()
+                    });
                 }
                 if collapsed {
                     hidden = true;
@@ -467,15 +472,18 @@ impl Client {
                         .iter()
                         .any(|reference| reference.name.starts_with(&prefix))
                 {
-                    group = group.child(ref_folder(
-                        tab_id,
-                        format!("{title}/{remote}"),
-                        remote.clone(),
-                        0,
-                        true,
-                        None,
-                        p,
-                        cx,
+                    group = group.child(menu.remote_target(
+                        ref_folder(
+                            tab_id,
+                            format!("{title}/{remote}"),
+                            remote.clone(),
+                            0,
+                            true,
+                            None,
+                            p,
+                            cx,
+                        ),
+                        remote,
                     ));
                 }
             }

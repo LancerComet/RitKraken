@@ -7,8 +7,11 @@ use ritkraken_git::{RefKind, RefOperation, RefRequest, Reference};
 
 use crate::{
     app::{
-        Client,
-        widgets::menu::{ContextMenuExt as _, PopupMenu, PopupMenuItem, menu_style},
+        Client, RepoOperation,
+        widgets::{
+            delete_dialog::DeleteDialog,
+            menu::{ContextMenuExt as _, PopupMenu, PopupMenuItem, menu_style},
+        },
     },
     i18n::tr,
 };
@@ -60,6 +63,99 @@ impl RefMenu {
                 menu.build(popup, &reference, &related_remotes, window, cx)
             })
             .into_any_element()
+    }
+
+    /// Context menu for a remote's sidebar group node.
+    pub fn remote_target(&self, element: Stateful<Div>, remote: &str) -> AnyElement {
+        let menu = self.clone();
+        let remote = remote.to_owned();
+        element
+            .context_menu(move |popup, window, cx| menu.build_remote(popup, &remote, window, cx))
+            .into_any_element()
+    }
+
+    fn build_remote(
+        &self,
+        menu: PopupMenu,
+        remote: &str,
+        window: &mut Window,
+        cx: &mut Context<PopupMenu>,
+    ) -> PopupMenu {
+        if let Some(callback) = &self.on_open_change {
+            callback(true, window, cx);
+            let callback = callback.clone();
+            cx.subscribe_in(
+                &cx.entity(),
+                window,
+                move |_, _, _: &DismissEvent, window, cx| {
+                    callback(false, window, cx);
+                },
+            )
+            .detach();
+        }
+        let menu = menu_style(menu, window).min_w(px(220.)).max_w(px(540.));
+        self.remote_items(menu, remote, cx)
+    }
+
+    fn remote_items(
+        &self,
+        mut menu: PopupMenu,
+        remote: &str,
+        cx: &mut Context<PopupMenu>,
+    ) -> PopupMenu {
+        let Some(owner) = self.owner.upgrade() else {
+            return menu;
+        };
+        let Some(tab) = owner.read(cx).tab(self.id) else {
+            return menu;
+        };
+        let snapshot = &tab.history.data.snapshot;
+        let reason = if tab.busy {
+            Some(tr!("app.commit_menu.busy"))
+        } else if snapshot.sequence.is_some() {
+            Some(tr!("app.commit_menu.in_progress"))
+        } else if tab.rebase.is_some() {
+            Some(tr!("app.rebase.planning_active"))
+        } else {
+            None
+        };
+        menu = menu.label(tr!("app.remotes.label", name = remote));
+        let id = self.id;
+        let name = remote.to_owned();
+        menu = menu.item(self.action_item(
+            tr!("app.toolbar.fetch_remote", remote = remote),
+            reason.clone(),
+            move |client, window, cx| {
+                client.update_repo(id, Some(RepoOperation::Fetch(Some(name.clone()))), window, cx);
+            },
+        ));
+        let name = remote.to_owned();
+        menu = menu.item(self.action_item(
+            tr!("app.remotes.edit"),
+            reason.clone(),
+            move |client, window, cx| client.open_edit_remote(id, &name, window, cx),
+        ));
+        let name = remote.to_owned();
+        menu = menu.item(self.action_item(
+            tr!("app.remotes.delete", name = remote),
+            reason,
+            move |_, window, cx| {
+                DeleteDialog::open(
+                    id,
+                    tr!("app.remotes.delete_title"),
+                    tr!("app.remotes.confirm_delete", name = &name),
+                    RepoOperation::RemoveRemote(name.clone()),
+                    window,
+                    cx,
+                );
+            },
+        ));
+        let name = remote.to_owned();
+        menu.separator().item(
+            PopupMenuItem::new(tr!("app.ref_menu.copy_name")).on_click(move |_, _, cx| {
+                cx.write_to_clipboard(ClipboardItem::new_string(name.clone()));
+            }),
+        )
     }
 
     fn build(
@@ -201,6 +297,18 @@ impl RefMenu {
         request: RefRequest,
         reason: Option<String>,
     ) -> PopupMenuItem {
+        let id = self.id;
+        self.action_item(label, reason, move |client, window, cx| {
+            client.run_ref_action(id, request.clone(), window, cx)
+        })
+    }
+
+    fn action_item(
+        &self,
+        label: String,
+        reason: Option<String>,
+        action: impl Fn(&mut Client, &mut Window, &mut Context<Client>) + 'static,
+    ) -> PopupMenuItem {
         let source = self.clone();
         let disabled = reason.is_some();
         PopupMenuItem::element(move |_, _| {
@@ -214,9 +322,9 @@ impl RefMenu {
         })
         .disabled(disabled)
         .on_click(move |_, window, cx| {
-            let _ = source.owner.update(cx, |client, cx| {
-                client.run_ref_action(source.id, request.clone(), window, cx)
-            });
+            let _ = source
+                .owner
+                .update(cx, |client, cx| action(client, window, cx));
         })
     }
 }

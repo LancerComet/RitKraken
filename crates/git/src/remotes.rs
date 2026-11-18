@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use crate::{
     Error, Repo, Result, RuleError,
-    command::{run_write, run_write_with_timeout},
+    command::{read_output, run_write, run_write_with_timeout},
     protocol::text,
 };
 
@@ -76,6 +76,83 @@ impl Repo {
             };
         }
         Ok(())
+    }
+
+    /// The configured fetch URL and explicit push URL of a remote.
+    pub fn remote_urls(&self, name: &str) -> Result<(String, Option<String>)> {
+        self.ensure_remote(name)?;
+        let pull = text(&self.read(&["remote", "get-url", "--", name])?)
+            .trim()
+            .to_owned();
+        Ok((pull, self.configured_push_urls(name)?.into_iter().next()))
+    }
+
+    /// Rewrites a remote's URLs and renames it when the name changed; tracking
+    /// references move with the rename.
+    pub fn update_remote(&self, name: &str, remote: &NewRemote) -> Result<()> {
+        self.ensure_remote(name)?;
+        if remote.name != name
+            && self
+                .remotes()?
+                .iter()
+                .any(|configured| configured == &remote.name)
+        {
+            return Err(RuleError::RemoteExists.into());
+        }
+        run_write(
+            self.git()
+                .args(["remote", "set-url", "--", name, &remote.pull_url]),
+        )?;
+        for url in self.configured_push_urls(name)? {
+            run_write(self.git().args([
+                "remote",
+                "set-url",
+                "--push",
+                "--delete",
+                "--",
+                name,
+                &url,
+            ]))?;
+        }
+        if let Some(push_url) = &remote.push_url {
+            run_write(self.git().args([
+                "remote",
+                "set-url",
+                "--push",
+                "--",
+                name,
+                push_url,
+            ]))?;
+        }
+        if remote.name != name {
+            run_write(self.git().args(["remote", "rename", name, &remote.name]))?;
+        }
+        Ok(())
+    }
+
+    /// Removes a remote and its tracking references; branch upstreams left
+    /// pointing at it become stale as with plain Git.
+    pub fn remove_remote(&self, name: &str) -> Result<()> {
+        self.ensure_remote(name)?;
+        run_write(self.git().args(["remote", "remove", name]))
+    }
+
+    /// Explicit `remote.<name>.pushurl` values; `config --get-all` exits
+    /// nonzero when the key is unset, which is not an error.
+    fn configured_push_urls(&self, name: &str) -> Result<Vec<String>> {
+        let output = read_output(self.git().args([
+            "config",
+            "--get-all",
+            &format!("remote.{name}.pushurl"),
+        ]))?;
+        Ok(if output.status.success() {
+            text(&output.stdout)
+                .lines()
+                .map(str::to_owned)
+                .collect()
+        } else {
+            Vec::new()
+        })
     }
 
     pub fn fetch(&self, remote: Option<&str>) -> Result<()> {
