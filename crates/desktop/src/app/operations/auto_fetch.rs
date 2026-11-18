@@ -48,6 +48,7 @@ impl Client {
             tab.history.limit,
             false,
             None,
+            false,
             window,
             cx,
         );

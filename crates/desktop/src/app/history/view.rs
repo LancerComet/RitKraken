@@ -129,10 +129,7 @@ impl Client {
         } else {
             None
         };
-        let lazy = self.saved.preferences.lazy_history
-            && history.snapshot.history_limited
-            && !tab.busy
-            && tab.rebase.is_none();
+        let lazy = self.saved.preferences.lazy_history && history.snapshot.history_limited;
         let mut list = uniform_list(("history", id), count, move |range, window, cx| {
             if lazy && range.start > 0 && range.end == count {
                 let view = view.clone();

@@ -16,6 +16,10 @@ impl RepoUpdates {
         Some(self.generation)
     }
 
+    pub(in crate::app) fn in_flight(&self) -> bool {
+        self.reading
+    }
+
     pub(super) fn finish(&mut self, generation: u64) -> bool {
         if self.generation != generation {
             return false;

@@ -217,6 +217,7 @@ impl Client {
             Some(Box::new(move |this, _, window, cx| {
                 this.select(id, Some(commit), Some(ScrollStrategy::Center), window, cx);
             })),
+            false,
             window,
             cx,
         );
@@ -248,7 +249,19 @@ impl Client {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        self.start_repo_update(id, edit, limit, true, None, window, cx);
+        self.start_repo_update(id, edit, limit, true, None, false, window, cx);
+    }
+
+    /// A display-only history expansion: reuses the previous snapshot's
+    /// status and references, reading only the grown commit list.
+    pub(super) fn page_repo_history(
+        &mut self,
+        id: u64,
+        limit: usize,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.start_repo_update(id, None, Some(limit), true, None, true, window, cx);
     }
 
     pub(super) fn update_repo_with_completion(
@@ -268,6 +281,7 @@ impl Client {
             tab.history.limit,
             true,
             Some(Box::new(complete)),
+            false,
             window,
             cx,
         ) {
@@ -286,7 +300,7 @@ impl Client {
         let Some(tab) = self.tab(id) else {
             return false;
         };
-        self.start_repo_update(id, None, tab.history.limit, false, None, window, cx)
+        self.start_repo_update(id, None, tab.history.limit, false, None, false, window, cx)
     }
 
     fn start_repo_update(
@@ -296,6 +310,7 @@ impl Client {
         limit: Option<usize>,
         report_operation: bool,
         complete: Option<Completion>,
+        page_only: bool,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> bool {
@@ -327,8 +342,8 @@ impl Client {
                 // Watcher changes before this instant are covered by the
                 // snapshot the reload below is about to read.
                 let covered_at = Instant::now();
-                let history =
-                    History::reload(&repo, limit, Some(&previous)).map(|history| (history, limit));
+                let history = History::reload(&repo, limit, Some(&previous), page_only)
+                    .map(|history| (history, limit));
                 let reported =
                     if report_operation || result.as_ref().is_some_and(|result| result.is_err()) {
                         result.zip(edit)
@@ -572,6 +587,12 @@ impl Client {
             );
         }
         self.resume_toolbar_branch(id, window, cx);
+        if self
+            .tab(id)
+            .is_some_and(|tab| tab.history.wants_older)
+        {
+            self.load_older(id, window, cx);
+        }
         if changed {
             cx.notify();
         }

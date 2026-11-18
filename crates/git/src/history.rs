@@ -136,6 +136,32 @@ impl Repo {
         })
     }
 
+    /// Grows only the commit list of a previous snapshot. Status, references,
+    /// and other fields are carried over: a page expansion is display-only and
+    /// the next refresh re-reads them anyway.
+    pub fn snapshot_page(
+        &self,
+        previous: &Snapshot,
+        history_limit: Option<usize>,
+    ) -> Result<Snapshot> {
+        let (commits, history_limited) =
+            self.history_commits(history_limit, &previous.stashes)?;
+        Ok(Snapshot {
+            branch: previous.branch.clone(),
+            head: previous.head.clone(),
+            status: previous.status.clone(),
+            refs: previous.refs.clone(),
+            remotes: previous.remotes.clone(),
+            upstream: previous.upstream.clone(),
+            has_stash: previous.has_stash,
+            stashes: previous.stashes.clone(),
+            sequence: previous.sequence,
+            menu_metadata: previous.menu_metadata.clone(),
+            commits,
+            history_limited,
+        })
+    }
+
     fn history_commits(
         &self,
         history_limit: Option<usize>,

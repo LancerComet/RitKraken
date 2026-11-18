@@ -462,3 +462,28 @@ fn fetch_and_push_keep_the_checkout_and_target_branch_explicit() {
         );
     }
 }
+
+#[test]
+fn snapshot_page_grows_commits_and_reuses_other_fields() {
+    let (_directory, repo) = fixture();
+    for index in 1..=5 {
+        support::commits::commit_file(
+            &repo,
+            "file.txt",
+            &format!("edit {index}"),
+            &format!("Commit {index}"),
+        );
+    }
+    let page = repo.snapshot(Some(2)).unwrap();
+    assert_eq!(page.commits.len(), 2);
+    assert!(page.history_limited);
+    let grown = repo.snapshot_page(&page, Some(4)).unwrap();
+    assert_eq!(grown.commits.len(), 4);
+    assert!(grown.history_limited);
+    assert_eq!(grown.commits[..2], page.commits[..2]);
+    assert_eq!(grown.status, page.status);
+    assert_eq!(grown.refs, page.refs);
+    let exhausted = repo.snapshot_page(&grown, Some(100)).unwrap();
+    assert_eq!(exhausted.commits.len(), 5);
+    assert!(!exhausted.history_limited);
+}

@@ -56,10 +56,6 @@ impl Notice {
         Self { level, message }
     }
 
-    pub(super) fn is_error(&self) -> bool {
-        self.level == Level::Error
-    }
-
     pub(super) fn clear(repository: u64, window: &mut Window, cx: &mut App) {
         for level in [Level::Info, Level::Warning, Level::Error] {
             window.remove_notification1::<Self>(level.key(repository), cx);

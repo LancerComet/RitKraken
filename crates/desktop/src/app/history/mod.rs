@@ -16,7 +16,10 @@ use std::{
 use gpui_kit::*;
 use ritkraken_git::{CommitMenuSnapshot, Repo, Snapshot};
 
-use super::{Client, Load, Message, changes::ChangeSummary, widgets::table::ResizableColumns};
+use super::{
+    Client, Load, Message, changes::ChangeSummary, session::Tab,
+    widgets::table::ResizableColumns,
+};
 pub(super) use branch_editor::BranchEditor;
 use labels::{RefBadge, group_refs};
 use layout::GraphLayout;
@@ -66,15 +69,19 @@ impl History {
 
 impl History {
     pub(super) fn load(repo: &Repo, limit: Option<usize>) -> ritkraken_git::Result<Arc<Self>> {
-        Self::reload(repo, limit, None)
+        Self::reload(repo, limit, None, false)
     }
 
     pub(super) fn reload(
         repo: &Repo,
         limit: Option<usize>,
         previous: Option<&Arc<Self>>,
+        page_only: bool,
     ) -> ritkraken_git::Result<Arc<Self>> {
-        let snapshot = repo.snapshot(limit)?;
+        let snapshot = match previous.filter(|_| page_only) {
+            Some(previous) => repo.snapshot_page(&previous.snapshot, limit)?,
+            None => repo.snapshot(limit)?,
+        };
         if let Some(previous) = previous.filter(|previous| previous.snapshot == snapshot) {
             return Ok(previous.clone());
         }
@@ -104,6 +111,9 @@ pub(super) struct HistoryState {
     pub(super) data: Arc<History>,
     pub(super) selected: Option<String>,
     pub(super) limit: Option<usize>,
+    /// The last row was painted but growing the history was blocked; retried
+    /// when the next repository update finishes.
+    pub(super) wants_older: bool,
     pub(super) scroll: UniformListScrollHandle,
     horizontal_scroll: ScrollHandle,
     columns: ResizableColumns,
@@ -116,6 +126,7 @@ impl HistoryState {
             selected: Self::initial_selection(&data),
             data,
             limit,
+            wants_older: false,
             scroll: UniformListScrollHandle::default(),
             horizontal_scroll: ScrollHandle::new(),
             columns: ResizableColumns::new("graph-columns", cx),
@@ -236,31 +247,34 @@ impl Client {
 
     pub(super) fn load_older(&mut self, id: u64, window: &mut Window, cx: &mut Context<Self>) {
         let prefs = &self.saved.preferences;
-        if !prefs.lazy_history
-            || prefs.show_all_commits
-            || self.preferences.is_some()
-            || self.manager.mode.is_some()
-        {
+        if !prefs.lazy_history || prefs.show_all_commits || self.session.active != Some(id) {
             return;
         }
-        let Some(tab) = self.current().filter(|tab| {
-            tab.id == id
-                && tab.rebase.is_none()
-                && tab.review.active.is_none()
-                && !tab.busy
-                && tab.history.data.snapshot.history_limited
-                && !tab.notice.as_ref().is_some_and(super::Notice::is_error)
-        }) else {
+        let Some(tab) = self.session.entry_mut(id).and_then(Tab::ready_mut) else {
             return;
         };
-        if let Some(limit) = tab.history.limit {
-            self.update_repo_with_limit(
-                id,
-                None,
-                Some(limit.saturating_add(prefs.initial_commits)),
-                window,
-                cx,
-            );
+        if tab.rebase.is_some() || tab.review.active.is_some() {
+            return;
+        }
+        if !tab.history.data.snapshot.history_limited {
+            tab.history.wants_older = false;
+            return;
+        }
+        // A painted row kept by the list's layer does not render again to
+        // retrigger this; finish_update retries once the blocker clears. A
+        // relaunch while a read runs would supersede and discard it, so the
+        // repaint storm before it lands starves the expansion instead.
+        if self.preferences.is_some()
+            || self.manager.mode.is_some()
+            || tab.busy
+            || tab.updates.in_flight()
+        {
+            tab.history.wants_older = true;
+            return;
+        }
+        tab.history.wants_older = false;
+        if let Some(limit) = tab.history.limit.map(|limit| limit.saturating_mul(2)) {
+            self.page_repo_history(id, limit, window, cx);
         }
     }
 }
