@@ -363,7 +363,14 @@ fn stash_round_trip_restores_the_index_and_untracked_files() {
     repo.stash().unwrap();
     let snapshot = repo.snapshot(None).unwrap();
     assert!(snapshot.has_stash);
-    assert_eq!(snapshot.commits.len(), 1);
+    // The base commit and the stash row; Git's index and untracked helper
+    // commits stay hidden.
+    assert_eq!(snapshot.commits.len(), 2);
+    assert_eq!(snapshot.commits[0].id, snapshot.stashes[0].id);
+    assert_eq!(
+        snapshot.commits[0].parents,
+        [snapshot.commits[1].id.clone()]
+    );
     assert!(snapshot.status.is_empty());
     assert_eq!(fs::read_to_string(&tracked).unwrap(), "base\n");
     assert!(!untracked.exists());

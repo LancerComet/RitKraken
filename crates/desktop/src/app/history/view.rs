@@ -190,6 +190,10 @@ impl Client {
                         p,
                         cx,
                     );
+                    let stash = selection
+                        .as_deref()
+                        .and_then(|target| history.stash(target))
+                        .cloned();
                     let menu = selection.clone().map(|target| CommitMenu {
                         id,
                         target,
@@ -301,6 +305,13 @@ impl Client {
                                 } else {
                                     menu
                                 }
+                            })
+                            .into_any_element()
+                    } else if let Some(stash) = stash {
+                        let owner = view_for_wip.clone();
+                        element
+                            .context_menu(move |popup, window, cx| {
+                                super::stash_menu::stash_menu(id, &stash, &owner, popup, window, cx)
                             })
                             .into_any_element()
                     } else if let Some(menu) = menu {

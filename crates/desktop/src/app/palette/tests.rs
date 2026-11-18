@@ -17,6 +17,7 @@ pub(super) fn snapshot() -> Snapshot {
             reference: "refs/heads/main".into(),
         }),
         has_stash: false,
+        stashes: Vec::new(),
         sequence: None,
         menu_metadata: Default::default(),
         commits: Vec::new(),

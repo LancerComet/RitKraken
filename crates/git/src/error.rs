@@ -85,6 +85,8 @@ pub enum RuleError {
     BlamePreviewLimit,
     #[error("The file was restored, but the stash list changed. The stash was kept.")]
     StashListChanged,
+    #[error("The stash list changed. Review the stashes and try again.")]
+    StaleStash,
     #[error("This file was deleted in the selected version.")]
     DeletedFile,
     #[error("This entry does not have text file contents.")]

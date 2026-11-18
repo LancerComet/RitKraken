@@ -164,6 +164,8 @@
       "line_staged": "行をステージしました",
       "line_unstaged": "行のステージを解除しました",
       "popped": "スタッシュを復元しました",
+      "stash_applied": "スタッシュを適用しました",
+      "stash_dropped": "スタッシュを削除しました",
       "pulled": "リモートの変更を取得しました",
       "pushed": "ブランチをプッシュしました",
       "tag_pushed": "タグをプッシュしました",
@@ -542,6 +544,14 @@
       "empty": "ログはまだありません。",
       "copy": "項目をコピー",
       "open_folder": "ログフォルダーを開く"
+    },
+    "stash": {
+      "label": "スタッシュ · %{name}",
+      "apply": "スタッシュを適用",
+      "delete": "スタッシュを削除…",
+      "confirm_delete_title": "スタッシュを削除",
+      "confirm_delete": "%{name} を削除しますか？削除した変更は RitKraken から復元できません。",
+      "stale": "スタッシュの一覧が変わりました。確認してからもう一度お試しください。"
     }
   },
   "gpui_component": {

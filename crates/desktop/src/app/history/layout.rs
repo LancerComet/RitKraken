@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeSet, HashMap},
+    collections::{BTreeSet, HashMap, HashSet},
     ops::Range,
 };
 
@@ -14,6 +14,8 @@ pub(super) struct Rail {
     pub lane: usize,
     pub color: u32,
     pub color_index: usize,
+    /// Drawn dotted: the link from a stash to the commit it was made on.
+    pub dashed: bool,
 }
 
 #[derive(Debug)]
@@ -32,15 +34,24 @@ pub(super) struct GraphLayout {
 }
 
 impl GraphLayout {
-    pub(super) fn new(commits: &[Commit]) -> Self {
-        Self::build(commits, false, None)
+    pub(super) fn new(commits: &[Commit], stashes: &HashSet<&str>) -> Self {
+        Self::build(commits, false, None, stashes)
     }
 
-    pub(super) fn with_worktree(commits: &[Commit], head: Option<&str>) -> Self {
-        Self::build(commits, true, head)
+    pub(super) fn with_worktree(
+        commits: &[Commit],
+        head: Option<&str>,
+        stashes: &HashSet<&str>,
+    ) -> Self {
+        Self::build(commits, true, head, stashes)
     }
 
-    fn build(commits: &[Commit], worktree: bool, head: Option<&str>) -> Self {
+    fn build(
+        commits: &[Commit],
+        worktree: bool,
+        head: Option<&str>,
+        stashes: &HashSet<&str>,
+    ) -> Self {
         let mut lanes = Lanes::default();
         let mut pending: HashMap<&str, Vec<Track>> = HashMap::new();
         let mut rows = Vec::with_capacity(commits.len());
@@ -75,10 +86,15 @@ impl GraphLayout {
                 })
                 .collect();
             incoming.sort_unstable_by_key(|rail| rail.lane);
+            let stash = stashes.contains(commit.id.as_str());
+            // A dotted stash link ends here; the commit keeps a solid lane of
+            // its own. Stashes start right of the first lane so the main line
+            // stays straight.
             let node = incoming
-                .first()
+                .iter()
+                .find(|rail| !rail.dashed)
                 .copied()
-                .unwrap_or_else(|| lanes.reserve(0));
+                .unwrap_or_else(|| lanes.reserve(usize::from(stash)));
 
             let outgoing: Vec<_> = commit
                 .parents
@@ -86,7 +102,10 @@ impl GraphLayout {
                 .enumerate()
                 .map(|(parent_index, parent)| {
                     let rail = if parent_index == 0 {
-                        node
+                        Rail {
+                            dashed: stash,
+                            ..node
+                        }
                     } else {
                         lanes.reserve(node.lane + 1)
                     };
@@ -99,9 +118,12 @@ impl GraphLayout {
                 .collect();
 
             // Keep incoming branch lanes reserved through this row's junction.
-            lanes
-                .free
-                .extend(incoming.iter().skip(1).map(|rail| rail.lane));
+            lanes.free.extend(
+                incoming
+                    .iter()
+                    .filter(|rail| rail.lane != node.lane)
+                    .map(|rail| rail.lane),
+            );
             if outgoing.is_empty() {
                 lanes.free.insert(node.lane);
             }
@@ -140,6 +162,7 @@ impl GraphLayout {
                     lane,
                     color: span.color,
                     color_index: span.color_index,
+                    dashed: span.dashed,
                 })
             })
     }
@@ -156,6 +179,7 @@ struct Span {
     rows: Range<usize>,
     color: u32,
     color_index: usize,
+    dashed: bool,
 }
 
 #[derive(Default)]
@@ -171,6 +195,11 @@ impl Lanes {
             self.free.remove(&lane);
             lane
         } else {
+            // Lanes left of `start` that do not exist yet stay free for later rows.
+            while self.spans.len() < start {
+                self.free.insert(self.spans.len());
+                self.spans.push(Vec::new());
+            }
             self.spans.push(Vec::new());
             self.spans.len() - 1
         };
@@ -181,6 +210,7 @@ impl Lanes {
             lane,
             color,
             color_index,
+            dashed: false,
         }
     }
 
@@ -191,6 +221,7 @@ impl Lanes {
                 rows,
                 color: track.rail.color,
                 color_index: track.rail.color_index,
+                dashed: track.rail.dashed,
             });
         }
     }
@@ -217,7 +248,7 @@ mod tests {
             .map(|index| commit(&format!("tip-{index}"), &["base"]))
             .collect();
         commits.push(commit("base", &[]));
-        let graph = GraphLayout::new(&commits);
+        let graph = GraphLayout::new(&commits, &HashSet::new());
         let tips: Vec<_> = graph.rows[..6].iter().map(|row| row.node).collect();
 
         assert_eq!(graph.lane_count(), 6);
@@ -237,13 +268,16 @@ mod tests {
 
     #[test]
     fn merge_edges_reach_their_own_parent_rows() {
-        let graph = GraphLayout::new(&[
-            commit("merge", &["main", "topic"]),
-            commit("main", &["root"]),
-            commit("topic", &["root"]),
-            commit("root", &[]),
-            commit("unrelated", &[]),
-        ]);
+        let graph = GraphLayout::new(
+            &[
+                commit("merge", &["main", "topic"]),
+                commit("main", &["root"]),
+                commit("topic", &["root"]),
+                commit("root", &[]),
+                commit("unrelated", &[]),
+            ],
+            &HashSet::new(),
+        );
 
         let rows = &graph.rows;
         assert_eq!(graph.lane_count(), 2);
@@ -262,8 +296,8 @@ mod tests {
             commit("two", &["base"]),
             commit("base", &[]),
         ];
-        let partial = GraphLayout::new(&commits[..2]);
-        let full = GraphLayout::new(&commits);
+        let partial = GraphLayout::new(&commits[..2], &HashSet::new());
+        let full = GraphLayout::new(&commits, &HashSet::new());
 
         for index in 0..partial.rows.len() {
             assert_eq!(partial.rows[index].node, full.rows[index].node);
@@ -280,6 +314,7 @@ mod tests {
         let graph = GraphLayout::with_worktree(
             &[commit("master", &["base"]), commit("base", &[])],
             Some("base"),
+            &HashSet::new(),
         );
         let worktree = graph.worktree.as_ref().unwrap();
         assert_eq!(worktree.outgoing, [worktree.node]);
@@ -299,6 +334,7 @@ mod tests {
         let graph = GraphLayout::with_worktree(
             &[commit("head", &["base"]), commit("base", &[])],
             Some("head"),
+            &HashSet::new(),
         );
         let worktree = graph.worktree.as_ref().unwrap();
         assert_eq!(graph.rows[0].incoming, [worktree.node]);
@@ -313,8 +349,8 @@ mod tests {
             commit("middle", &["head"]),
             commit("head", &[]),
         ];
-        let partial = GraphLayout::with_worktree(&commits[..1], Some("head"));
-        let full = GraphLayout::with_worktree(&commits, Some("head"));
+        let partial = GraphLayout::with_worktree(&commits[..1], Some("head"), &HashSet::new());
+        let full = GraphLayout::with_worktree(&commits, Some("head"), &HashSet::new());
         let worktree = partial.worktree.as_ref().unwrap().node;
         assert_eq!(partial.rows[0].node, full.rows[0].node);
         assert!(
@@ -331,10 +367,30 @@ mod tests {
 
     #[test]
     fn unborn_worktree_has_no_invented_commit_connection() {
-        let graph = GraphLayout::with_worktree(&[], None);
+        let graph = GraphLayout::with_worktree(&[], None, &HashSet::new());
         let worktree = graph.worktree.as_ref().unwrap();
         assert!(worktree.outgoing.is_empty());
         assert!(graph.rows.is_empty());
-        assert!(GraphLayout::new(&[]).worktree.is_none());
+        assert!(GraphLayout::new(&[], &HashSet::new()).worktree.is_none());
+    }
+
+    #[test]
+    fn stash_links_are_dotted_only_down_to_their_base_commit() {
+        let commits = [
+            commit("stash", &["base"]),
+            commit("base", &["root"]),
+            commit("root", &[]),
+        ];
+        let graph = GraphLayout::new(&commits, &HashSet::from(["stash"]));
+        let [stash, base, root] = &graph.rows[..] else {
+            panic!("three rows");
+        };
+        assert_ne!(stash.node.lane, 0, "the main line keeps the first lane");
+        assert!(stash.outgoing.iter().all(|rail| rail.dashed));
+        assert!(base.incoming.iter().any(|rail| rail.dashed));
+        assert!(!base.node.dashed);
+        assert_eq!(base.node.lane, 0);
+        assert!(base.outgoing.iter().all(|rail| !rail.dashed));
+        assert!(!root.node.dashed);
     }
 }

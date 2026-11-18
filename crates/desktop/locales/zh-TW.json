@@ -164,6 +164,8 @@
       "line_staged": "已暫存此行",
       "line_unstaged": "已取消暫存此行",
       "popped": "貯藏已還原",
+      "stash_applied": "已套用儲藏",
+      "stash_dropped": "已刪除儲藏",
       "pulled": "已拉取遠端變更",
       "pushed": "分支已推送",
       "tag_pushed": "標籤已推送",
@@ -542,6 +544,14 @@
       "empty": "尚無日誌。",
       "copy": "複製所選",
       "open_folder": "開啟日誌資料夾"
+    },
+    "stash": {
+      "label": "儲藏 · %{name}",
+      "apply": "套用儲藏",
+      "delete": "刪除儲藏…",
+      "confirm_delete_title": "刪除儲藏",
+      "confirm_delete": "確定刪除 %{name} 嗎？刪除後無法在 RitKraken 中找回其中的變更。",
+      "stale": "儲藏清單已變更，請重新檢視後再試。"
     }
   },
   "gpui_component": {

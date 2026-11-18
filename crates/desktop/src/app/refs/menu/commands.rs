@@ -1,10 +1,11 @@
 use gpui_kit::*;
 use ritkraken_git::{RefKind, RefOperation, RefRequest};
 
-use super::delete::DeleteBranchDialog;
-
 use crate::{
-    app::{Client, RepoOperation, widgets::name_dialog::NameDialog},
+    app::{
+        Client, RepoOperation,
+        widgets::{delete_dialog::DeleteDialog, name_dialog::NameDialog},
+    },
     i18n::tr,
 };
 
@@ -61,7 +62,22 @@ impl Client {
                 );
             }
             RefOperation::Delete if request.reference.kind != RefKind::Tag => {
-                DeleteBranchDialog::open(id, request, window, cx);
+                let message = tr!(
+                    if request.reference.kind == RefKind::Remote {
+                        "app.ref_menu.confirm_delete_remote"
+                    } else {
+                        "app.ref_menu.confirm_delete_local"
+                    },
+                    name = &request.reference.name
+                );
+                DeleteDialog::open(
+                    id,
+                    tr!("app.ref_menu.confirm_delete_title"),
+                    message,
+                    RepoOperation::Reference(request),
+                    window,
+                    cx,
+                );
             }
             RefOperation::Checkout | RefOperation::Delete | RefOperation::PushTag(_) => {
                 self.update_repo(id, Some(RepoOperation::Reference(request)), window, cx)

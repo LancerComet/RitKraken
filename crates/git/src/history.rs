@@ -2,7 +2,7 @@ mod detail;
 mod file;
 mod search;
 
-use std::thread;
+use std::{collections::HashSet, thread};
 
 use crate::{
     Change, Error, Repo, Result, Status, Upstream,
@@ -57,6 +57,8 @@ pub struct Snapshot {
     pub remotes: Vec<String>,
     pub upstream: Option<Upstream>,
     pub has_stash: bool,
+    /// Stashes, newest first; their commits are also listed in `commits`.
+    pub stashes: Vec<crate::Stash>,
     pub sequence: Option<crate::SequenceKind>,
     pub menu_metadata: crate::MenuMetadata,
     pub commits: Vec<Commit>,
@@ -88,8 +90,11 @@ impl Snapshot {
 impl Repo {
     pub fn snapshot(&self, history_limit: Option<usize>) -> Result<Snapshot> {
         thread::scope(|scope| {
-            let history = thread::Builder::new()
-                .spawn_scoped(scope, || self.history_commits(history_limit))?;
+            let history = thread::Builder::new().spawn_scoped(scope, || {
+                let stashes = self.stashes()?;
+                let (commits, limited) = self.history_commits(history_limit, &stashes)?;
+                Ok::<_, Error>((commits, limited, stashes))
+            })?;
             let status = thread::Builder::new().spawn_scoped(scope, || self.status())?;
             let references = thread::Builder::new().spawn_scoped(scope, || {
                 let branch = self.checked_out_branch()?;
@@ -104,11 +109,11 @@ impl Repo {
             })?;
             let head = self.resolve_ref("HEAD")?;
             let (remotes, remote_url) = self.remote_summary()?;
-            let has_stash = self.resolve_ref("refs/stash")?.is_some();
             let status = status.join().expect("status reader panicked")?;
             let (branch, refs, upstream, operation, version) =
                 references.join().expect("reference reader panicked")?;
-            let (commits, history_limited) = history.join().expect("history reader panicked")?;
+            let (commits, history_limited, stashes) =
+                history.join().expect("history reader panicked")?;
             Ok(Snapshot {
                 branch,
                 head,
@@ -116,7 +121,8 @@ impl Repo {
                 refs,
                 remotes,
                 upstream,
-                has_stash,
+                has_stash: !stashes.is_empty(),
+                stashes,
                 sequence: operation.kind,
                 menu_metadata: crate::MenuMetadata {
                     version,
@@ -130,7 +136,11 @@ impl Repo {
         })
     }
 
-    fn history_commits(&self, history_limit: Option<usize>) -> Result<(Vec<Commit>, bool)> {
+    fn history_commits(
+        &self,
+        history_limit: Option<usize>,
+        stashes: &[crate::Stash],
+    ) -> Result<(Vec<Commit>, bool)> {
         let mut args = vec![
             "log",
             "--exclude=refs/stash",
@@ -147,12 +157,17 @@ impl Repo {
         }
         // During detached checkouts and an Edit pause, HEAD can point to a
         // commit not yet reachable from any named reference.
-        args.extend(["--ignore-missing", "HEAD", "--"]);
+        args.extend(["--ignore-missing", "HEAD"]);
+        // Listing stash commits lets --date-order place each stash by time,
+        // above the commit it was made on.
+        args.extend(stashes.iter().map(|stash| stash.id.as_str()));
+        args.push("--");
         let mut commits = parse_log(&self.read(&args)?);
         let history_limited = history_limit.is_some_and(|limit| commits.len() > limit);
         if let Some(limit) = history_limit {
             commits.truncate(limit);
         }
+        attach_stashes(&mut commits, stashes);
         Ok((commits, history_limited))
     }
 
@@ -255,5 +270,23 @@ pub(crate) fn commit_from_fields(fields: &[&[u8]]) -> Commit {
         author_email: text(fields[3]),
         date: text(fields[4]),
         subject: text(fields[5]),
+    }
+}
+
+/// Shows each stash as a single row connected to the commit it was made on.
+/// Git's internal index and untracked-file commits of a stash are hidden.
+fn attach_stashes(commits: &mut Vec<Commit>, stashes: &[crate::Stash]) {
+    if stashes.is_empty() {
+        return;
+    }
+    let helpers: HashSet<&str> = stashes
+        .iter()
+        .flat_map(|stash| stash.helpers.iter().map(String::as_str))
+        .collect();
+    commits.retain(|commit| !helpers.contains(commit.id.as_str()));
+    for commit in commits.iter_mut() {
+        if let Some(stash) = stashes.iter().find(|stash| stash.id == commit.id) {
+            commit.parents = vec![stash.base.clone()];
+        }
     }
 }

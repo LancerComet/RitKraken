@@ -397,6 +397,7 @@ mod tests {
             remotes: vec!["origin".to_owned()],
             upstream: None,
             has_stash: false,
+            stashes: Vec::new(),
             sequence: None,
             menu_metadata: MenuMetadata::default(),
             commits,

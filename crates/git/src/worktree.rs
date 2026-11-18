@@ -1,6 +1,7 @@
 mod files;
 mod ignore;
 mod stash;
+mod stashes;
 
 use std::{collections::HashSet, path::PathBuf, process::Command};
 
@@ -13,6 +14,7 @@ use crate::{
 pub use files::DiscardFile;
 pub(crate) use files::WorkspaceVersion;
 pub use ignore::IgnoreRule;
+pub use stashes::Stash;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Change {
@@ -102,13 +104,6 @@ impl Repo {
 
     pub fn stash(&self) -> Result<()> {
         run_write(self.git().args(["stash", "push", "--include-untracked"]))
-    }
-
-    pub fn pop_stash(&self) -> Result<()> {
-        if self.pop_file_stash()? {
-            return Ok(());
-        }
-        run_write(self.git().args(["stash", "pop", "--index"]))
     }
 }
 

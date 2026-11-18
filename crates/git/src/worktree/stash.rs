@@ -102,16 +102,15 @@ impl Repo {
         run_write(&mut cleanup)
     }
 
-    pub(super) fn pop_file_stash(&self) -> Result<bool> {
-        let Some(stash) = self.resolve_ref("refs/stash")? else {
-            return Ok(false);
-        };
+    /// Restores a stash made by `stash_file` without dropping it. Returns
+    /// false for ordinary stashes, which Git applies itself.
+    pub(super) fn apply_file_stash(&self, stash: &str) -> Result<bool> {
         let marker = self.read(&[
             "show",
             "--no-patch",
             "--no-show-signature",
             "--format=%(trailers:key=RitKraken-File-Stash,valueonly)",
-            &stash,
+            stash,
             "--",
         ])?;
         if marker.trim_ascii() != b"1" {
@@ -123,7 +122,7 @@ impl Repo {
         let index = self
             .resolve_ref(&format!("{stash}^2"))?
             .ok_or(RuleError::StaleFile)?;
-        let mut working = snapshot_patch(self, &base, &stash)?;
+        let mut working = snapshot_patch(self, &base, stash)?;
         let staged = snapshot_patch(self, &base, &index)?;
         if let Some(untracked) = self.resolve_ref(&format!("{stash}^3"))? {
             let bytes = run_read(
@@ -138,10 +137,6 @@ impl Repo {
         apply_stash_patch(self, &staged, &["--check", "--cached"])?;
         apply_stash_patch(self, &working, &[])?;
         apply_stash_patch(self, &staged, &["--cached"])?;
-        if self.resolve_ref("refs/stash")?.as_deref() != Some(stash.as_str()) {
-            return Err(RuleError::StashListChanged.into());
-        }
-        run_write(self.git().args(["stash", "drop", "stash@{0}"]))?;
         Ok(true)
     }
 }

@@ -164,6 +164,8 @@
       "line_staged": "Line staged",
       "line_unstaged": "Line unstaged",
       "popped": "Stash restored",
+      "stash_applied": "Stash applied",
+      "stash_dropped": "Stash deleted",
       "pulled": "Remote changes pulled",
       "pushed": "Branch pushed",
       "tag_pushed": "Tag pushed",
@@ -542,6 +544,14 @@
       "empty": "No log entries yet.",
       "copy": "Copy entry",
       "open_folder": "Open log folder"
+    },
+    "stash": {
+      "label": "Stash · %{name}",
+      "apply": "Apply stash",
+      "delete": "Delete stash…",
+      "confirm_delete_title": "Delete stash",
+      "confirm_delete": "Delete %{name}? Its changes cannot be restored from RitKraken afterwards.",
+      "stale": "The stash list changed. Review the stashes and try again."
     }
   }
 }

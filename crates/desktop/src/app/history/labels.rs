@@ -124,6 +124,7 @@ mod tests {
             remotes: vec!["origin".into(), "fork".into(), "fork/review".into()],
             upstream: None,
             has_stash: false,
+            stashes: Vec::new(),
             commits: Vec::new(),
             history_limited: false,
         }

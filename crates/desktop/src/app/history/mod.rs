@@ -5,9 +5,13 @@ mod labels;
 mod layout;
 pub(in crate::app) mod rebase;
 mod search;
+mod stash_menu;
 mod view;
 
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
+};
 
 use gpui_kit::*;
 use ritkraken_git::{CommitMenuSnapshot, Repo, Snapshot};
@@ -33,9 +37,14 @@ impl History {
         menu: Arc<CommitMenuSnapshot>,
         worktree_summary: ChangeSummary,
     ) -> Arc<Self> {
-        let commits_graph = GraphLayout::new(&snapshot.commits);
+        let stashes: HashSet<&str> = snapshot
+            .stashes
+            .iter()
+            .map(|stash| stash.id.as_str())
+            .collect();
+        let commits_graph = GraphLayout::new(&snapshot.commits, &stashes);
         let worktree_graph =
-            GraphLayout::with_worktree(&snapshot.commits, snapshot.head.as_deref());
+            GraphLayout::with_worktree(&snapshot.commits, snapshot.head.as_deref(), &stashes);
         let position = snapshot
             .commits
             .iter()
@@ -72,6 +81,10 @@ impl History {
         let menu = repo.commit_menu_snapshot(&snapshot, previous.map(|history| &history.menu))?;
         let worktree_summary = ChangeSummary::new(snapshot.status.distinct_changes());
         Ok(Self::projected(snapshot, menu, worktree_summary))
+    }
+
+    pub(super) fn stash(&self, id: &str) -> Option<&ritkraken_git::Stash> {
+        self.snapshot.stashes.iter().find(|stash| stash.id == id)
     }
 
     fn labels_for(&self, id: &str) -> Option<&Arc<[RefBadge]>> {

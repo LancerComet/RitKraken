@@ -6,6 +6,7 @@ use super::{History, layout::Rail};
 use crate::app::{
     avatar::PersonAvatar,
     theme::{Palette, palette},
+    widgets::icon,
 };
 
 pub(super) const ROW_HEIGHT: Pixels = px(28.);
@@ -64,7 +65,19 @@ pub(super) fn graph_cell(
             let commit = &history.snapshot.commits[index];
             let left = lane_offset(node.lane) - graph_shift(width) - BAND_HEIGHT / 2.;
             let top = (ROW_HEIGHT - BAND_HEIGHT) / 2.;
+            let rail = rgb(p.rail_color(node.color_index));
             let node_view = match node_style {
+                RebaseNodeStyle::Normal if history.stash(&commit.id).is_some() => div()
+                    .size(BAND_HEIGHT)
+                    .rounded(px(4.))
+                    .border_1()
+                    .border_dashed()
+                    .border_color(rail)
+                    .bg(rgb(p.canvas))
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .child(icon("icons/archive.svg", p.rail_color(node.color_index)).size(px(12.))),
                 RebaseNodeStyle::PlannedDrop => div()
                     .size(BAND_HEIGHT)
                     .rounded_full()
@@ -205,11 +218,12 @@ fn paint_graph(
         (((visible.right() - first_x) / LANE_GAP).ceil() as usize + 1).min(graph.lane_count());
     let lanes = first_lane.min(end_lane)..end_lane;
     for rail in graph.through(index, lanes.clone()) {
-        paint_vertical(
+        paint_rail(
             bounds.left() + lane_offset(rail.lane),
             top,
             bottom,
             rgb(p.rail_color(rail.color_index)),
+            rail.dashed,
             window,
         );
     }
@@ -254,7 +268,14 @@ fn paint_connections(
         let x = left + lane_offset(rail.lane);
         let color = rgb(p.rail_color(rail.color_index));
         if x == node.x {
-            paint_vertical(x, edge_y.min(node.y), edge_y.max(node.y), color, window);
+            paint_rail(
+                x,
+                edge_y.min(node.y),
+                edge_y.max(node.y),
+                color,
+                rail.dashed,
+                window,
+            );
         } else {
             let radius = px(8.).min(x - node.x).min((edge_y - node.y).abs());
             let turn_y = if edge_y < node.y {
@@ -263,6 +284,9 @@ fn paint_connections(
                 node.y + radius
             };
             let mut path = PathBuilder::stroke(STROKE);
+            if rail.dashed {
+                path = path.dash_array(&DASH);
+            }
             path.move_to(point(x, edge_y));
             path.line_to(point(x, turn_y));
             path.curve_to(point(x - radius, node.y), point(x, node.y));
@@ -271,6 +295,29 @@ fn paint_connections(
                 window.paint_path(path, color);
             }
         }
+    }
+}
+
+/// Dots for the link from a stash to its commit, as in the stash node border.
+const DASH: [Pixels; 2] = [px(3.), px(3.)];
+
+fn paint_rail(
+    x: Pixels,
+    top: Pixels,
+    bottom: Pixels,
+    color: Rgba,
+    dashed: bool,
+    window: &mut Window,
+) {
+    if !dashed {
+        paint_vertical(x, top, bottom, color, window);
+        return;
+    }
+    let mut path = PathBuilder::stroke(STROKE).dash_array(&DASH);
+    path.move_to(point(x, top));
+    path.line_to(point(x, bottom));
+    if let Ok(path) = path.build() {
+        window.paint_path(path, color);
     }
 }
 

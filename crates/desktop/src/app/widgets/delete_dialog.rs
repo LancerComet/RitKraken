@@ -6,7 +6,6 @@ use gpui_kit::{
     prelude::*,
     *,
 };
-use ritkraken_git::{RefKind, RefRequest};
 
 use crate::{
     app::{
@@ -16,51 +15,40 @@ use crate::{
     i18n::tr,
 };
 
-pub(super) struct DeleteBranchDialog {
+/// Asks before running a destructive repository operation, such as deleting
+/// a branch or a stash. Cancel has the initial focus.
+pub(in crate::app) struct DeleteDialog {
     repo_id: u64,
     owner: WeakEntity<Client>,
-    request: Option<RefRequest>,
+    operation: Option<RepoOperation>,
     message: String,
     modal: ModalHandle,
     cancel_focus: FocusHandle,
 }
 
-impl DeleteBranchDialog {
-    pub(super) fn open(
+impl DeleteDialog {
+    pub(in crate::app) fn open(
         repo_id: u64,
-        request: RefRequest,
+        title: String,
+        message: String,
+        operation: RepoOperation,
         window: &mut Window,
         cx: &mut Context<Client>,
     ) {
-        let message = tr!(
-            if request.reference.kind == RefKind::Remote {
-                "app.ref_menu.confirm_delete_remote"
-            } else {
-                "app.ref_menu.confirm_delete_local"
-            },
-            name = &request.reference.name
-        );
         let owner = cx.weak_entity();
         let modal = ModalHandle::new(cx);
         let handle = modal.clone();
         let view = cx.new(|cx| Self {
             repo_id,
             owner,
-            request: Some(request),
+            operation: Some(operation),
             message,
             modal: handle,
             cancel_focus: cx.focus_handle(),
         });
         let focus = view.read(cx).cancel_focus.clone();
         Client::present_content_modal(
-            ContentModal::new(
-                modal,
-                tr!("app.ref_menu.confirm_delete_title"),
-                view,
-                size(px(500.), px(650.)),
-                true,
-            )
-            .focus(focus),
+            ContentModal::new(modal, title, view, size(px(500.), px(650.)), true).focus(focus),
             window,
             cx,
         );
@@ -70,25 +58,20 @@ impl DeleteBranchDialog {
         if !self.modal.is_open() {
             return;
         }
-        let Some(request) = self.request.take() else {
+        let Some(operation) = self.operation.take() else {
             return;
         };
         self.modal.close(window, cx);
         let _ = self.owner.update(cx, |client, cx| {
-            client.update_repo(
-                self.repo_id,
-                Some(RepoOperation::Reference(request)),
-                window,
-                cx,
-            );
+            client.update_repo(self.repo_id, Some(operation), window, cx);
         });
     }
 }
 
-impl Render for DeleteBranchDialog {
+impl Render for DeleteDialog {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         div()
-            .id("delete-branch-dialog")
+            .id("delete-dialog")
             .key_context("CommitOperation")
             .w_full()
             .flex()
@@ -109,7 +92,7 @@ impl Render for DeleteBranchDialog {
                     .justify_end()
                     .gap(px(8.))
                     .child(
-                        Button::new("cancel-delete-branch")
+                        Button::new("cancel-delete")
                             .label(tr!("app.common.cancel"))
                             .outline()
                             .small()
@@ -119,7 +102,7 @@ impl Render for DeleteBranchDialog {
                             })),
                     )
                     .child(
-                        Button::new("confirm-delete-branch")
+                        Button::new("confirm-delete")
                             .label(tr!("app.ref_menu.confirm_delete"))
                             .danger()
                             .small()

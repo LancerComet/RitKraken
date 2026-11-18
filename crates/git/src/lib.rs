@@ -40,5 +40,5 @@ pub use reference::{RefOperation, RefRequest, remote_branch};
 pub use remotes::{DEFAULT_AUTO_FETCH_TIMEOUT, NewRemote, PullMode, PushRejection, Upstream};
 pub use repository::Repo;
 pub use watch::RepoWatch;
-pub use worktree::{Change, DiscardFile, IgnoreRule, Status};
+pub use worktree::{Change, DiscardFile, IgnoreRule, Stash, Status};
 pub use worktrees::{NewWorktree, Worktree};

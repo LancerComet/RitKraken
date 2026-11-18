@@ -164,6 +164,8 @@
       "line_staged": "已暂存此行",
       "line_unstaged": "已取消暂存此行",
       "popped": "储藏已恢复",
+      "stash_applied": "储藏已应用",
+      "stash_dropped": "储藏已删除",
       "pulled": "已拉取远程更改",
       "pushed": "分支已推送",
       "tag_pushed": "标签已推送",
@@ -542,6 +544,14 @@
       "empty": "暂无日志。",
       "copy": "复制所选",
       "open_folder": "打开日志文件夹"
+    },
+    "stash": {
+      "label": "储藏 · %{name}",
+      "apply": "应用储藏",
+      "delete": "删除储藏…",
+      "confirm_delete_title": "删除储藏",
+      "confirm_delete": "确定删除 %{name} 吗？删除后无法在 RitKraken 中找回其中的更改。",
+      "stale": "储藏列表已变化，请重新查看后再试。"
     }
   }
 }

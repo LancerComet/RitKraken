@@ -49,6 +49,8 @@ pub(super) enum RepoOperation {
     },
     Stash,
     Pop,
+    ApplyStash(git::Stash),
+    DropStash(git::Stash),
 }
 
 impl RepoOperation {
@@ -67,7 +69,12 @@ impl RepoOperation {
                         ..
                     }
             ),
-            Self::Stash | Self::Pop | Self::PullRejected(_) | Self::Pull { .. } => true,
+            Self::Stash
+            | Self::Pop
+            | Self::ApplyStash(_)
+            | Self::DropStash(_)
+            | Self::PullRejected(_)
+            | Self::Pull { .. } => true,
             _ => false,
         }
     }
@@ -118,6 +125,8 @@ impl RepoOperation {
             } => repo.pull(branch, upstream, *mode),
             Self::Stash => repo.stash(),
             Self::Pop => repo.pop_stash(),
+            Self::ApplyStash(stash) => repo.apply_stash(stash, false),
+            Self::DropStash(stash) => repo.drop_stash(stash),
         }
     }
 
@@ -150,6 +159,8 @@ impl RepoOperation {
             Self::PullRejected(_) | Self::Pull { .. } => "app.notice.pulled",
             Self::Stash => "app.notice.stashed",
             Self::Pop => "app.notice.popped",
+            Self::ApplyStash(_) => "app.notice.stash_applied",
+            Self::DropStash(_) => "app.notice.stash_dropped",
         })
     }
 
@@ -166,7 +177,7 @@ impl RepoOperation {
             }
             Self::Commit(..) => ActiveOp::Commit,
             Self::Stash => ActiveOp::Stash,
-            Self::Pop => ActiveOp::Pop,
+            Self::Pop | Self::ApplyStash(_) => ActiveOp::Pop,
             Self::CommitGraph(prepared)
                 if matches!(
                     prepared.operation,
@@ -361,6 +372,7 @@ impl Client {
                             | git::CommitOperation::Continue
                     ),
                     RepoOperation::Pop
+                    | RepoOperation::ApplyStash(_)
                     | RepoOperation::StashFile(_)
                     | RepoOperation::PullRejected(_)
                     | RepoOperation::Pull { .. } => true,
