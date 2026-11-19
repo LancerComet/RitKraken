@@ -15,7 +15,7 @@ pub(in crate::app) struct SyntaxColors {
 }
 
 pub(super) fn classic() -> ThemeSpec {
-    // Original RitKraken Classic palette adapted for Tonal Bento surfaces.
+    // Original Modern Classic palette adapted for Tonal Bento surfaces.
     ThemeSpec {
         palette: Palette {
             is_dark: false,
@@ -24,7 +24,7 @@ pub(super) fn classic() -> ThemeSpec {
             surface: 0xffffff,
             surface_dim: 0xf1f2f4,
             surface_high: 0xf6f7f8,
-            chrome_alt: 0x444b63,
+            chrome_alt: 0x3e4765,
             chrome_hover: 0x555f7c,
             chrome_border: 0x50576e,
             chrome_text: 0xe0e4f0,

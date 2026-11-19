@@ -232,18 +232,7 @@ impl Client {
         let id = tab.id;
         let action = StageAction::for_scope(&scope).filter(|_| !files.is_empty());
         let selected = tab.changes.selection.selected(&scope, files);
-        let selected_count = selected.len();
-        let targets = if selected.is_empty() {
-            files
-                .iter()
-                .map(|change| FileTarget {
-                    scope: scope.clone(),
-                    change: change.clone(),
-                })
-                .collect()
-        } else {
-            selected
-        };
+        let (stage_target, targets) = section_stage_targets(&scope, files, selected);
         let conflicted = targets.iter().any(|file| file.change.code == b'U');
         div()
             .flex_1()
@@ -280,10 +269,8 @@ impl Client {
                                 title_key,
                                 if conflicted {
                                     tr!("app.conflicts.resolve")
-                                } else if selected_count > 0 {
-                                    action.label(StageTarget::Selected(selected_count))
                                 } else {
-                                    action.label(StageTarget::All)
+                                    action.label(stage_target)
                                 },
                                 action.tone(),
                                 !tab.busy,
@@ -299,5 +286,80 @@ impl Client {
                     }),
             )
             .child(self.file_list(tab, files, scope, cx))
+    }
+}
+
+fn section_stage_targets(
+    scope: &Scope,
+    files: &[Change],
+    selected: Vec<FileTarget>,
+) -> (StageTarget, Vec<FileTarget>) {
+    if selected.len() > 1 {
+        let count = selected.len();
+        (StageTarget::Selected(count), selected)
+    } else {
+        let targets = files
+            .iter()
+            .map(|change| FileTarget {
+                scope: scope.clone(),
+                change: change.clone(),
+            })
+            .collect();
+        (StageTarget::All, targets)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use ritkraken_git::{Change, FileTarget, Scope};
+
+    use super::{StageTarget, section_stage_targets};
+
+    fn sample_files() -> Vec<Change> {
+        ["a.rs", "b.rs", "c.rs"]
+            .map(|path| Change {
+                path: path.into(),
+                previous: None,
+                code: b'M',
+            })
+            .to_vec()
+    }
+
+    #[test]
+    fn section_action_stays_all_for_zero_or_one_selected_and_targets_selection_above_one() {
+        let files = sample_files();
+        for scope in [Scope::Worktree, Scope::Index] {
+            let (target, all) = section_stage_targets(&scope, &files, Vec::new());
+            assert!(matches!(target, StageTarget::All));
+            assert_eq!(all.len(), files.len());
+
+            let one = vec![FileTarget {
+                scope: scope.clone(),
+                change: files[0].clone(),
+            }];
+            let (target, still_all) = section_stage_targets(&scope, &files, one);
+            assert!(matches!(target, StageTarget::All));
+            assert_eq!(still_all.len(), files.len());
+
+            let two = vec![
+                FileTarget {
+                    scope: scope.clone(),
+                    change: files[0].clone(),
+                },
+                FileTarget {
+                    scope: scope.clone(),
+                    change: files[2].clone(),
+                },
+            ];
+            let (target, subset) = section_stage_targets(&scope, &files, two);
+            assert!(matches!(target, StageTarget::Selected(2)));
+            assert_eq!(
+                subset
+                    .iter()
+                    .map(|item| item.change.path.to_str().unwrap())
+                    .collect::<Vec<_>>(),
+                ["a.rs", "c.rs"]
+            );
+        }
     }
 }

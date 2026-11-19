@@ -52,7 +52,7 @@ impl ThemeId {
 
     pub(in crate::app) fn name(self) -> &'static str {
         match self {
-            Self::Classic => "RitKraken Classic",
+            Self::Classic => "Modern Classic",
             Self::ObsidianBento => "Obsidian Bento",
             Self::Md3Expressive => "MD3 Expressive",
             Self::FluentLight => "Fluent Light",
