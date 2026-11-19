@@ -464,7 +464,7 @@ mod tests {
         let legacy = serde_json::json!({"initial_commits": 750});
         assert_eq!(
             Preferences::read(&legacy).auto_fetch_interval(),
-            Some(Duration::from_secs(60))
+            Some(Duration::from_secs(180))
         );
 
         for minutes in [0, 5, 60] {
@@ -483,7 +483,7 @@ mod tests {
             serde_json::json!("5"),
         ] {
             let options = Preferences::read(&serde_json::json!({"auto_fetch_minutes": invalid}));
-            assert_eq!(options.auto_fetch_interval(), Some(Duration::from_secs(60)));
+            assert_eq!(options.auto_fetch_interval(), Some(Duration::from_secs(180)));
         }
     }
 
