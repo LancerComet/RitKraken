@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RitKraken - A fast desktop Git client</title>
+<meta name="description" content="RitKraken is a fast desktop Git client written in Rust, powered by GPUI Kit and your local Git CLI.">
+<link rel="icon" type="image/svg+xml" href="ritkraken.svg">
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f7f8fa;
+    --surface: #ffffff;
+    --ink: #262b3d;
+    --ink-2: #5a6072;
+    --rule: #e3e6ec;
+    --accent: #1f6472;
+    --accent-strong: #175562;
+    --code-bg: #eef0f4;
+    --selection: rgba(42, 123, 142, 0.22);
+    --focus: #2a7b8e;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #171a24;
+      --surface: #1e2230;
+      --ink: #e8eaf1;
+      --ink-2: #a7acbe;
+      --rule: #2c3145;
+      --accent: #5fb8c6;
+      --accent-strong: #7ccdd9;
+      --code-bg: #242938;
+      --selection: rgba(48, 164, 174, 0.35);
+      --focus: #30a4ae;
+    }
+  }
+
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 400 1rem/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+      "Helvetica Neue", Arial, sans-serif;
+    font-variant-numeric: tabular-nums;
+  }
+
+  ::selection { background: var(--selection); color: var(--ink); }
+
+  :focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+    border-radius: 3px;
+  }
+
+  main {
+    display: block;
+    max-width: 56rem;
+    margin: 0 auto;
+    padding: 0 1.25rem 4rem;
+  }
+
+  /* Masthead */
+  header.masthead {
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+    padding: 3.5rem 0 2rem;
+  }
+  header.masthead img {
+    width: 4.5rem;
+    height: 4.5rem;
+    flex: none;
+  }
+  header.masthead h1 {
+    margin: 0;
+    font-size: 2.25rem;
+    line-height: 1.15;
+    letter-spacing: -0.02em;
+  }
+  header.masthead p {
+    margin: 0.35rem 0 0;
+    color: var(--ink-2);
+    font-size: 1.125rem;
+    max-width: 38rem;
+  }
+
+  .actions { display: flex; gap: 0.75rem; padding: 0.5rem 0 2.5rem; }
+  .actions a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 2.75rem;
+    padding: 0 1.25rem;
+    border-radius: 0.5rem;
+    font-size: 1rem;
+    font-weight: 600;
+    text-decoration: none;
+  }
+  .actions a.primary {
+    background: var(--accent);
+    color: #ffffff;
+  }
+  @media (prefers-color-scheme: dark) {
+    .actions a.primary { color: #0f1420; }
+  }
+  .actions a.primary:hover { background: var(--accent-strong); }
+  .actions a.secondary {
+    color: var(--accent);
+    border: 1px solid var(--rule);
+    background: var(--surface);
+  }
+  .actions a.secondary:hover { border-color: var(--accent); }
+
+  /* Screenshot */
+  figure.shot {
+    margin: 0;
+    border: 1px solid var(--rule);
+    border-radius: 0.75rem;
+    overflow: hidden;
+    background: var(--surface);
+  }
+  figure.shot img { display: block; width: 100%; height: auto; }
+  figure.shot figcaption {
+    padding: 0.75rem 1rem;
+    color: var(--ink-2);
+    font-size: 0.875rem;
+  }
+
+  /* Sections */
+  section { margin-top: 3.5rem; }
+  section h2 {
+    margin: 0 0 1rem;
+    font-size: 1.5rem;
+    letter-spacing: -0.01em;
+  }
+  section p { margin: 0 0 1rem; max-width: 42rem; }
+
+  ul.features {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+    gap: 1.25rem 2rem;
+  }
+  ul.features li h3 {
+    margin: 0 0 0.25rem;
+    font-size: 1rem;
+  }
+  ul.features li p {
+    margin: 0;
+    color: var(--ink-2);
+    font-size: 0.9375rem;
+  }
+
+  /* Tables */
+  table {
+    width: 100%;
+    table-layout: fixed;
+    border-collapse: collapse;
+    font-size: 0.9375rem;
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: 0.5rem;
+  }
+  th, td {
+    text-align: left;
+    padding: 0.625rem 1rem;
+    border-bottom: 1px solid var(--rule);
+    vertical-align: top;
+  }
+  tr:last-child th, tr:last-child td { border-bottom: 0; }
+  thead th { color: var(--ink-2); font-weight: 600; }
+  tbody th { font-weight: 600; white-space: nowrap; }
+
+  code {
+    font-family: ui-monospace, "Cascadia Code", Consolas, "SF Mono", Menlo, monospace;
+    font-size: 0.875em;
+    background: var(--code-bg);
+    border-radius: 0.25rem;
+    padding: 0.1em 0.35em;
+    overflow-wrap: anywhere;
+  }
+  pre {
+    margin: 0;
+    padding: 0.875rem 1rem;
+    background: var(--code-bg);
+    border-radius: 0.5rem;
+    overflow-x: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--ink-2) transparent;
+  }
+  pre code { background: none; padding: 0; font-size: 0.875rem; }
+
+  a {
+    color: var(--accent);
+    text-underline-offset: 0.18em;
+    text-decoration-thickness: 0.08em;
+  }
+  a:hover { color: var(--accent-strong); }
+
+  footer {
+    margin-top: 4rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--rule);
+    color: var(--ink-2);
+    font-size: 0.875rem;
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+
+  @media (max-width: 36rem) {
+    header.masthead { flex-direction: column; align-items: flex-start; padding-top: 2.5rem; }
+    header.masthead h1 { font-size: 1.875rem; }
+    tbody th { white-space: normal; }
+    table { font-size: 0.8125rem; }
+    th, td { padding: 0.5rem 0.625rem; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <header class="masthead">
+    <img src="ritkraken.svg" alt="RitKraken logo">
+    <div>
+      <h1>RitKraken</h1>
+      <p>A fast desktop Git client written in Rust, powered by
+        <a href="https://github.com/longbridge/gpui-kit">GPUI Kit</a>
+        and your local Git CLI.</p>
+    </div>
+  </header>
+
+  <div class="actions">
+    <a class="primary" href="https://github.com/LancerComet/RitKarken">View on GitHub</a>
+    <a class="secondary" href="#building">Build from source</a>
+  </div>
+
+  <figure class="shot">
+    <img src="preview.png" alt="The RitKraken desktop client showing a repository's commit graph, history list and diff view">
+    <figcaption>RitKraken reviewing a repository: commit graph, file changes and a split diff.</figcaption>
+  </figure>
+
+  <section aria-labelledby="what">
+    <h2 id="what">What it does</h2>
+    <ul class="features">
+      <li>
+        <h3>History and commit graph</h3>
+        <p>Browse the commit graph and repository history in a desktop UI built for speed.</p>
+      </li>
+      <li>
+        <h3>Diffs and file review</h3>
+        <p>A patched GPUI diff renderer with split view, hunk and line controls, and change overview markers.</p>
+      </li>
+      <li>
+        <h3>Worktrees and remotes</h3>
+        <p>Repository operations delegate to your installed <code>git</code> executable, so behaviour matches your CLI.</p>
+      </li>
+      <li>
+        <h3>Sessions and themes</h3>
+        <p>Multiple session tabs, file review, and themeable preferences in the desktop app.</p>
+      </li>
+    </ul>
+  </section>
+
+  <section aria-labelledby="requirements">
+    <h2 id="requirements">Requirements</h2>
+    <table>
+      <thead>
+        <tr><th scope="col">To</th><th scope="col">You need</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <th scope="row">Run it</th>
+          <td>Git 2.37 or newer on your <code>PATH</code>. On macOS, version 15 or newer.</td>
+        </tr>
+        <tr>
+          <th scope="row">Build it</th>
+          <td>Rust 1.92 or newer; Visual Studio C++ Build Tools and the Windows SDK on Windows, or Xcode Command Line Tools on macOS. Python 3.11+ for the project checks.</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section aria-labelledby="building" id="building">
+    <h2>Building</h2>
+    <p>Run the build script for your platform from the repository root. The output lands in the fixed platform build directory.</p>
+    <table>
+      <thead>
+        <tr><th scope="col">Platform</th><th scope="col">Command</th><th scope="col">Output</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <th scope="row">Windows</th>
+          <td><code>.\build-windows.cmd</code></td>
+          <td><code>target\windows\&lt;target&gt;\release\RitKraken.exe</code></td>
+        </tr>
+        <tr>
+          <th scope="row">macOS</th>
+          <td><code>bash ./build-macos.sh</code></td>
+          <td><code>target/macos/&lt;target&gt;/release/RitKraken.app</code></td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <footer>
+    <span>RitKraken is open source.</span>
+    <a href="https://github.com/LancerComet/RitKarken">github.com/LancerComet/RitKarken</a>
+  </footer>
+</main>
+</body>
+</html>
