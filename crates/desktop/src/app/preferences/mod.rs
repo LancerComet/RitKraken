@@ -483,7 +483,10 @@ mod tests {
             serde_json::json!("5"),
         ] {
             let options = Preferences::read(&serde_json::json!({"auto_fetch_minutes": invalid}));
-            assert_eq!(options.auto_fetch_interval(), Some(Duration::from_secs(180)));
+            assert_eq!(
+                options.auto_fetch_interval(),
+                Some(Duration::from_secs(180))
+            );
         }
     }
 
