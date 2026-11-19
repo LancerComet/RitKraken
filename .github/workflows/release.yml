@@ -1,5 +1,9 @@
-# Builds Windows and macOS packages for tags such as v0.1.0 and publishes them
-# as a GitHub release once both builds succeed.
+# Builds Windows and macOS packages for tags such as v0.1.0 and publishes them as
+# a GitHub release once both builds succeed. In parallel, docs/ is deployed to
+# GitHub Pages.
+#
+# The Pages job needs the repository's Pages source set to "GitHub Actions"
+# (Settings > Pages > Build and deployment > Source).
 name: Release
 
 on:
@@ -86,3 +90,31 @@ jobs:
             --title "RitKraken $GITHUB_REF_NAME" \
             --generate-notes \
             --verify-tag
+
+  pages:
+    name: Publish site
+    # The site carries no version information, so it deploys alongside the builds.
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/configure-pages@v6
+
+      - name: Upload site
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: docs
+
+      - name: Deploy to GitHub Pages
+        id: deploy
+        uses: actions/deploy-pages@v5

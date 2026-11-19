@@ -20,7 +20,7 @@ use crate::{
     i18n::tr,
 };
 
-pub(super) const DEFAULT_AUTO_FETCH_MINUTES: u64 = 1;
+pub(super) const DEFAULT_AUTO_FETCH_MINUTES: u64 = 3;
 const AUTO_FETCH_RANGE: RangeInclusive<u64> = 0..=60;
 
 pub(super) fn valid_auto_fetch_minutes(minutes: u64) -> Option<u64> {
