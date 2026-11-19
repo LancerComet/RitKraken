@@ -21,7 +21,7 @@ const INITIAL_COMMIT_RANGE: RangeInclusive<usize> = 500..=100_000;
 #[derive(Clone)]
 pub(super) struct Preferences {
     pub(super) language: Language,
-    pub(super) theme: ThemeId,
+    pub(super) theme: Option<ThemeId>,
     pub(super) default_branch: String,
     auto_fetch_minutes: u64,
     auto_fetch_timeout_seconds: u64,
@@ -41,7 +41,7 @@ impl Default for Preferences {
     fn default() -> Self {
         Self {
             language: Language::default(),
-            theme: ThemeId::default(),
+            theme: None,
             default_branch: "main".into(),
             auto_fetch_minutes: git::DEFAULT_AUTO_FETCH_MINUTES,
             auto_fetch_timeout_seconds: ritkraken_git::DEFAULT_AUTO_FETCH_TIMEOUT.as_secs(),
@@ -69,8 +69,7 @@ impl Preferences {
                 .unwrap_or_default(),
             theme: value["theme"]
                 .as_str()
-                .map(ThemeId::from_id)
-                .unwrap_or_default(),
+                .and_then(ThemeId::from_id),
             default_branch: value["default_branch"]
                 .as_str()
                 .map_or(defaults.default_branch, str::to_owned),
@@ -119,7 +118,7 @@ impl Preferences {
     pub(super) fn json(&self) -> serde_json::Value {
         serde_json::json!({
             "language": self.language.code(),
-            "theme": self.theme.id(),
+            "theme": self.theme.map(ThemeId::id),
             "default_branch": self.default_branch,
             "auto_fetch_minutes": self.auto_fetch_minutes,
             "auto_fetch_timeout_seconds": self.auto_fetch_timeout_seconds,
@@ -230,11 +229,11 @@ impl Client {
         let Some(draft) = self.preferences.as_mut() else {
             return;
         };
-        if self.saved.preferences.theme == theme {
+        if self.saved.preferences.theme == Some(theme) {
             return;
         }
-        draft.options.theme = theme;
-        self.saved.preferences.theme = theme;
+        draft.options.theme = Some(theme);
+        self.saved.preferences.theme = Some(theme);
         apply_theme(theme, cx);
         self.saved.save();
         cx.notify();
@@ -397,14 +396,19 @@ mod tests {
     #[test]
     fn theme_preference_round_trips_and_handles_legacy_settings() {
         let legacy = serde_json::json!({"initial_commits": 750});
-        assert_eq!(Preferences::read(&legacy).theme, ThemeId::default());
+        let legacy_options = Preferences::read(&legacy);
+        assert_eq!(legacy_options.theme, None);
+        assert!(legacy_options.json()["theme"].is_null());
+
+        let null_theme = serde_json::json!({"theme": null});
+        assert_eq!(Preferences::read(&null_theme).theme, None);
 
         let unknown = serde_json::json!({"theme": "nonexistent"});
-        assert_eq!(Preferences::read(&unknown).theme, ThemeId::default());
+        assert_eq!(Preferences::read(&unknown).theme, None);
 
         for theme in ThemeId::ALL {
             let options = Preferences::read(&serde_json::json!({"theme": theme.id()}));
-            assert_eq!(options.theme, theme);
+            assert_eq!(options.theme, Some(theme));
             assert_eq!(options.json()["theme"], theme.id());
         }
     }

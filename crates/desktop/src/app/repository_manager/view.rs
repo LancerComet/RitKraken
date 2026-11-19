@@ -7,12 +7,12 @@ use ritkraken_git::Repo;
 
 use crate::i18n::tr;
 
-use super::{ICON_SIZE, ManagerMode, OpenRepo, RepoList};
+use super::{ICON_SIZE, ManagerMode, RepoList};
 use crate::app::{
     Client,
     theme::palette,
     widgets::{
-        Tone, button, button_content, error_text, heading, icon,
+        Tone, bento_card, button, button_content, error_text, heading, icon,
         loading::{loading_page, opening_message},
         modal::Modal,
     },
@@ -24,11 +24,10 @@ impl Client {
             return loading_page(opening_message(), cx);
         }
         let p = palette(cx);
-        div()
+        bento_card(p)
             .size_full()
             .flex()
             .justify_center()
-            .bg(rgb(p.surface_dim))
             .text_color(rgb(p.text))
             .child(
                 div()
@@ -78,11 +77,7 @@ impl Client {
                                         true,
                                         cx,
                                         cx.listener(move |this, _, window, cx| {
-                                            this.open_repo(
-                                                OpenRepo::Open(root.clone()),
-                                                window,
-                                                cx,
-                                            );
+                                            this.open_recent_repo(root.clone(), window, cx);
                                         }),
                                     )
                                     .rounded(px(10.))

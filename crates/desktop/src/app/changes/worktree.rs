@@ -4,7 +4,7 @@ use gpui_kit::{
         checkbox::Checkbox,
         input::{Input, Textarea},
         progress::ProgressCircle,
-        resizable::{resizable_panel, v_resizable},
+        resizable::resizable_panel,
     },
     prelude::*,
     *,
@@ -20,10 +20,10 @@ use crate::app::{
     message::branch_label,
     session::ActiveOp,
     theme::palette,
-    widgets::{Tone, button, button_content},
+    widgets::{Tone, bento_v_resizable, button, button_content},
 };
 
-const FILE_SECTION_HEADER_HEIGHT: Pixels = px(39.);
+const FILE_SECTION_HEADER_HEIGHT: Pixels = px(32.);
 const FILE_SECTION_HEADER_PADDING_Y: Pixels = px(5.);
 
 impl Client {
@@ -68,32 +68,44 @@ impl Client {
                 div()
                     .flex()
                     .items_center()
-                    .justify_center()
-                    .gap(px(6.))
-                    .h(px(32.))
+                    .justify_between()
+                    .gap(px(8.))
+                    .h(px(38.))
                     .flex_shrink_0()
-                    .px(px(8.))
+                    .px(px(10.))
                     .border_b_1()
                     .border_color(rgb(p.border))
-                    .child(tr!("app.changes.changed_files", count = change_count(tab)))
                     .child(
                         div()
-                            .px(px(8.))
-                            .py(px(1.))
                             .min_w_0()
-                            .truncate()
-                            .rounded_full()
-                            .bg(rgb(p.info_bg))
-                            .text_color(rgb(p.info_fg))
-                            .text_size(px(11.))
-                            .font_weight(FontWeight::MEDIUM)
-                            .child(branch_label(snapshot)),
-                    ),
+                            .flex()
+                            .items_center()
+                            .gap(px(6.))
+                            .child(
+                                div()
+                                    .flex_shrink_0()
+                                    .font_weight(FontWeight::MEDIUM)
+                                    .child(tr!("app.changes.changed_files", count = change_count(tab))),
+                            )
+                            .child(
+                                div()
+                                    .px(px(8.))
+                                    .py(px(1.))
+                                    .min_w_0()
+                                    .truncate()
+                                    .rounded_full()
+                                    .bg(rgb(p.info_bg))
+                                    .text_color(rgb(p.info_fg))
+                                    .text_size(px(11.))
+                                    .font_weight(FontWeight::MEDIUM)
+                                    .child(branch_label(snapshot)),
+                            ),
+                    )
+                    .child(self.file_mode(tab, cx)),
             )
-            .child(self.file_mode(tab, cx))
             .child(
                 div().flex_1().min_h_0().child(
-                    v_resizable(("worktree-panes", tab.id))
+                    bento_v_resizable(("worktree-panes", tab.id))
                         .with_state(&tab.changes.worktree_panes)
                         .child(
                             resizable_panel()
@@ -114,6 +126,7 @@ impl Client {
     }
 
     fn commit_message_form(&self, tab: &RepoTab, cx: &Context<Self>) -> Div {
+        let p = palette(cx);
         let id = tab.id;
         let amending = tab.changes.amend.is_some();
         let label = if amending {
@@ -140,12 +153,15 @@ impl Client {
             .size_full()
             .flex()
             .flex_col()
-            .gap(px(6.))
-            .p(px(9.))
+            .gap(px(8.))
+            .p(px(10.))
+            .bg(rgb(p.surface_high))
+            .border_t_1()
+            .border_color(rgb(p.border))
             .child(
                 Checkbox::new(("amend-previous-commit", id))
                     .small()
-                    .text_size(px(14.))
+                    .text_size(px(12.))
                     .label(tr!("app.changes.amend_previous"))
                     .checked(amending)
                     .disabled(tab.busy || (!amending && !tab.amend_enabled()))
@@ -160,9 +176,9 @@ impl Client {
                     .flex()
                     .flex_col()
                     .border_1()
-                    .border_color(rgb(palette(cx).border))
-                    .rounded(px(4.))
-                    .bg(rgb(palette(cx).canvas))
+                    .border_color(rgb(p.border))
+                    .rounded(px(8.))
+                    .bg(rgb(p.canvas))
                     .overflow_hidden()
                     .child(summary)
                     .child(
@@ -189,18 +205,18 @@ impl Client {
                                 ProgressCircle::new(("commit-spinner", tab.id))
                                     .loading(true)
                                     .small()
-                                    .color(rgb(palette(cx).success)),
+                                    .color(rgb(p.accent_fg)),
                             )
                         })
                         .child(div().truncate().child(label)),
-                    Tone::Green,
+                    Tone::Primary,
                     tab.commit_enabled(cx),
                     cx,
                     cx.listener(|this, _, window, cx| this.submit(window, cx)),
                 )
-                .rounded(px(3.))
+                .rounded(px(10.))
                 .flex_shrink_0()
-                .h(px(36.)),
+                .h(px(34.)),
             )
     }
 
@@ -244,10 +260,12 @@ impl Client {
                     .flex_shrink_0()
                     .px(px(10.))
                     .py(FILE_SECTION_HEADER_PADDING_Y)
-                    .border_t_1()
+                    .bg(rgb(p.surface_high))
                     .border_b_1()
                     .border_color(rgb(p.border))
-                    .bg(rgb(p.surface_high))
+                    .when(matches!(scope, Scope::Index), |header| {
+                        header.border_t_1().border_color(rgb(p.border))
+                    })
                     .child(
                         div()
                             .flex_1()

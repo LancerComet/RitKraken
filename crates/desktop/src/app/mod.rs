@@ -7,6 +7,7 @@ mod logs;
 mod message;
 mod modals;
 mod notices;
+mod open_menu;
 mod operations;
 mod palette;
 mod paths;
@@ -23,8 +24,8 @@ mod settings;
 mod shell;
 mod shortcuts;
 mod system;
-mod tabs;
 mod theme;
+mod titlebar;
 mod toolbar;
 mod watch;
 mod widgets;
@@ -101,6 +102,7 @@ pub struct Client {
     focus: FocusHandle,
     modal_focus: FocusHandle,
     _activation: Subscription,
+    _appearance: Subscription,
     repo_watch: Option<watch::ActiveWatch>,
     auto_fetch_task: Option<Task<()>>,
 }
@@ -110,7 +112,10 @@ impl Client {
         let saved = SavedRepos::load();
         logs::init(saved.preferences.log_file_size_mb);
         saved.preferences.language.apply();
-        theme::apply_theme(saved.preferences.theme, cx);
+        theme::apply_theme(
+            theme::resolve_theme(saved.preferences.theme, window.appearance()),
+            cx,
+        );
         layout::remember_window(window, cx);
         let focus = cx.focus_handle();
         focus.focus(window, cx);
@@ -119,6 +124,12 @@ impl Client {
                 if let Some(id) = this.session.active {
                     this.refresh_watched_repo(id, window, cx);
                 }
+            }
+        });
+        let appearance = cx.observe_window_appearance(window, |this, window, cx| {
+            if this.saved.preferences.theme.is_none() {
+                theme::apply_theme(theme::resolve_theme(None, window.appearance()), cx);
+                cx.notify();
             }
         });
         let mut app = Self {
@@ -136,6 +147,7 @@ impl Client {
             focus,
             modal_focus: cx.focus_handle(),
             _activation: activation,
+            _appearance: appearance,
             repo_watch: None,
             auto_fetch_task: None,
         };

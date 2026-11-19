@@ -31,8 +31,10 @@ fn main() {
                 window_min_size: Some(app::MIN_WINDOW_SIZE),
                 titlebar: Some(TitlebarOptions {
                     title: Some("RitKraken".into()),
-                    ..Default::default()
+                    appears_transparent: true,
+                    traffic_light_position: Some(point(px(12.), px(10.))),
                 }),
+                app_owns_titlebar_drag: true,
                 app_id: Some("RitKraken".into()),
                 ..Default::default()
             };

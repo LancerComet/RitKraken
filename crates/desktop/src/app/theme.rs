@@ -12,50 +12,50 @@ pub(in crate::app) use palettes::SyntaxColors;
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(in crate::app) enum ThemeId {
     #[default]
-    Nawal,
-    OneDarkPro,
-    Dracula,
-    Nord,
+    ObsidianBento,
+    Md3Expressive,
     Classic,
-    CatppuccinLatte,
+    FluentLight,
 }
 
 impl ThemeId {
-    pub(in crate::app) const ALL: [Self; 6] = [
-        Self::Nawal,
-        Self::OneDarkPro,
-        Self::Dracula,
-        Self::Nord,
+    pub(in crate::app) const ALL: [Self; 4] = [
+        Self::ObsidianBento,
+        Self::Md3Expressive,
         Self::Classic,
-        Self::CatppuccinLatte,
+        Self::FluentLight,
     ];
 
     pub(in crate::app) fn id(self) -> &'static str {
         match self {
-            Self::Nawal => "nawal",
-            Self::OneDarkPro => "one_dark_pro",
-            Self::Dracula => "dracula",
-            Self::Nord => "nord",
             Self::Classic => "classic",
-            Self::CatppuccinLatte => "catppuccin_latte",
+            Self::ObsidianBento => "obsidian_bento",
+            Self::Md3Expressive => "md3_expressive",
+            Self::FluentLight => "fluent_light",
         }
     }
 
-    pub(in crate::app) fn from_id(id: &str) -> Self {
+    pub(in crate::app) fn from_id(id: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|theme| theme.id() == id)
+    }
+
+    pub(in crate::app) fn default_for_appearance(appearance: WindowAppearance) -> Self {
+        let is_dark = matches!(
+            appearance,
+            WindowAppearance::Dark | WindowAppearance::VibrantDark
+        );
         Self::ALL
             .into_iter()
-            .find(|theme| theme.id() == id)
+            .find(|theme| theme.palette().is_dark == is_dark)
             .unwrap_or_default()
     }
 
     pub(in crate::app) fn name(self) -> &'static str {
         match self {
-            Self::Nawal => "Nawal",
-            Self::OneDarkPro => "One Dark Pro",
-            Self::Dracula => "Dracula",
-            Self::Nord => "Nord",
             Self::Classic => "RitKraken Classic",
-            Self::CatppuccinLatte => "Catppuccin Latte",
+            Self::ObsidianBento => "Obsidian Bento",
+            Self::Md3Expressive => "MD3 Expressive",
+            Self::FluentLight => "Fluent Light",
         }
     }
 
@@ -65,12 +65,10 @@ impl ThemeId {
 
     fn spec(self) -> ThemeSpec {
         match self {
-            Self::Nawal => palettes::nawal(),
-            Self::OneDarkPro => palettes::one_dark_pro(),
-            Self::Dracula => palettes::dracula(),
-            Self::Nord => palettes::nord(),
             Self::Classic => palettes::classic(),
-            Self::CatppuccinLatte => palettes::catppuccin_latte(),
+            Self::ObsidianBento => palettes::obsidian_bento(),
+            Self::Md3Expressive => palettes::md3_expressive(),
+            Self::FluentLight => palettes::fluent_light(),
         }
     }
 }
@@ -78,11 +76,11 @@ impl ThemeId {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(in crate::app) struct Palette {
     pub is_dark: bool,
+    pub shell_bg: u32,
     pub canvas: u32,
     pub surface: u32,
     pub surface_dim: u32,
     pub surface_high: u32,
-    pub chrome: u32,
     pub chrome_alt: u32,
     pub chrome_hover: u32,
     pub chrome_border: u32,
@@ -132,6 +130,7 @@ pub(super) struct ThemeSpec {
 
 #[derive(Clone, Copy)]
 struct AppTheme {
+    id: ThemeId,
     palette: Palette,
 }
 
@@ -139,6 +138,18 @@ impl Global for AppTheme {}
 
 pub(in crate::app) fn init(cx: &mut App) {
     apply_theme(ThemeId::default(), cx);
+}
+
+pub(in crate::app) fn resolve_theme(
+    selected: Option<ThemeId>,
+    appearance: WindowAppearance,
+) -> ThemeId {
+    selected.unwrap_or_else(|| ThemeId::default_for_appearance(appearance))
+}
+
+pub(in crate::app) fn active_theme(cx: &App) -> ThemeId {
+    cx.try_global::<AppTheme>()
+        .map_or_else(ThemeId::default, |theme| theme.id)
 }
 
 pub(in crate::app) fn palette(cx: &App) -> Palette {
@@ -149,17 +160,18 @@ pub(in crate::app) fn palette(cx: &App) -> Palette {
 pub(in crate::app) fn apply_theme(id: ThemeId, cx: &mut App) {
     let spec = id.spec();
     cx.set_global(AppTheme {
+        id,
         palette: spec.palette,
     });
     let config = Rc::new(build_theme_config(id, spec));
     Theme::update(cx, |theme| {
         theme.apply_config(&config);
         theme.radius = px(8.);
-        theme.radius_lg = px(16.);
+        theme.radius_lg = px(14.);
         theme.shadow = true;
         theme.notification.max_items = 4;
         theme.notification.width = px(400.);
-        theme.notification.margins.top = px(106.);
+        theme.notification.margins.top = px(102.);
     });
 }
 
@@ -196,14 +208,14 @@ fn build_theme_config(id: ThemeId, spec: ThemeSpec) -> ThemeConfig {
         ("muted.foreground", hex(p.text_muted)),
         ("popover.background", hex(p.surface)),
         ("popover.foreground", hex(p.text)),
-        ("list.background", hex(p.surface)),
+        ("list.background", hex(p.canvas)),
         ("list.even.background", hex(p.surface_dim)),
         ("list.head.background", hex(p.surface_high)),
         ("list.hover.background", hex(p.hover)),
         ("list.active.background", hex_alpha(p.accent, 0x2e)),
         ("list.active.border", hex(p.accent)),
         ("selection.background", hex_alpha(p.accent, 0x45)),
-        ("sidebar.background", hex(p.surface_dim)),
+        ("sidebar.background", hex(p.canvas)),
         ("sidebar.foreground", hex(p.text)),
         ("sidebar.border", hex(p.border)),
         ("sidebar.accent.background", hex(p.accent_soft)),
@@ -317,7 +329,7 @@ fn build_theme_config(id: ThemeId, spec: ThemeSpec) -> ThemeConfig {
         "name": id.name(),
         "mode": mode,
         "radius": 8,
-        "radius.lg": 16,
+        "radius.lg": 14,
         "shadow": true,
         "colors": colors,
         "highlight": highlight,
@@ -327,16 +339,38 @@ fn build_theme_config(id: ThemeId, spec: ThemeSpec) -> ThemeConfig {
 
 #[cfg(test)]
 mod tests {
-    use super::{ThemeId, build_theme_config};
+    use gpui_kit::WindowAppearance;
+
+    use super::{ThemeId, build_theme_config, resolve_theme};
 
     #[test]
     fn all_builtin_themes_produce_valid_configs() {
         for id in ThemeId::ALL {
-            assert_eq!(ThemeId::from_id(id.id()), id);
+            assert_eq!(ThemeId::from_id(id.id()), Some(id));
             let config = build_theme_config(id, id.spec());
             assert_eq!(config.name.as_ref(), id.name());
             assert!(config.highlight.is_some());
         }
-        assert_eq!(ThemeId::from_id("unknown-theme"), ThemeId::default());
+        assert_eq!(ThemeId::from_id("unknown-theme"), None);
+    }
+
+    #[test]
+    fn resolve_theme_follows_system_appearance_until_user_chooses() {
+        for dark in [WindowAppearance::Dark, WindowAppearance::VibrantDark] {
+            assert_eq!(resolve_theme(None, dark), ThemeId::ObsidianBento);
+        }
+        for light in [WindowAppearance::Light, WindowAppearance::VibrantLight] {
+            assert_eq!(resolve_theme(None, light), ThemeId::Classic);
+        }
+        for theme in ThemeId::ALL {
+            for appearance in [
+                WindowAppearance::Dark,
+                WindowAppearance::VibrantDark,
+                WindowAppearance::Light,
+                WindowAppearance::VibrantLight,
+            ] {
+                assert_eq!(resolve_theme(Some(theme), appearance), theme);
+            }
+        }
     }
 }

@@ -27,11 +27,9 @@ impl Client {
         let p = palette(cx);
         let id = tab.id;
         div()
-            .h(px(36.))
             .flex_shrink_0()
             .flex()
             .items_center()
-            .justify_center()
             .child(
                 div()
                     .flex()
@@ -39,7 +37,7 @@ impl Client {
                     .gap(px(2.))
                     .p(px(2.))
                     .rounded_full()
-                    .bg(rgb(p.surface))
+                    .bg(rgb(p.surface_dim))
                     .border_1()
                     .border_color(rgb(p.border))
                     .children(
@@ -156,9 +154,10 @@ impl Client {
                                 "{label}-{id}-{}",
                                 hex::encode(change.path.as_os_str().as_encoded_bytes())
                             )))
+                            .group("file-row")
                             .rounded(px(8.))
                             .cursor_pointer()
-                            .bg(rgb(if active { p.accent_soft } else { p.surface_dim }))
+                            .when(active, |style| style.bg(rgb(p.accent_soft)))
                             .hover(|style| {
                                 style.bg(rgb(if active { p.accent_soft_hover } else { p.hover }))
                             })
@@ -209,7 +208,9 @@ impl Client {
                                     .rounded_full()
                                     .h(px(21.))
                                     .text_size(px(11.))
-                                    .text_color(rgb(action.tone().foreground(p))),
+                                    .text_color(rgb(action.tone().foreground(p)))
+                                    .invisible()
+                                    .group_hover("file-row", |style| style.visible()),
                                 )
                             })
                             .context_menu(move |popup, window, cx| menu.build(popup, window, cx))
@@ -223,7 +224,8 @@ impl Client {
         div()
             .flex_1()
             .min_h_0()
-            .mx(px(8.))
+            .px(px(6.))
+            .py(px(4.))
             .relative()
             .child(list)
             .vertical_scrollbar(scroll)

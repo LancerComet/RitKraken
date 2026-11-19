@@ -27,10 +27,11 @@ impl Client {
                 .justify_center()
                 .px(px(16.))
                 .py(px(8.))
+                .rounded(px(14.))
+                .border_1()
+                .border_color(rgb(p.chrome_border))
                 .bg(rgb(p.chrome_alt))
                 .text_color(rgb(p.chrome_text))
-                .border_b_1()
-                .border_color(rgb(p.border))
                 .child(
                     div()
                         .min_w_0()

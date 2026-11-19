@@ -1,5 +1,5 @@
 use gpui_kit::component::{
-    Disableable,
+    Disableable, Selectable as _,
     button::{Button, ButtonCustomVariant, ButtonVariants},
     menu::{DropdownMenu, PopupMenuItem},
     progress::ProgressCircle,
@@ -11,7 +11,7 @@ use ritkraken_git as git;
 use crate::i18n::tr;
 
 use super::{
-    Client, OpenPalette, RepoOperation, RepoTab, SearchCommits,
+    Client, OpenPalette, OpenPreferences, RepoOperation, RepoTab, SearchCommits,
     palette::{Command, CommandContext},
     session::ActiveOp,
     theme::palette,
@@ -55,8 +55,16 @@ impl Client {
                 )
                 .on_click(cx.listener(|this, _, window, cx| this.open_recovery(window, cx))),
             )
-            .children(self.pull_controls(tab, remote_available, cx))
+            .child(toolbar_divider(cx))
+            .child(
+                div()
+                    .flex()
+                    .items_center()
+                    .gap(px(0.))
+                    .children(self.pull_controls(tab, remote_available, cx)),
+            )
             .child(self.push_button(tab, remote_available, cx))
+            .child(toolbar_divider(cx))
             .child(
                 toolbar_tile(
                     "branch",
@@ -135,6 +143,20 @@ impl Client {
                 )
                 .tooltip_with_action(tr!("app.palette.title"), &OpenPalette, Some("RitKraken"))
                 .on_click(cx.listener(|this, _, window, cx| this.open_palette(window, cx))),
+            )
+            .child(
+                toolbar_tile(
+                    "preferences",
+                    "app.preferences.short_title",
+                    "icons/settings.svg",
+                    "app.preferences.title",
+                    !self.session.opening,
+                    false,
+                    cx,
+                )
+                .selected(self.preferences.is_some())
+                .tooltip_with_action(tr!("app.preferences.title"), &OpenPreferences, Some("RitKraken"))
+                .on_click(cx.listener(|this, _, window, cx| this.open_preferences(window, cx))),
             )
     }
 
@@ -253,6 +275,15 @@ pub(super) fn toolbar_button(
         .when(!enabled && !spinning, |button| button.opacity(0.45))
 }
 
+fn toolbar_divider(cx: &App) -> Div {
+    let p = palette(cx);
+    div()
+        .w(px(1.))
+        .h(px(22.))
+        .mx(px(3.))
+        .bg(rgb(p.chrome_border))
+}
+
 pub(super) fn toolbar_tile(
     id: &'static str,
     label_key: &'static str,
@@ -264,29 +295,18 @@ pub(super) fn toolbar_tile(
 ) -> Button {
     let p = palette(cx);
     toolbar_button(id, hint_key, enabled, spinning, cx)
-        .min_w(px(54.))
-        .px(px(4.))
+        .min_w(px(52.))
+        .px(px(6.))
         .child(
             div()
                 .flex()
                 .flex_col()
                 .items_center()
                 .justify_center()
-                .gap(px(4.))
-                .child(
-                    div()
-                        .text_size(px(11.))
-                        .line_height(px(12.))
-                        .text_color(rgb(if spinning {
-                            p.chrome_text
-                        } else {
-                            p.chrome_muted
-                        }))
-                        .child(tr!(label_key)),
-                )
+                .gap(px(3.))
                 .child(if spinning {
                     div()
-                        .size(px(17.))
+                        .size(px(16.))
                         .flex()
                         .items_center()
                         .justify_center()
@@ -299,7 +319,18 @@ pub(super) fn toolbar_tile(
                         )
                         .into_any_element()
                 } else {
-                    icon(glyph, p.chrome_text).size(px(17.)).into_any_element()
-                }),
+                    icon(glyph, p.chrome_text)
+                        .size(px(16.))
+                        .into_any_element()
+                })
+                .child(
+                    div()
+                        .text_size(px(11.))
+                        .line_height(px(12.))
+                        .font_weight(FontWeight::MEDIUM)
+                        .text_color(rgb(p.chrome_text))
+                        .when(!spinning, |label| label.opacity(0.86))
+                        .child(tr!(label_key)),
+                ),
         )
 }

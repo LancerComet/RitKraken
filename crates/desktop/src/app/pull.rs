@@ -117,7 +117,7 @@ impl Client {
             false,
             cx,
         )
-        .w(px(20.))
+        .w(px(16.))
         .rounded(px(8.))
         .child(icon("icons/chevron-down.svg", p.chrome_text).size(px(11.)))
         .dropdown_menu(move |menu, _, cx| {

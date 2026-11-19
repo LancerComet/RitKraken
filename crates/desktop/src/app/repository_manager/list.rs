@@ -23,7 +23,7 @@ use crate::{
     i18n::tr,
 };
 
-use super::{ICON_SIZE, OpenRepo, RepoList};
+use super::{ICON_SIZE, RepoList, remove_recent_button};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) enum NameOrder {
@@ -75,6 +75,7 @@ impl Client {
             RepoList::Favorites => (tr!("app.repositories.favorites"), &self.saved.favorites),
             RepoList::Project(path) => (Repo::name_from_path(path), &self.manager.projects),
         };
+        let is_recent = matches!(self.manager.list, RepoList::Recent);
         let project = matches!(self.manager.list, RepoList::Project(_));
         let order = self
             .manager
@@ -136,7 +137,7 @@ impl Client {
                         .children(
                             repository_rows(repositories, &filter, order)
                                 .into_iter()
-                                .map(|row| self.repository_row(row, p, cx)),
+                                .map(|row| self.repository_row(row, is_recent, p, cx)),
                         )
                         .overflow_y_scrollbar(),
                 ),
@@ -173,6 +174,7 @@ impl Client {
     fn repository_row(
         &self,
         row: RepositoryRow<'_>,
+        is_recent: bool,
         p: Palette,
         cx: &Context<Self>,
     ) -> Stateful<Div> {
@@ -194,7 +196,7 @@ impl Client {
             .cursor_pointer()
             .hover(|s| s.bg(rgb(p.hover)))
             .on_click(cx.listener(move |this, _, window, cx| {
-                this.open_repo(OpenRepo::Open(root.clone()), window, cx);
+                this.open_recent_repo(root.clone(), window, cx);
             }))
             .child(
                 div()
@@ -229,6 +231,22 @@ impl Client {
                 .rounded_full()
                 .text_size(ICON_SIZE),
             )
+            .when(is_recent, |row| {
+                let remove_path = path.clone();
+                let remove_group: SharedString = format!("manager-remove-recent-{index}").into();
+                row.child(
+                    remove_recent_button(
+                        ("manager-remove-recent", index),
+                        remove_group,
+                        p,
+                        cx.listener(move |this, _, window, cx| {
+                            this.remove_recent_repo(&remove_path, window, cx);
+                        }),
+                    )
+                    .size(px(28.))
+                    .rounded_full(),
+                )
+            })
     }
 }
 

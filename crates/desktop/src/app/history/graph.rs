@@ -9,7 +9,7 @@ use crate::app::{
     widgets::icon,
 };
 
-pub(super) const ROW_HEIGHT: Pixels = px(28.);
+pub(super) const ROW_HEIGHT: Pixels = px(32.);
 pub(super) const BAND_HEIGHT: Pixels = px(22.);
 pub(super) const CONNECTOR_OPACITY: f32 = 0.38;
 // One 22 px commit node with 4 px of space on each side.

@@ -1,7 +1,7 @@
 use gpui_kit::{
     component::{
         Sizable,
-        resizable::{resizable_panel, v_resizable},
+        resizable::resizable_panel,
         scroll::ScrollableElement,
         tooltip::Tooltip,
     },
@@ -17,7 +17,7 @@ use crate::app::{
     Client, Load, RepoTab,
     layout::remembered_size,
     theme::palette,
-    widgets::{Tone, button, error_text, note},
+    widgets::{Tone, bento_subcard, bento_v_resizable, button, error_text, note},
 };
 
 impl Client {
@@ -65,12 +65,8 @@ impl Client {
                     crate::app::history::rebase::planned_message_pane(tab, session, meta, cx)
                 } else {
                     div().size_full().p(px(8.)).child(
-                        div()
+                        bento_subcard(p)
                             .size_full()
-                            .rounded(px(12.))
-                            .border_1()
-                            .border_color(rgb(p.border))
-                            .bg(rgb(p.surface))
                             .child(
                                 div()
                                     .p(px(12.))
@@ -100,12 +96,13 @@ impl Client {
                         div()
                             .flex()
                             .items_center()
+                            .pl(px(8.))
                             .pr(px(8.))
                             .h(px(36.))
                             .flex_shrink_0()
                             .border_b_1()
                             .border_color(rgb(p.border))
-                            .child(self.file_mode(tab, cx).flex_1())
+                            .child(div().flex_1().child(self.file_mode(tab, cx)))
                             .child(
                                 div().flex_shrink_0().child(
                                     gpui_kit::component::checkbox::Checkbox::new(("all-files", id))
@@ -126,7 +123,7 @@ impl Client {
                     .flex_1()
                     .min_h_0()
                     .child(
-                        v_resizable(super::MESSAGE_PANES)
+                        bento_v_resizable(super::MESSAGE_PANES)
                             .with_state(&tab.changes.message_panes)
                             .child(
                                 resizable_panel()

@@ -1,6 +1,6 @@
 use gpui_kit::{
     base::ResizableState,
-    component::resizable::{h_resizable, resizable_panel},
+    component::resizable::resizable_panel,
     prelude::*,
     *,
 };
@@ -9,6 +9,7 @@ use crate::{
     app::{
         layout::{remembered_panes, remembered_size},
         theme::palette,
+        widgets::table_h_resizable,
     },
     i18n::tr,
 };
@@ -147,13 +148,13 @@ impl RenderOnce for Header {
             .w_full()
             .h(HEADER_HEIGHT)
             .flex_shrink_0()
-            .bg(rgb(p.surface_high))
-            .text_size(px(12.))
-            .text_color(rgb(p.text_muted))
+            .bg(rgb(p.canvas))
+            .text_size(px(11.))
+            .text_color(rgb(p.text_subtle))
             .font_weight(FontWeight::MEDIUM)
             .border_b_1()
             .border_color(rgb(p.border))
-            .child(h_resizable(self.id).with_state(&self.state).children(
+            .child(table_h_resizable(self.id).with_state(&self.state).children(
                 self.columns.iter().enumerate().map(|(index, column)| {
                     resizable_panel()
                         .size_range(column.minimum..Pixels::MAX)

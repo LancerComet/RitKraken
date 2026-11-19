@@ -53,6 +53,12 @@ impl SavedRepos {
         self.recent.insert(0, root.to_owned());
         self.recent.truncate(25);
     }
+
+    pub(super) fn remove_recent(&mut self, root: &Path) -> bool {
+        let len = self.recent.len();
+        self.recent.retain(|path| path != root);
+        self.recent.len() != len
+    }
 }
 
 /// Preferences, in the configuration directory.

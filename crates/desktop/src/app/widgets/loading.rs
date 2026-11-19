@@ -2,7 +2,7 @@ use std::sync::{Arc, OnceLock};
 
 use gpui_kit::{prelude::*, *};
 
-use super::super::theme::palette;
+use super::{super::theme::palette, bento_card};
 use crate::i18n::tr;
 
 // The executable icon and loading page share the original colour SVG.
@@ -29,12 +29,11 @@ pub(in crate::app) fn app_logo(cx: &App) -> Arc<RenderImage> {
 pub(in crate::app) fn loading_page(content: impl IntoElement, cx: &App) -> Div {
     let p = palette(cx);
     let logo = app_logo(cx);
-    div()
+    bento_card(p)
         .size_full()
         .flex()
         .items_center()
         .justify_center()
-        .bg(rgb(p.surface_dim))
         .text_color(rgb(p.text))
         .child(
             div()

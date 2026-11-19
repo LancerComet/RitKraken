@@ -25,6 +25,7 @@ use crate::app::{
     changes::SummaryStyle,
     theme::{Palette, palette},
     widgets::{
+        bento_card,
         menu::ContextMenuExt as _,
         table::{Column, ColumnWidths, HEADER_HEIGHT},
     },
@@ -363,7 +364,7 @@ impl Client {
                     .vertical_scrollbar(&tab.history.scroll),
             )
             .horizontal_scrollbar(&tab.history.horizontal_scroll);
-        div()
+        bento_card(p)
             .id(("graph-view", id))
             .key_context(crate::app::shortcuts::graph_context(
                 rebase_mode == Some(RebaseViewMode::TreeEdit),
@@ -404,7 +405,6 @@ impl Client {
             .size_full()
             .flex()
             .flex_col()
-            .bg(rgb(p.canvas))
             .text_color(rgb(p.text))
             .when_some(banner, |element, bar| element.child(bar))
             .child(body)
@@ -546,7 +546,7 @@ fn wip_message(history: &History, p: Palette) -> Div {
 }
 
 fn message_column(column: Div) -> Div {
-    column.pl(px(7.)).truncate()
+    column.pl(px(8.)).pr(px(10.)).truncate()
 }
 
 fn metadata(text: String, p: Palette) -> Div {

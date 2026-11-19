@@ -15,7 +15,7 @@ use gpui_kit::{
 use super::{PreferenceDraft, PreferencePage, Preferences, git::git_preferences};
 use crate::app::{
     Client,
-    theme::{Palette, ThemeId, palette},
+    theme::{Palette, ThemeId, active_theme, palette},
     widgets::{Tone, button_content, error_text, icon, loading::app_logo, modal::Modal},
 };
 
@@ -251,7 +251,7 @@ impl Client {
         p: Palette,
         cx: &mut Context<Self>,
     ) -> Div {
-        let selected = draft.options.theme;
+        let selected = draft.options.theme.unwrap_or_else(|| active_theme(cx));
         let cards = ThemeId::ALL.chunks(2).map(|pair| {
             div()
                 .w_full()
@@ -416,43 +416,73 @@ fn theme_card(theme: ThemeId, active: bool, p: Palette, cx: &mut Context<Client>
         .child(
             div()
                 .w_full()
-                .h(px(44.))
+                .h(px(48.))
                 .rounded(px(10.))
                 .overflow_hidden()
                 .border_1()
                 .border_color(rgb(swatch.border))
-                .bg(rgb(swatch.canvas))
+                .bg(rgb(swatch.shell_bg))
+                .p(px(4.))
                 .flex()
                 .flex_col()
+                .gap(px(3.))
                 .child(
                     div()
-                        .h(px(12.))
+                        .h(px(9.))
                         .w_full()
-                        .bg(rgb(swatch.chrome))
-                        .px(px(6.))
+                        .rounded(px(4.))
+                        .bg(rgb(swatch.chrome_alt))
+                        .px(px(5.))
                         .flex()
                         .items_center()
-                        .gap(px(4.))
-                        .child(div().size(px(5.)).rounded_full().bg(rgb(swatch.danger)))
-                        .child(div().size(px(5.)).rounded_full().bg(rgb(swatch.warning)))
-                        .child(div().size(px(5.)).rounded_full().bg(rgb(swatch.success))),
+                        .justify_between()
+                        .child(
+                            div()
+                                .flex()
+                                .items_center()
+                                .gap(px(3.))
+                                .child(div().size(px(4.)).rounded_full().bg(rgb(swatch.accent)))
+                                .child(
+                                    div()
+                                        .h(px(3.))
+                                        .w(px(18.))
+                                        .rounded_full()
+                                        .bg(rgb(swatch.chrome_muted)),
+                                ),
+                        )
+                        .child(
+                            div()
+                                .flex()
+                                .items_center()
+                                .gap(px(3.))
+                                .child(div().size(px(4.)).rounded_full().bg(rgb(swatch.danger)))
+                                .child(div().size(px(4.)).rounded_full().bg(rgb(swatch.warning)))
+                                .child(div().size(px(4.)).rounded_full().bg(rgb(swatch.success))),
+                        ),
                 )
                 .child(
                     div()
                         .flex_1()
                         .flex()
+                        .gap(px(3.))
                         .child(
                             div()
-                                .w(px(30.))
+                                .w(px(26.))
                                 .h_full()
-                                .bg(rgb(swatch.surface_dim))
-                                .border_r_1()
+                                .rounded(px(4.))
+                                .bg(rgb(swatch.canvas))
+                                .border_1()
                                 .border_color(rgb(swatch.border)),
                         )
                         .child(
                             div()
                                 .flex_1()
-                                .p(px(5.))
+                                .h_full()
+                                .rounded(px(4.))
+                                .bg(rgb(swatch.canvas))
+                                .border_1()
+                                .border_color(rgb(swatch.border))
+                                .p(px(4.))
                                 .flex()
                                 .flex_col()
                                 .justify_between()
@@ -463,26 +493,35 @@ fn theme_card(theme: ThemeId, active: bool, p: Palette, cx: &mut Context<Client>
                                         .gap(px(4.))
                                         .child(
                                             div()
-                                                .h(px(5.))
-                                                .w(px(28.))
+                                                .h(px(4.))
+                                                .w(px(24.))
                                                 .rounded_full()
                                                 .bg(rgb(swatch.accent)),
                                         )
                                         .child(
                                             div()
-                                                .h(px(5.))
-                                                .w(px(18.))
+                                                .h(px(4.))
+                                                .w(px(16.))
                                                 .rounded_full()
                                                 .bg(rgb(swatch.renamed)),
                                         ),
                                 )
                                 .child(
                                     div()
-                                        .h(px(4.))
-                                        .w(px(44.))
+                                        .h(px(3.5))
+                                        .w(px(36.))
                                         .rounded_full()
                                         .bg(rgb(swatch.text_subtle)),
                                 ),
+                        )
+                        .child(
+                            div()
+                                .w(px(32.))
+                                .h_full()
+                                .rounded(px(4.))
+                                .bg(rgb(swatch.canvas))
+                                .border_1()
+                                .border_color(rgb(swatch.border)),
                         ),
                 ),
         )

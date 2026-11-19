@@ -9,7 +9,7 @@ use crate::app::{
     Client, Load, RepoOperation, RepoTab,
     changes::{StageAction, StageTarget, change_mark},
     theme::{Palette, palette},
-    widgets::{Tone, button, error_text, icon, note},
+    widgets::{Tone, bento_card, button, error_text, icon, note},
 };
 
 impl DiffLayout {
@@ -116,7 +116,7 @@ impl Client {
             .filter(|kind| *kind != ritkraken_git::SequenceKind::Other)
             .map(|kind| crate::app::history::rebase::sequence_control_bar(tab, kind, cx));
         if let Some(conflict) = &review.conflict {
-            return div()
+            return bento_card(p)
                 .size_full()
                 .flex()
                 .flex_col()
@@ -161,24 +161,23 @@ impl Client {
             }
         };
 
-        div()
+        bento_card(p)
             .size_full()
             .flex()
             .flex_col()
             .children(sequence)
-            .bg(rgb(p.canvas))
             .text_color(rgb(p.text))
             .child(
                 div()
                     .flex()
                     .items_center()
-                    .h(px(36.))
+                    .h(px(38.))
                     .flex_shrink_0()
                     .px(px(10.))
                     .gap(px(8.))
                     .border_b_1()
                     .border_color(rgb(p.border))
-                    .bg(rgb(p.surface_dim))
+                    .bg(rgb(p.surface_high))
                     .child(div().text_color(rgb(mark.color)).child(mark.glyph))
                     .child(
                         div()
@@ -228,13 +227,13 @@ impl Client {
                 div()
                     .flex()
                     .items_center()
-                    .h(px(42.))
+                    .h(px(40.))
                     .flex_shrink_0()
                     .gap(px(8.))
                     .px(px(10.))
                     .border_b_1()
                     .border_color(rgb(p.border))
-                    .bg(rgb(p.surface))
+                    .bg(rgb(p.canvas))
                     .child(
                         div().flex_1().min_w_0().child(
                             div()

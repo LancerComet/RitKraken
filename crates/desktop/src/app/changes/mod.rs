@@ -19,7 +19,8 @@ use ritkraken_git::{Change, CommitDetail, Scope};
 use crate::i18n::{LocalizedInput, tr};
 
 use super::{
-    Client, Load, RepoOperation, RepoTab, layout::remembered_panes, theme::palette, widgets::Tone,
+    Client, Load, RepoOperation, RepoTab, layout::remembered_panes, theme::palette,
+    widgets::{Tone, bento_card},
 };
 
 /// Layout keys for the working-copy file list / commit form split and the
@@ -276,13 +277,10 @@ impl Client {
         } else {
             self.commit_panel(tab, window, cx)
         };
-        div()
+        bento_card(p)
             .size_full()
             .flex()
             .flex_col()
-            .border_l_1()
-            .border_color(rgb(p.border))
-            .bg(rgb(p.surface_dim))
             .text_color(rgb(p.text))
             .child(panel)
     }

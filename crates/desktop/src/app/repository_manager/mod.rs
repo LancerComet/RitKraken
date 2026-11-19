@@ -1,15 +1,23 @@
 mod list;
 mod view;
 
-use std::{fs, path::PathBuf, sync::Arc};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
-use gpui_kit::*;
+use gpui_kit::component::tooltip::Tooltip;
+use gpui_kit::{prelude::*, *};
 use ritkraken_git::{self as git, Repo};
 
-use crate::i18n::LocalizedInput;
+use crate::i18n::{LocalizedInput, tr};
 
 use self::list::NameOrder;
-use super::{Client, Message, history::History, system::choose_directory};
+use super::{
+    Client, Message, history::History, session::Tab, system::choose_directory, theme::Palette,
+    widgets::icon,
+};
 
 const ICON_SIZE: Pixels = px(12. * 1.2);
 
@@ -253,4 +261,81 @@ impl Client {
         );
         cx.notify();
     }
+
+    pub(in crate::app) fn open_recent_repo(
+        &mut self,
+        path: PathBuf,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if self.session.opening {
+            return;
+        }
+        if let Some(id) = self
+            .session
+            .tabs
+            .iter()
+            .find(|tab| tab.root() == path.as_path())
+            .map(Tab::id)
+        {
+            self.saved.remember(&path);
+            self.show_tab(id, window, cx);
+            return;
+        }
+        self.open_repo(OpenRepo::Open(path), window, cx);
+    }
+
+    pub(in crate::app) fn remove_recent_repo(
+        &mut self,
+        path: &Path,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let removed = self.saved.remove_recent(path);
+        let close_id = self
+            .session
+            .tabs
+            .iter()
+            .find(|tab| {
+                tab.root() == path && self.session.active != Some(tab.id()) && tab.can_close()
+            })
+            .map(Tab::id);
+        if let Some(id) = close_id {
+            self.close_tab(id, window, cx);
+        } else if removed {
+            self.saved.save();
+            cx.notify();
+        }
+    }
+}
+
+pub(in crate::app) fn remove_recent_button(
+    id: impl Into<ElementId>,
+    group: SharedString,
+    p: Palette,
+    on_remove: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
+) -> Stateful<Div> {
+    let label: SharedString = tr!("app.repositories.remove_recent").into();
+    div()
+        .id(id)
+        .group(group.clone())
+        .size(px(24.))
+        .flex_shrink_0()
+        .rounded(px(6.))
+        .flex()
+        .items_center()
+        .justify_center()
+        .cursor_pointer()
+        .hover(move |s| s.bg(rgb(p.danger_bg)))
+        .tooltip(move |window, cx| Tooltip::new(label.clone()).build(window, cx))
+        .child(
+            icon("icons/x.svg", p.text_subtle)
+                .size(px(12.))
+                .group_hover(group, move |s| s.text_color(rgb(p.danger))),
+        )
+        .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+        .on_click(move |event, window, cx| {
+            cx.stop_propagation();
+            on_remove(event, window, cx);
+        })
 }

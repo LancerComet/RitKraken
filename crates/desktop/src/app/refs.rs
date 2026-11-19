@@ -21,7 +21,7 @@ use crate::i18n::{LocalizedInput, tr};
 use super::{
     Client, RepoTab,
     theme::{Palette, palette},
-    widgets::{Tone, button, heading, icon},
+    widgets::{Tone, bento_card, button, heading, icon},
 };
 
 const REF_GROUPS: [(RefKind, &str, &str); 3] = [
@@ -89,8 +89,8 @@ impl Client {
     pub(super) fn branch_rail(&self, tab: &RepoTab, cx: &mut Context<Self>) -> Div {
         let p = palette(cx);
         let id = tab.id;
-        div()
-            .w(px(38.))
+        bento_card(p)
+            .w(px(42.))
             .flex_shrink_0()
             .h_full()
             .flex()
@@ -98,9 +98,6 @@ impl Client {
             .items_center()
             .gap(px(4.))
             .py(px(6.))
-            .border_r_1()
-            .border_color(rgb(p.border))
-            .bg(rgb(p.surface_dim))
             .child(
                 button(
                     "expand-sidebar",
@@ -154,13 +151,10 @@ impl Client {
             .iter()
             .filter(|reference| matches_ref_filter(reference, &filter))
             .count();
-        div()
+        bento_card(p)
             .size_full()
             .flex()
             .flex_col()
-            .bg(rgb(p.surface_dim))
-            .border_r_1()
-            .border_color(rgb(p.border))
             .child(
                 div()
                     .flex()
@@ -253,18 +247,21 @@ impl Client {
             .collect();
         let open = !tab.refs.closed_groups.contains(&kind);
         let tab_id = tab.id;
-        let mut group = div().flex().flex_col().pb(px(6.)).child(
-            div()
-                .id(title)
-                .group("ref-group-heading")
-                .h(px(28.))
-                .px(px(9.))
-                .flex()
-                .items_center()
-                .justify_between()
-                .border_t_1()
-                .border_color(rgb(p.border))
-                .hover(|s| s.bg(rgb(p.hover)))
+        let mut group = div()
+            .flex()
+            .flex_col()
+            .pb(px(4.))
+            .when(kind != RefKind::Local, |group| group.pt(px(6.)))
+            .child(
+                div()
+                    .id(title)
+                    .group("ref-group-heading")
+                    .h(px(28.))
+                    .px(px(9.))
+                    .flex()
+                    .items_center()
+                    .justify_between()
+                    .hover(|s| s.bg(rgb(p.hover)))
                 .cursor_pointer()
                 .on_click(cx.listener(move |this, _, _, cx| {
                     if let Some(tab) = this.tab_mut(tab_id) {
@@ -294,7 +291,7 @@ impl Client {
                                 .px(px(7.))
                                 .py(px(1.))
                                 .rounded_full()
-                                .bg(rgb(p.surface_high))
+                                .bg(rgb(p.surface_dim))
                                 .text_size(px(10.5))
                                 .font_weight(FontWeight::MEDIUM)
                                 .text_color(rgb(p.accent))
@@ -379,8 +376,8 @@ impl Client {
                     "{title}/ref/{}",
                     reference.name
                 )))
-                .h(px(25.))
-                .mx(px(6.))
+                .h(px(27.))
+                .mx(px(8.))
                 .pr(px(8.))
                 .pl(px(6.))
                 .rounded(px(8.))
@@ -508,8 +505,8 @@ fn ref_folder(
         .flex()
         .items_center()
         .gap(px(6.))
-        .h(px(24.))
-        .mx(px(6.))
+        .h(px(26.))
+        .mx(px(8.))
         .rounded(px(8.))
         .pl(px(6. + 13. * depth as f32))
         .pr(px(6.))
