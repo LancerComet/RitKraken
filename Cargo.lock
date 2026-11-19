@@ -5627,7 +5627,7 @@ dependencies = [
 
 [[package]]
 name = "ritkraken"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -5655,7 +5655,7 @@ dependencies = [
 
 [[package]]
 name = "ritkraken-diff"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "gpui-base",
  "gpui-component",
@@ -5674,7 +5674,7 @@ dependencies = [
 
 [[package]]
 name = "ritkraken-git"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "chrono",
  "libc",
