@@ -1,7 +1,10 @@
 use gpui_kit::{prelude::*, *};
 
-use super::{Client, RepoOperation, RepoTab, theme::palette, toolbar::toolbar_button};
-use crate::i18n::tr;
+use super::{Client, RepoOperation, RepoTab, theme::palette};
+use crate::{
+    app::widgets::{Tone, button},
+    i18n::tr,
+};
 
 impl Client {
     pub(super) fn push_warning(&self, tab: &RepoTab, cx: &mut Context<Self>) -> Option<Div> {
@@ -51,67 +54,55 @@ impl Client {
                                 .items_center()
                                 .gap(px(8.))
                                 .child(
-                                    toolbar_button(
-                                        "pull-rejected-push",
-                                        "app.push.pull",
+                                    button(
+                                        ("pull-rejected-push", id),
+                                        tr!("app.push.pull"),
+                                        Tone::Green,
                                         enabled,
-                                        false,
                                         cx,
-                                    )
-                                    .h(px(26.))
-                                    .px(px(10.))
-                                    .rounded(px(5.))
-                                    .border_1()
-                                    .border_color(rgb(p.chrome_border))
-                                    .child(tr!("app.push.pull"))
-                                    .on_click(cx.listener(
-                                        move |this, _, window, cx| {
+                                        cx.listener(move |this, _, window, cx| {
                                             this.resolve_rejected_push(id, false, window, cx);
-                                        },
-                                    )),
+                                        }),
+                                    )
+                                    .rounded_full()
+                                    .h(px(26.))
+                                    .px(px(12.))
+                                    .text_size(px(11.5)),
                                 )
                                 .child(
-                                    toolbar_button(
-                                        "force-rejected-push",
-                                        "app.push.force",
+                                    button(
+                                        ("force-rejected-push", id),
+                                        tr!("app.push.force"),
+                                        Tone::Red,
                                         enabled,
-                                        false,
                                         cx,
-                                    )
-                                    .h(px(26.))
-                                    .px(px(10.))
-                                    .rounded(px(5.))
-                                    .border_1()
-                                    .border_color(rgb(p.chrome_muted))
-                                    .child(tr!("app.push.force"))
-                                    .on_click(cx.listener(
-                                        move |this, _, window, cx| {
+                                        cx.listener(move |this, _, window, cx| {
                                             this.resolve_rejected_push(id, true, window, cx);
-                                        },
-                                    )),
+                                        }),
+                                    )
+                                    .rounded_full()
+                                    .h(px(26.))
+                                    .px(px(12.))
+                                    .text_size(px(11.5)),
                                 )
                                 .child(
-                                    toolbar_button(
-                                        "cancel-rejected-push",
-                                        "app.common.cancel",
+                                    button(
+                                        ("cancel-rejected-push", id),
+                                        tr!("app.common.cancel"),
+                                        Tone::Outline,
                                         true,
-                                        false,
                                         cx,
-                                    )
-                                    .h(px(26.))
-                                    .px(px(10.))
-                                    .rounded(px(5.))
-                                    .border_1()
-                                    .border_color(rgb(p.chrome_border))
-                                    .child(tr!("app.common.cancel"))
-                                    .on_click(cx.listener(
-                                        move |this, _, _, cx| {
+                                        cx.listener(move |this, _, _, cx| {
                                             if let Some(tab) = this.tab_mut(id) {
                                                 tab.push_rejection = None;
                                             }
                                             cx.notify();
-                                        },
-                                    )),
+                                        }),
+                                    )
+                                    .rounded_full()
+                                    .h(px(26.))
+                                    .px(px(12.))
+                                    .text_size(px(11.5)),
                                 ),
                         ),
                 ),
