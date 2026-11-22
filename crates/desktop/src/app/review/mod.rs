@@ -1,4 +1,5 @@
 mod conflicts;
+mod image;
 mod loading;
 mod refresh;
 mod staging;
@@ -51,6 +52,31 @@ impl DiffLayout {
     }
 }
 
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub(super) enum ImageDiffMode {
+    #[default]
+    SideBySide,
+    Swipe,
+}
+
+impl ImageDiffMode {
+    pub(super) const ALL: [Self; 2] = [Self::SideBySide, Self::Swipe];
+
+    pub(super) fn id(self) -> &'static str {
+        match self {
+            Self::SideBySide => "Side by side",
+            Self::Swipe => "Swipe",
+        }
+    }
+
+    pub(super) fn label_key(self) -> &'static str {
+        match self {
+            Self::SideBySide => "app.review.image_side_by_side",
+            Self::Swipe => "app.review.image_swipe",
+        }
+    }
+}
+
 pub(super) struct FileReview {
     conflict: Option<Entity<conflicts::ConflictReview>>,
     pub(super) file: FileTarget,
@@ -60,6 +86,8 @@ pub(super) struct FileReview {
     pub(super) compact_context: bool,
     pub(super) source: Option<Load<Entity<DiffState>>>,
     source_text: Option<Arc<str>>,
+    pub(super) image: Option<Load<Arc<image::ImageDiff>>>,
+    pub(super) swipe_split: f32,
     pub(super) show_source: bool,
     pub(super) collapsed_sidebar: bool,
 }
@@ -216,6 +244,7 @@ impl Client {
             .and_then(|diff| diff.viewer.clone());
         let show_source = file.change.code == b' ' || previous.is_some_and(|diff| diff.show_source);
         let collapsed_sidebar = previous.map_or(collapse_default, |diff| diff.collapsed_sidebar);
+        let image_file = image::is_image_file(&file);
         let request = tab.review.set_active(Some(FileReview {
             conflict: None,
             file,
@@ -225,6 +254,8 @@ impl Client {
             compact_context: false,
             source: None,
             source_text: None,
+            image: None,
+            swipe_split: 0.5,
             show_source,
             collapsed_sidebar,
         }));
@@ -244,6 +275,9 @@ impl Client {
                 cx.notify();
             },
         );
+        if image_file {
+            self.load_review_image(id, window, cx);
+        }
         if show_source {
             self.show_source(id, true, window, cx);
         }
@@ -263,10 +297,35 @@ impl Client {
         };
         diff.show_source = show;
         cx.notify();
-        if !show || diff.source.is_some() {
+        if !show || diff.source.is_some() || image::is_image_file(&diff.file) {
             return;
         }
         self.load_review_source(id, window, cx);
+    }
+
+    fn load_review_image(&mut self, id: u64, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(tab) = self.tab_mut(id) else { return };
+        let Some(diff) = tab.review.active.as_mut() else {
+            return;
+        };
+        if diff.image.is_none() {
+            diff.image = Some(Load::Pending);
+        }
+        let request = tab.review.request;
+        let target = diff.file.clone();
+        let repo = tab.repo.clone();
+        Self::spawn_background(
+            window,
+            cx,
+            move || image::load_image_diff(&repo, &target),
+            move |this, result, _, cx| {
+                let Some((diff, _)) = this.review_for_request(id, request) else {
+                    return;
+                };
+                diff.image = Some(result.into());
+                cx.notify();
+            },
+        );
     }
 
     fn load_review_source(&mut self, id: u64, window: &mut Window, cx: &mut Context<Self>) {
@@ -358,6 +417,7 @@ pub(super) struct ReviewState {
     request: u64,
     refresh_request: u64,
     pub(super) layout: DiffLayout,
+    pub(super) image_mode: ImageDiffMode,
     pub(super) wrap_lines: bool,
     ignore_edge_whitespace: bool,
 }
@@ -369,6 +429,7 @@ impl ReviewState {
             request: 0,
             refresh_request: 0,
             layout: options.diff_layout,
+            image_mode: ImageDiffMode::default(),
             wrap_lines: options.wrap_lines,
             ignore_edge_whitespace: false,
         }

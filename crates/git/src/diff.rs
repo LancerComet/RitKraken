@@ -1,6 +1,7 @@
 mod export;
 mod hunk;
 mod staging;
+mod versions;
 mod whitespace;
 
 use std::{
@@ -18,6 +19,7 @@ use crate::{
 };
 pub use export::ExportedFile;
 pub use staging::{PatchSelection, PatchSide};
+pub use versions::FileVersions;
 pub use whitespace::{align_changed_lines, edge_whitespace_key};
 
 #[derive(Clone, Debug, Eq, PartialEq)]

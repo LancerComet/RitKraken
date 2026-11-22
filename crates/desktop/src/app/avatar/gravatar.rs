@@ -1,11 +1,9 @@
 use std::{
-    io::Cursor,
     sync::{Arc, OnceLock},
     time::{Duration, Instant},
 };
 
 use gpui_kit::{App, Asset, RenderImage};
-use image::{DynamicImage, Frame, ImageDecoder, ImageFormat, ImageReader, Limits};
 use sha2::{Digest, Sha256};
 use tokio::{runtime, sync::Semaphore, task::JoinSet, time::timeout};
 
@@ -118,33 +116,14 @@ async fn request(key: Key) -> Option<Download> {
 }
 
 fn decode(bytes: Vec<u8>) -> Option<Arc<RenderImage>> {
-    let mut reader = ImageReader::new(Cursor::new(bytes))
-        .with_guessed_format()
-        .ok()?;
-    if !matches!(
-        reader.format(),
-        Some(ImageFormat::Gif | ImageFormat::Jpeg | ImageFormat::Png | ImageFormat::WebP)
-    ) {
-        return None;
-    }
-    let mut limits = Limits::default();
-    limits.max_image_width = Some(MAX_IMAGE_SIDE);
-    limits.max_image_height = Some(MAX_IMAGE_SIDE);
-    limits.max_alloc = Some(2 * 1024 * 1024);
-    reader.limits(limits);
-    let mut decoder = reader.into_decoder().ok()?;
-    let orientation = decoder.orientation().ok()?;
-    let mut image = DynamicImage::from_decoder(decoder).ok()?;
-    image.apply_orientation(orientation);
-    let mut pixels = image.into_rgba8();
-    for pixel in pixels.pixels_mut() {
-        pixel.0.swap(0, 2);
-    }
-    Some(Arc::new(RenderImage::new([Frame::new(pixels)])))
+    crate::app::image::decode_image(&bytes, MAX_IMAGE_SIDE, 2 * 1024 * 1024)
+        .map(|decoded| decoded.image)
 }
 
 #[cfg(test)]
 mod tests {
+    use std::io::Cursor;
+
     use super::*;
 
     #[test]
@@ -161,7 +140,7 @@ mod tests {
         let png = |width| {
             let rgba = image::RgbaImage::from_pixel(width, 1, image::Rgba([250, 2, 10, 255]));
             let mut bytes = Cursor::new(Vec::new());
-            rgba.write_to(&mut bytes, ImageFormat::Png).unwrap();
+            rgba.write_to(&mut bytes, image::ImageFormat::Png).unwrap();
             bytes.into_inner()
         };
         let avatar = decode(png(1)).unwrap();

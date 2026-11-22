@@ -4,7 +4,7 @@ use ritkraken_git::Scope;
 
 use crate::i18n::tr;
 
-use super::{DiffLayout, FileReview, staging::attach_controls};
+use super::{DiffLayout, FileReview, image, staging::attach_controls};
 use crate::app::{
     Client, Load, RepoOperation, RepoTab,
     changes::{StageAction, StageTarget, change_mark},
@@ -86,7 +86,7 @@ fn toolbar_toggle(
     .tooltip(move |window, cx| Tooltip::new(label.clone()).build(window, cx))
 }
 
-fn pill_group(p: Palette) -> Div {
+pub(super) fn pill_group(p: Palette) -> Div {
     div()
         .flex()
         .items_center()
@@ -131,10 +131,13 @@ impl Client {
         let mark = change_mark(review.file.change.code, p);
         let stage_action =
             StageAction::for_scope(&review.file.scope).filter(|_| review.file.change.code != b'U');
+        let image_file = image::is_image_file(&review.file);
         let active_layout = (!review.show_source).then_some(tab.review.layout);
-        let can_navigate = !review.show_source && review.viewer.is_some();
+        let can_navigate = !review.show_source && review.viewer.is_some() && !image_file;
         let change = review.file.change.clone();
-        let content = if let Some(state) = review.state() {
+        let content = if image_file {
+            image::content(tab, review, cx)
+        } else if let Some(state) = review.state() {
             let diff = tab.review.layout.viewer(
                 state,
                 tab.review.wrap_lines,
@@ -299,8 +302,10 @@ impl Client {
                                     ),
                                 ),
                             )
-                            .child(pill_group(p).children(DiffLayout::ALL.into_iter().map(
-                                |layout| {
+                            .child(if image_file {
+                                image::mode_selector(tab, review, p, cx)
+                            } else {
+                                pill_group(p).children(DiffLayout::ALL.into_iter().map(|layout| {
                                     layout
                                         .selector_button(
                                             active_layout,
@@ -312,8 +317,8 @@ impl Client {
                                         )
                                         .px(px(7.))
                                         .text_size(px(11.))
-                                },
-                            )))
+                                }))
+                            })
                             .child(
                                 div()
                                     .flex()
@@ -325,7 +330,7 @@ impl Client {
                                         review
                                             .state()
                                             .is_some_and(|state| state.read(cx).is_search_open()),
-                                        review.state().is_some(),
+                                        !image_file && review.state().is_some(),
                                         icon("icons/search.svg", p.text),
                                         cx,
                                         cx.listener(move |this, _, window, cx| {
@@ -345,7 +350,8 @@ impl Client {
                                         "ignore-edge-whitespace",
                                         "app.review.ignore_edge_whitespace",
                                         tab.review.ignore_edge_whitespace,
-                                        !review.show_source
+                                        !image_file
+                                            && !review.show_source
                                             && !tab.busy
                                             && matches!(review.patch, Load::Ready(_)),
                                         "¶",
@@ -358,7 +364,7 @@ impl Client {
                                         "wrap-diff",
                                         "app.preferences.wrap_lines",
                                         tab.review.wrap_lines,
-                                        review.state().is_some(),
+                                        !image_file && review.state().is_some(),
                                         icon("icons/text-wrap.svg", p.text),
                                         cx,
                                         cx.listener(move |this, _, _, cx| {

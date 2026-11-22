@@ -2,6 +2,7 @@ mod avatar;
 mod changes;
 mod export;
 mod history;
+mod image;
 mod layout;
 mod logs;
 mod message;

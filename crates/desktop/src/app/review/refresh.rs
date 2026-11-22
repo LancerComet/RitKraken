@@ -1,7 +1,7 @@
 use gpui_kit::*;
 use ritkraken_git::{FileTarget, Scope};
 
-use super::{load_diff, loading::load_source};
+use super::{image, load_diff, loading::load_source};
 use crate::app::{Client, Load, Notice};
 
 impl Client {
@@ -75,6 +75,7 @@ impl Client {
                         current.file = file;
                         current.apply_loaded(loaded, layout, None, id, window, cx);
                         let reload_source = source.is_none() && current.source.is_some();
+                        let image_file = image::is_image_file(&current.file);
                         if let Some(source) = source {
                             current.apply_source(source, cx);
                         }
@@ -82,6 +83,9 @@ impl Client {
                         // running. Keep that view and load its current version.
                         if reload_source {
                             this.load_review_source(id, window, cx);
+                        }
+                        if image_file {
+                            this.load_review_image(id, window, cx);
                         }
                         cx.notify();
                     }

@@ -27,8 +27,8 @@ pub use commit_ops::{
 pub use config::global_config_path;
 pub use conflicts::{ConflictFile, ConflictResolution, ConflictVersion, has_conflict_markers};
 pub use diff::{
-    ExportedFile, FileTarget, PATCH_VIEW_LIMIT, Patch, PatchSelection, PatchSide, Scope,
-    align_changed_lines, edge_whitespace_key,
+    ExportedFile, FileTarget, FileVersions, PATCH_VIEW_LIMIT, Patch, PatchSelection, PatchSide,
+    Scope, align_changed_lines, edge_whitespace_key,
 };
 pub use error::{Error, Result, RuleError};
 pub use history::{
