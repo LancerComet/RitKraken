@@ -5,7 +5,7 @@ mod refresh;
 mod staging;
 mod view;
 
-use std::sync::Arc;
+use std::{cell::Cell, rc::Rc, sync::Arc};
 
 use gpui_kit::*;
 use ritkraken_diff::{DiffFile, DiffMode, DiffOverview, DiffParseOptions, DiffState};
@@ -88,6 +88,9 @@ pub(super) struct FileReview {
     source_text: Option<Arc<str>>,
     pub(super) image: Option<Load<Arc<image::ImageDiff>>>,
     pub(super) swipe_split: f32,
+    /// The swipe container's last measured bounds, shared across repaints so
+    /// drag math and the explicit image layout agree.
+    pub(super) swipe_bounds: Rc<Cell<Bounds<Pixels>>>,
     pub(super) show_source: bool,
     pub(super) collapsed_sidebar: bool,
 }
@@ -256,6 +259,7 @@ impl Client {
             source_text: None,
             image: None,
             swipe_split: 0.5,
+            swipe_bounds: Rc::new(Cell::new(Bounds::default())),
             show_source,
             collapsed_sidebar,
         }));

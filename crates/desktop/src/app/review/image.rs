@@ -1,4 +1,4 @@
-use std::{cell::Cell, path::Path, rc::Rc, sync::Arc};
+use std::{cell::Cell, path::Path, sync::Arc};
 
 use gpui_kit::{base::ElementExt, prelude::*, *};
 use ritkraken_git::{self as git, FileTarget, Repo};
@@ -217,6 +217,33 @@ fn caption(side: &ImageSide, p: Palette) -> Div {
         ))
 }
 
+/// The bounds both swipe layers are drawn at inside the measured container:
+/// one shared ScaleDown factor and shared centering so same-sized images
+/// align pixel-for-pixel and different sizes still share scale and center.
+fn swipe_layout(
+    container: Size<Pixels>,
+    old: (u32, u32),
+    new: (u32, u32),
+) -> (Bounds<Pixels>, Bounds<Pixels>) {
+    let max_w = old.0.max(new.0).max(1) as f32;
+    let max_h = old.1.max(new.1).max(1) as f32;
+    let scale = (f32::from(container.width) / max_w)
+        .min(f32::from(container.height) / max_h)
+        .min(1.);
+    let place = |width: u32, height: u32| {
+        let width = width as f32 * scale;
+        let height = height as f32 * scale;
+        Bounds::new(
+            point(
+                px((f32::from(container.width) - width) / 2.),
+                px((f32::from(container.height) - height) / 2.),
+            ),
+            size(px(width), px(height)),
+        )
+    };
+    (place(old.0, old.1), place(new.0, new.1))
+}
+
 fn swipe_view(
     id: u64,
     review: &FileReview,
@@ -228,15 +255,22 @@ fn swipe_view(
         return side_by_side(diff, p, cx);
     };
     let split = review.swipe_split.clamp(0., 1.);
-    let bounds = Rc::new(Cell::new(Bounds::default()));
-    div()
+    let bounds = review.swipe_bounds.clone();
+    let container = bounds.get().size;
+    let mut view = div()
         .id(("image-swipe", id))
+        .relative()
         .size_full()
         .overflow_hidden()
         .cursor_ew_resize()
         .on_prepaint({
             let bounds = bounds.clone();
-            move |box_bounds, _, _| bounds.set(box_bounds)
+            move |box_bounds, window, _| {
+                if bounds.get().size != box_bounds.size {
+                    bounds.set(box_bounds);
+                    window.refresh();
+                }
+            }
         })
         .on_mouse_down(
             MouseButton::Left,
@@ -251,62 +285,74 @@ fn swipe_view(
             if event.dragging() {
                 update_swipe_split(this, id, &bounds, event.position, cx);
             }
-        }))
-        .child(
-            img(old.image.clone())
-                .absolute()
-                .inset_0()
-                .size_full()
-                .object_fit(ObjectFit::ScaleDown),
-        )
-        .when(split > 0.001, |view| {
-            view.child(
+        }));
+    if container.width > px(0.) && container.height > px(0.) {
+        let (old_bounds, new_bounds) =
+            swipe_layout(container, (old.width, old.height), (new.width, new.height));
+        let split_x = px(f32::from(container.width) * split);
+        view = view
+            .child(
+                img(new.image.clone())
+                    .absolute()
+                    .left(new_bounds.origin.x)
+                    .top(new_bounds.origin.y)
+                    .w(new_bounds.size.width)
+                    .h(new_bounds.size.height)
+                    .object_fit(ObjectFit::Fill),
+            )
+            .when(split > 0.001, |view| {
+                // The clip wrapper shares the container's origin, so the
+                // old image keeps its unclipped coordinates inside it.
+                view.child(
+                    div()
+                        .absolute()
+                        .top_0()
+                        .bottom_0()
+                        .left_0()
+                        .w(split_x)
+                        .overflow_hidden()
+                        .child(
+                            img(old.image.clone())
+                                .absolute()
+                                .left(old_bounds.origin.x)
+                                .top(old_bounds.origin.y)
+                                .w(old_bounds.size.width)
+                                .h(old_bounds.size.height)
+                                .object_fit(ObjectFit::Fill),
+                        ),
+                )
+            })
+            .child(
                 div()
                     .absolute()
                     .top_0()
                     .bottom_0()
-                    .left_0()
-                    .w(relative(split))
-                    .overflow_hidden()
-                    .child(
-                        div().h_full().w(relative(1. / split.max(0.001))).child(
-                            img(new.image.clone())
-                                .size_full()
-                                .object_fit(ObjectFit::ScaleDown),
-                        ),
-                    ),
+                    .left(split_x)
+                    .w(px(2.))
+                    .ml(px(-1.))
+                    .bg(rgb(p.accent)),
             )
-        })
-        .child(
-            div()
-                .absolute()
-                .top_0()
-                .bottom_0()
-                .left(relative(split))
-                .w(px(2.))
-                .ml(px(-1.))
-                .bg(rgb(p.accent)),
-        )
-        .child(
-            div()
-                .absolute()
-                .left(relative(split))
-                .top(relative(0.5))
-                .ml(px(-9.))
-                .mt(px(-9.))
-                .size(px(18.))
-                .rounded_full()
-                .border_1()
-                .border_color(rgb(p.accent))
-                .bg(rgb(p.canvas))
-                .flex()
-                .items_center()
-                .justify_center()
-                .gap(px(3.))
-                .child(div().w(px(1.5)).h(px(7.)).rounded_full().bg(rgb(p.accent)))
-                .child(div().w(px(1.5)).h(px(7.)).rounded_full().bg(rgb(p.accent))),
-        )
-        .into_any_element()
+            .child(
+                div()
+                    .absolute()
+                    .left(split_x)
+                    .top(relative(0.5))
+                    .ml(px(-9.))
+                    .mt(px(-9.))
+                    .size(px(18.))
+                    .rounded_full()
+                    .border_1()
+                    .border_color(rgb(p.accent))
+                    .bg(rgb(p.canvas))
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .gap(px(3.))
+                    .child(div().w(px(1.5)).h(px(7.)).rounded_full().bg(rgb(p.accent)))
+                    .child(div().w(px(1.5)).h(px(7.)).rounded_full().bg(rgb(p.accent))),
+            );
+    }
+    view.into_any_element()
 }
 
 fn update_swipe_split(
@@ -340,7 +386,51 @@ fn format_bytes(bytes: usize) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::format_bytes;
+    use gpui_kit::{Bounds, Pixels, Point, point, px, size};
+
+    use super::{format_bytes, swipe_layout};
+
+    fn center(bounds: Bounds<Pixels>) -> Point<Pixels> {
+        point(
+            bounds.origin.x + bounds.size.width / 2.,
+            bounds.origin.y + bounds.size.height / 2.,
+        )
+    }
+
+    #[test]
+    fn swipe_layout_centers_identical_images() {
+        let (old, new) = swipe_layout(size(px(200.), px(100.)), (100, 50), (100, 50));
+        assert_eq!(old, new);
+        assert_eq!(old.origin, point(px(50.), px(25.)));
+        assert_eq!(old.size, size(px(100.), px(50.)));
+    }
+
+    #[test]
+    fn swipe_layout_scales_both_down_by_the_largest_dimensions() {
+        let (old, new) = swipe_layout(size(px(100.), px(100.)), (200, 100), (50, 25));
+        assert_eq!(old.size, size(px(100.), px(50.)));
+        assert_eq!(new.size, size(px(25.), px(12.5)));
+        assert_eq!(center(old), center(new));
+    }
+
+    #[test]
+    fn swipe_layout_never_upscales() {
+        let (old, new) = swipe_layout(size(px(200.), px(200.)), (10, 10), (20, 40));
+        assert_eq!(old.size, size(px(10.), px(10.)));
+        assert_eq!(new.size, size(px(20.), px(40.)));
+        assert_eq!(center(old), point(px(100.), px(100.)));
+        assert_eq!(center(new), center(old));
+    }
+
+    #[test]
+    fn swipe_layout_shares_scale_and_center_for_different_sizes() {
+        let (old, new) = swipe_layout(size(px(300.), px(200.)), (400, 200), (200, 400));
+        // max dims 400x400 -> scale = min(300/400, 200/400) = 0.5 for both.
+        assert_eq!(old.size, size(px(200.), px(100.)));
+        assert_eq!(new.size, size(px(100.), px(200.)));
+        assert_eq!(center(old), point(px(150.), px(100.)));
+        assert_eq!(center(new), center(old));
+    }
 
     #[test]
     fn formats_byte_sizes() {
