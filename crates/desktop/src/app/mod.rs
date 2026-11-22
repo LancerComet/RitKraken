@@ -1,5 +1,6 @@
 mod avatar;
 mod changes;
+mod compare;
 mod export;
 mod history;
 mod image;

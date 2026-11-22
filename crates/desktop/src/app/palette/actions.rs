@@ -4,7 +4,7 @@ use super::{
     PaletteForm,
     model::{Command, CommandContext, Target},
 };
-use crate::app::{Client, Message, RepoOperation, changes::StageAction};
+use crate::app::{Client, Message, RepoOperation, changes::StageAction, compare::CompareRef};
 
 impl PaletteForm {
     pub(super) fn execute(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -109,6 +109,35 @@ impl Client {
                     }
                 }
             }
+            Command::Compare => {
+                let Some(id) = id else { return };
+                let Some((base, compare)) = self.tab(id).map(|tab| {
+                    let snapshot = &tab.active_history().snapshot;
+                    let base = CompareRef::head(snapshot);
+                    // Prefer the current branch's upstream tracking ref.
+                    let compare = snapshot
+                        .upstream
+                        .as_ref()
+                        .and_then(|upstream| {
+                            upstream
+                                .reference
+                                .strip_prefix("refs/heads/")
+                                .map(|branch| format!("refs/remotes/{}/{branch}", upstream.remote))
+                        })
+                        .and_then(|revision| {
+                            snapshot
+                                .refs
+                                .iter()
+                                .find(|reference| reference.full_name() == revision)
+                                .map(CompareRef::reference)
+                        })
+                        .unwrap_or_else(|| CompareRef::head(snapshot));
+                    (base, compare)
+                }) else {
+                    return;
+                };
+                self.open_compare(id, base, compare, window, cx);
+            }
             Command::StageAll | Command::UnstageAll => {
                 let Some(id) = id else { return };
                 let Some(tab) = self.tab(id) else { return };
@@ -132,7 +161,8 @@ impl Client {
                     | Command::Fetch
                     | Command::Push
                     | Command::Stash
-                    | Command::Pop => return,
+                    | Command::Pop
+                    | Command::Compare => return,
                 };
                 let edit = RepoOperation::StageFiles(action, Some(changes.clone()));
                 self.update_repo(id, Some(edit), window, cx);
@@ -167,7 +197,8 @@ impl Client {
                     | Command::CreateBranch
                     | Command::StageAll
                     | Command::UnstageAll
-                    | Command::Workspace => return,
+                    | Command::Workspace
+                    | Command::Compare => return,
                 };
                 self.update_repo(id, Some(edit), window, cx);
             }

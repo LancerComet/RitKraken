@@ -102,6 +102,22 @@
       "open": "Open",
       "retry": "Retry"
     },
+    "compare": {
+      "all_changes": "All changes",
+      "base": "Base",
+      "detached_head": "HEAD (detached %{sha})",
+      "filter": "Filter references…",
+      "loading": "Loading comparison…",
+      "menu_entry": "Compare with current branch",
+      "no_changes": "No differences.",
+      "only_in": "Only in %{name} (%{count})",
+      "palette": "Compare branches…",
+      "summary": "%{compare_count} commits only in %{compare} · %{base_count} commits only in %{base} · merge base %{merge_base}",
+      "summary_unrelated": "%{compare_count} commits only in %{compare} · %{base_count} commits only in %{base} · unrelated histories — showing a direct diff",
+      "swap": "Swap base and compare",
+      "title": "Compare branches",
+      "with": "Compare"
+    },
     "error": {
       "auto_fetch_minutes": "Enter a whole number from 0 to 60 minutes.",
       "auto_fetch_timeout": "Enter a positive whole number of seconds.",

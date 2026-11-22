@@ -84,6 +84,7 @@ fn contextual_commands_follow_repository_capabilities() {
     snapshot.upstream = None;
     assert!(!Command::Push.available(context(&snapshot)));
     snapshot.head = None;
+    assert!(!Command::Compare.available(context(&snapshot)));
     assert!(!Command::CreateBranch.available(context(&snapshot)));
     assert!(!Command::Stash.available(context(&snapshot)));
     snapshot.remotes.clear();
@@ -107,6 +108,7 @@ fn busy_or_rebase_context_excludes_mutating_and_modal_repository_commands() {
         if !busy {
             expected.push(Command::Refresh);
         }
+        expected.push(Command::Compare);
         assert_eq!(commands, expected);
     }
 }

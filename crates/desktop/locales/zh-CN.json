@@ -102,6 +102,22 @@
       "open": "打开",
       "retry": "重试"
     },
+    "compare": {
+      "all_changes": "全部更改",
+      "base": "基准",
+      "detached_head": "HEAD（分离于 %{sha}）",
+      "filter": "筛选引用…",
+      "loading": "正在加载比较…",
+      "menu_entry": "与当前分支比较",
+      "no_changes": "没有差异。",
+      "only_in": "仅存在于 %{name}（%{count}）",
+      "palette": "比较分支…",
+      "summary": "%{compare_count} 个提交仅存在于 %{compare} · %{base_count} 个提交仅存在于 %{base} · 合并基点 %{merge_base}",
+      "summary_unrelated": "%{compare_count} 个提交仅存在于 %{compare} · %{base_count} 个提交仅存在于 %{base} · 历史不相关 — 显示直接差异",
+      "swap": "交换基准与比较对象",
+      "title": "比较分支",
+      "with": "比较"
+    },
     "error": {
       "auto_fetch_minutes": "请输入 0 到 60 之间的整数分钟数。",
       "auto_fetch_timeout": "请输入大于 0 的整数秒数。",

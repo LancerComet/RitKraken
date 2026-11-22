@@ -102,6 +102,22 @@
       "open": "開啟",
       "retry": "重試"
     },
+    "compare": {
+      "all_changes": "所有變更",
+      "base": "基準",
+      "detached_head": "HEAD（分離於 %{sha}）",
+      "filter": "篩選參照…",
+      "loading": "正在載入比較…",
+      "menu_entry": "與目前分支比較",
+      "no_changes": "沒有差異。",
+      "only_in": "僅存在於 %{name}（%{count}）",
+      "palette": "比較分支…",
+      "summary": "%{compare_count} 個提交僅存在於 %{compare} · %{base_count} 個提交僅存在於 %{base} · 合併基點 %{merge_base}",
+      "summary_unrelated": "%{compare_count} 個提交僅存在於 %{compare} · %{base_count} 個提交僅存在於 %{base} · 歷史不相關 — 顯示直接差異",
+      "swap": "交換基準與比較對象",
+      "title": "比較分支",
+      "with": "比較"
+    },
     "error": {
       "auto_fetch_minutes": "請輸入 0 到 60 之間的整數分鐘數。",
       "auto_fetch_timeout": "請輸入大於 0 的整數秒數。",

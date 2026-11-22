@@ -8,6 +8,7 @@ use ritkraken_git::{RefKind, RefOperation, RefRequest, Reference};
 use crate::{
     app::{
         Client, RepoOperation,
+        compare::CompareRef,
         widgets::{
             delete_dialog::DeleteDialog,
             menu::{ContextMenuExt as _, PopupMenu, PopupMenuItem, menu_style},
@@ -276,6 +277,18 @@ impl RefMenu {
             request(RefOperation::Delete),
             delete_reason,
         ));
+        if !current {
+            let head = CompareRef::head(snapshot);
+            let compare = CompareRef::reference(reference);
+            let id = self.id;
+            menu = menu.item(self.action_item(
+                tr!("app.compare.menu_entry"),
+                None,
+                move |client, window, cx| {
+                    client.open_compare(id, head.clone(), compare.clone(), window, cx);
+                },
+            ));
+        }
         let name = reference.name.clone();
         let hash = reference.id.clone();
         menu.separator()

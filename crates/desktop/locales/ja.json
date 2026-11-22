@@ -102,6 +102,22 @@
       "open": "開く",
       "retry": "再試行"
     },
+    "compare": {
+      "all_changes": "すべての変更",
+      "base": "ベース",
+      "detached_head": "HEAD（%{sha} で分離中）",
+      "filter": "参照をフィルター…",
+      "loading": "比較を読み込み中…",
+      "menu_entry": "現在のブランチと比較",
+      "no_changes": "差分はありません。",
+      "only_in": "%{name} のみ（%{count}）",
+      "palette": "ブランチを比較…",
+      "summary": "%{compare} にのみ %{compare_count} コミット · %{base} にのみ %{base_count} コミット · マージベース %{merge_base}",
+      "summary_unrelated": "%{compare} にのみ %{compare_count} コミット · %{base} にのみ %{base_count} コミット · 履歴が無関係なため直接差分を表示",
+      "swap": "ベースと比較対象を入れ替える",
+      "title": "ブランチを比較",
+      "with": "比較"
+    },
     "error": {
       "auto_fetch_minutes": "分単位で 0～60 の整数を入力してください。",
       "auto_fetch_timeout": "秒単位で 1 以上の整数を入力してください。",
