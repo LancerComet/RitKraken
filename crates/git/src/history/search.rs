@@ -2,7 +2,10 @@ use std::path::{Component, Path};
 
 use crate::{Repo, Result, RuleError, command::run_read, protocol::text};
 
-use super::{COMMIT_DATE_FORMAT, COMMIT_LOG_FORMAT, Commit, HISTORY_ORDER, RefKind, parse_log};
+use super::{
+    COMMIT_DATE_FORMAT, COMMIT_LOG_FORMAT, Commit, HISTORY_ORDER, RefKind, parse_log,
+    visible_ref_args,
+};
 
 #[derive(Clone, Debug, Default)]
 pub struct CommitSearch {
@@ -70,7 +73,8 @@ impl Repo {
         if let Some(id) = branch {
             git.arg(id);
         } else {
-            git.args(["--exclude=refs/stash", "--all", "--ignore-missing", "HEAD"]);
+            git.args(visible_ref_args(std::iter::empty()))
+                .args(["--ignore-missing", "HEAD"]);
         }
         git.arg("--");
         if !search.path.is_empty() {

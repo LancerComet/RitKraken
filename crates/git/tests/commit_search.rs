@@ -222,3 +222,33 @@ fn malformed_dates_branches_and_paths_are_rejected_before_git_log() {
         );
     }
 }
+
+#[test]
+fn default_search_excludes_custom_internal_refs() {
+    let (_directory, repo) = fixture();
+    let base = commit(&repo, "base", "Base", "2024-01-01 12:00:00");
+    git(&repo, &["checkout", "--detach"]);
+    let detached = commit(&repo, "detached", "Detached", "2024-01-02 12:00:00");
+    git(&repo, &["checkout", "-b", "tmp", &base]);
+    let custom = commit(&repo, "custom", "Multica record", "2024-01-03 12:00:00");
+    git(
+        &repo,
+        &["update-ref", "refs/multica/local-state/agent/test", &custom],
+    );
+    git(&repo, &["checkout", "--detach", &detached]);
+    git(&repo, &["branch", "-D", "tmp"]);
+    let remote = commit(&repo, "remote", "Remote", "2024-01-04 12:00:00");
+    git(&repo, &["update-ref", "refs/remotes/origin/topic", &remote]);
+    git(&repo, &["checkout", "--detach", &base]);
+    let tagged = commit(&repo, "tagged", "Tagged", "2024-01-05 12:00:00");
+    git(&repo, &["tag", "v1", &tagged]);
+    git(&repo, &["checkout", "--detach", &detached]);
+
+    let found = repo.search_commits(&CommitSearch::default()).unwrap();
+    let mut ids: Vec<_> = found.into_iter().map(|commit| commit.id).collect();
+    ids.sort();
+    let mut expected = vec![base, detached, remote, tagged];
+    expected.sort();
+    assert!(!ids.contains(&custom));
+    assert_eq!(ids, expected);
+}

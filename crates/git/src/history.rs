@@ -185,15 +185,14 @@ impl Repo {
             .filter(|name| name.starts_with("refs/"))
             .map(String::as_str)
             .collect();
-        let mut excludes: Vec<String> = Vec::new();
-        if solo.is_empty() {
-            // Hidden refs only apply while no solo set is active; each
-            // --exclude must precede --all.
-            excludes.extend(filter.hidden.iter().map(|name| format!("--exclude={name}")));
-            excludes.extend(["--exclude=refs/stash", "--all"].map(str::to_owned));
-        }
+        let scope_args = if solo.is_empty() {
+            // Hidden refs only apply while no solo set is active.
+            visible_ref_args(filter.hidden.iter().map(String::as_str))
+        } else {
+            Vec::new()
+        };
         let mut args = vec!["log"];
-        args.extend(excludes.iter().map(String::as_str));
+        args.extend(scope_args.iter().map(String::as_str));
         args.extend([
             HISTORY_ORDER,
             COMMIT_DATE_FORMAT,
@@ -310,6 +309,33 @@ impl Repo {
             .collect();
         Ok((refs, upstream, bytes))
     }
+}
+
+/// Ref namespaces RitKraken displays in the graph and searches by default.
+/// Custom tool refs such as `refs/multica/*` or `refs/notes/*` are excluded
+/// because they have no visible branch or tag label.
+const VISIBLE_REF_SCOPES: [(&str, &str); 3] = [
+    ("refs/heads/", "--branches"),
+    ("refs/remotes/", "--remotes"),
+    ("refs/tags/", "--tags"),
+];
+
+/// Builds `--exclude=<short>` + scope flag arguments for each visible ref
+/// namespace. Git clears accumulated `--exclude` patterns after each scope
+/// flag and matches them without the namespace prefix for `--branches`,
+/// `--remotes`, and `--tags`.
+pub(super) fn visible_ref_args<'a>(hidden: impl IntoIterator<Item = &'a str>) -> Vec<String> {
+    let hidden: Vec<&str> = hidden.into_iter().collect();
+    let mut args = Vec::with_capacity(hidden.len() + VISIBLE_REF_SCOPES.len());
+    for (prefix, flag) in VISIBLE_REF_SCOPES {
+        for name in &hidden {
+            if let Some(short) = name.strip_prefix(prefix) {
+                args.push(format!("--exclude={short}"));
+            }
+        }
+        args.push(flag.to_owned());
+    }
+    args
 }
 
 pub fn short_id(id: &str) -> &str {

@@ -131,3 +131,72 @@ fn snapshot_page_respects_the_filter() {
     assert!(!ids.contains(&feature.as_str()));
     assert!(ids.contains(&base.as_str()));
 }
+
+#[test]
+fn custom_internal_refs_are_excluded_from_history() {
+    let (_directory, repo) = fixture();
+    let main_commit = commit_file(&repo, "main.txt", "main\n", "Main");
+    git(&repo, &["checkout", "-b", "tmp"]);
+    let multica = commit_file(&repo, "multica.txt", "multica\n", "Multica record");
+    git(
+        &repo,
+        &["update-ref", "refs/multica/local-state/agent/test", &multica],
+    );
+    let noted = commit_file(&repo, "noted.txt", "noted\n", "Noted record");
+    git(&repo, &["update-ref", "refs/notes/commits", &noted]);
+    git(&repo, &["checkout", "main"]);
+    git(&repo, &["branch", "-D", "tmp"]);
+
+    let default_ids: Vec<_> = repo
+        .snapshot(None)
+        .unwrap()
+        .commits
+        .into_iter()
+        .map(|commit| commit.id)
+        .collect();
+    assert!(default_ids.contains(&main_commit));
+    assert!(!default_ids.contains(&multica));
+    assert!(!default_ids.contains(&noted));
+
+    let filtered_ids = filtered(&repo, &[], &[]);
+    assert!(filtered_ids.contains(&main_commit));
+    assert!(!filtered_ids.contains(&multica));
+    assert!(!filtered_ids.contains(&noted));
+}
+
+#[test]
+fn hiding_remote_and_nested_branches_removes_their_exclusive_commits() {
+    let (_directory, repo) = fixture();
+    let base = commit_file(&repo, "base.txt", "base\n", "Base");
+    git(&repo, &["checkout", "-b", "topic/sub", &base]);
+    let nested = commit_file(&repo, "nested.txt", "nested\n", "Nested");
+    git(&repo, &["checkout", "--detach", &base]);
+    let remote_only = commit_file(&repo, "remote.txt", "remote\n", "Remote only");
+    git(
+        &repo,
+        &["update-ref", "refs/remotes/origin/remote-only", &remote_only],
+    );
+    let tagged_only = commit_file(&repo, "tagged.txt", "tagged\n", "Tagged only");
+    git(&repo, &["tag", "v-only", &tagged_only]);
+    git(&repo, &["checkout", "main"]);
+
+    let visible = filtered(&repo, &[], &[]);
+    for id in [&base, &nested, &remote_only, &tagged_only, &head(&repo)] {
+        assert!(visible.contains(id), "expected {id} in {visible:?}");
+    }
+
+    let hidden = filtered(
+        &repo,
+        &[
+            "refs/heads/topic/sub",
+            "refs/remotes/origin/remote-only",
+            "refs/tags/v-only",
+        ],
+        &[],
+    );
+    assert!(!hidden.contains(&nested));
+    assert!(!hidden.contains(&remote_only));
+    assert!(!hidden.contains(&tagged_only));
+    assert!(hidden.contains(&base));
+    assert!(hidden.contains(&head(&repo)));
+}
