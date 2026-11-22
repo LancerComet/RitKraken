@@ -58,6 +58,7 @@ impl Client {
                 tab.repo.clone(),
                 &context,
                 &self.saved.preferences,
+                tab.changes.tree,
                 window,
                 cx,
             ),

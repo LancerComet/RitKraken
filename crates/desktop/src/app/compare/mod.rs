@@ -1,10 +1,11 @@
+mod files;
 mod picker;
 mod view;
 
 use std::sync::Arc;
 
 use gpui_kit::{component::input::InputState, prelude::*, *};
-use ritkraken_diff::{DiffState, DiffTypography};
+use ritkraken_diff::DiffTypography;
 use ritkraken_git::{RefComparison, Reference, Repo, Snapshot, short_id};
 
 use crate::{
@@ -16,6 +17,8 @@ use crate::{
     },
     i18n::{LocalizedInput, tr},
 };
+
+pub(in crate::app) use files::DiffFileBrowser;
 
 const COMPARE_LIMIT: usize = 1000;
 
@@ -70,8 +73,9 @@ pub(super) struct RefCompare {
     compare: CompareRef,
     result: Load<Arc<RefComparison>>,
     selection: Selection,
-    all_view: Load<Entity<DiffState>>,
-    commit_view: Load<Entity<DiffState>>,
+    all_view: Load<Entity<DiffFileBrowser>>,
+    commit_view: Load<Entity<DiffFileBrowser>>,
+    tree: bool,
     request: u64,
     filter: LocalizedInput,
     typography: DiffTypography,
@@ -87,6 +91,7 @@ impl RefCompare {
         preferences: &Preferences,
         base: CompareRef,
         compare: CompareRef,
+        tree: bool,
         window: &mut Window,
         cx: &mut Context<Client>,
     ) {
@@ -105,6 +110,7 @@ impl RefCompare {
                 selection: Selection::All,
                 all_view: Load::Pending,
                 commit_view: Load::Pending,
+                tree,
                 request: 0,
                 filter,
                 typography: preferences.editor.diff_typography(),
@@ -120,7 +126,7 @@ impl RefCompare {
                 ModalHandle::new(cx),
                 title,
                 viewer,
-                size(px(1400.), px(877.)),
+                size(px(2560.), px(877.)),
                 false,
             ),
             window,
@@ -156,7 +162,11 @@ impl RefCompare {
     fn show_all(&mut self, cx: &mut Context<Self>) {
         self.selection = Selection::All;
         self.request += 1;
-        if let Load::Ready(comparison) = &self.result {
+        // The merge-base browser is built once and kept, so returning to "All
+        // changes" does not re-parse the patch.
+        if matches!(self.all_view, Load::Pending)
+            && let Load::Ready(comparison) = &self.result
+        {
             self.all_view = comparison.patch.as_ref().map_or_else(
                 || Load::Failed(Message::Key("app.error.diff_preview_limit")),
                 |bytes| self.parse(bytes, cx),
@@ -209,12 +219,17 @@ impl RefCompare {
         self.reload(window, cx);
     }
 
-    fn parse(&self, bytes: &[u8], cx: &mut Context<Self>) -> Load<Entity<DiffState>> {
+    fn parse(&self, bytes: &[u8], cx: &mut Context<Self>) -> Load<Entity<DiffFileBrowser>> {
         match parse_patch(bytes, false) {
             Ok(files) => Load::Ready(cx.new(|cx| {
-                let mut state = DiffState::new(files, cx);
-                self.layout.apply(&mut state, cx);
-                state
+                DiffFileBrowser::new(
+                    files,
+                    self.tree,
+                    self.layout,
+                    self.wrap_lines,
+                    self.typography.clone(),
+                    cx,
+                )
             })),
             Err(Message::Key("app.review.no_text_changes")) => {
                 Load::Failed(Message::Key("app.compare.no_changes"))
@@ -241,6 +256,7 @@ impl Client {
             &self.saved.preferences,
             base,
             compare,
+            tab.changes.tree,
             window,
             cx,
         );

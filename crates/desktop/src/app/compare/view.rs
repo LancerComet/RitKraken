@@ -132,7 +132,7 @@ impl RefCompare {
     fn sidebar(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let p = palette(cx);
         let mut column = div()
-            .w(px(340.))
+            .w(px(300.))
             .flex_shrink_0()
             .h_full()
             .flex()
@@ -282,12 +282,8 @@ impl RefCompare {
             Selection::Commit(_) => &self.commit_view,
         };
         let status = match (&self.result, view) {
-            (Load::Ready(_), Load::Ready(state)) => {
-                return self
-                    .layout
-                    .viewer(state, self.wrap_lines, self.typography.clone())
-                    .header_visible(true)
-                    .into_any_element();
+            (Load::Ready(_), Load::Ready(browser)) => {
+                return browser.clone().into_any_element();
             }
             (Load::Pending, _) | (Load::Ready(_), Load::Pending) => {
                 note(tr!("app.compare.loading"), cx)

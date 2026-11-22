@@ -28,6 +28,9 @@ use super::{
 const WORKTREE_PANES: &str = "worktree-panes";
 const MESSAGE_PANES: &str = "commit-detail-panes";
 
+pub(in crate::app) use files::{
+    FileRow, file_row, file_row_icon, file_rows, path_label, path_name, tree_mode_pill,
+};
 pub(super) use summary::{ChangeSummary, SummaryStyle, change_mark};
 
 #[derive(Clone, Copy)]
@@ -93,7 +96,7 @@ pub(super) struct ChangesState {
     pub(super) summary: LocalizedInput,
     pub(super) description: LocalizedInput<TextareaMode>,
     amend: Option<amend::AmendDraft>,
-    tree: bool,
+    pub(in crate::app) tree: bool,
     worktree_panes: Entity<gpui_kit::base::ResizableState>,
     message_panes: Entity<gpui_kit::base::ResizableState>,
     _summary: Subscription,

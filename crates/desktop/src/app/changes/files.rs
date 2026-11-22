@@ -20,51 +20,29 @@ use crate::app::{
     widgets::{Tone, button, icon, menu::ContextMenuExt, note},
 };
 
-pub(super) const FILE_ROW_HEIGHT: Pixels = px(32.);
+pub(in crate::app) const FILE_ROW_HEIGHT: Pixels = px(32.);
 
 impl Client {
     pub(super) fn file_mode(&self, tab: &RepoTab, cx: &mut Context<Self>) -> Div {
-        let p = palette(cx);
         let id = tab.id;
+        let view = cx.weak_entity();
         div()
             .flex_shrink_0()
             .flex()
             .items_center()
-            .child(
-                div()
-                    .flex()
-                    .items_center()
-                    .gap(px(2.))
-                    .p(px(2.))
-                    .rounded_full()
-                    .bg(rgb(p.surface_dim))
-                    .border_1()
-                    .border_color(rgb(p.border))
-                    .children(
-                        [
-                            (false, "path-mode", "app.changes.path_mode"),
-                            (true, "tree-mode", "app.changes.tree_mode"),
-                        ]
-                        .into_iter()
-                        .map(|(tree, name, label)| {
-                            button(
-                                (name, id),
-                                tr!(label),
-                                Tone::Plain.selected_when(tab.changes.tree == tree),
-                                true,
-                                cx,
-                                cx.listener(move |this, _, _, cx| {
-                                    if let Some(tab) = this.tab_mut(id) {
-                                        tab.changes.tree = tree;
-                                        cx.notify();
-                                    }
-                                }),
-                            )
-                            .rounded_full()
-                            .h(px(22.))
-                        }),
-                    ),
-            )
+            .child(tree_mode_pill(
+                id,
+                tab.changes.tree,
+                cx,
+                move |tree, _, cx| {
+                    let _ = view.update(cx, |this, cx| {
+                        if let Some(tab) = this.tab_mut(id) {
+                            tab.changes.tree = tree;
+                            cx.notify();
+                        }
+                    });
+                },
+            ))
     }
 
     pub(super) fn file_list(
@@ -91,7 +69,8 @@ impl Client {
         let tree = tab.changes.tree;
         let busy = tab.busy;
         let action = StageAction::for_scope(&scope);
-        let rows = file_rows(&files, tree);
+        let paths: Vec<&Path> = files.iter().map(|change| change.path.as_path()).collect();
+        let rows = file_rows(&paths, tree);
         let ordered: Arc<Vec<_>> = Arc::new(
             rows.iter()
                 .filter_map(|row| match row {
@@ -232,7 +211,7 @@ impl Client {
     }
 }
 
-fn file_row(depth: usize) -> Div {
+pub(in crate::app) fn file_row(depth: usize) -> Div {
     div()
         .w_full()
         .h(FILE_ROW_HEIGHT)
@@ -244,14 +223,14 @@ fn file_row(depth: usize) -> Div {
         .text_size(px(13.))
 }
 
-fn file_row_icon(path: Option<&'static str>, color: u32) -> Div {
+pub(in crate::app) fn file_row_icon(path: Option<&'static str>, color: u32) -> Div {
     div()
         .size(px(12.))
         .flex_shrink_0()
         .when_some(path, |slot, path| slot.child(icon(path, color).size_full()))
 }
 
-fn path_label(label: String, full_path: String) -> Stateful<Div> {
+pub(in crate::app) fn path_label(label: String, full_path: String) -> Stateful<Div> {
     div()
         .id("file-path")
         .flex_1()
@@ -261,30 +240,71 @@ fn path_label(label: String, full_path: String) -> Stateful<Div> {
         .tooltip(move |window, cx| Tooltip::new(full_path.clone()).build(window, cx))
 }
 
-fn path_name(path: &Path) -> String {
+pub(in crate::app) fn path_name(path: &Path) -> String {
     path.file_name()
         .unwrap_or(path.as_os_str())
         .to_string_lossy()
         .into_owned()
 }
 
-enum FileRow {
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(in crate::app) enum FileRow {
     Folder { path: PathBuf, depth: usize },
     File { index: usize, depth: usize },
 }
 
-fn file_rows(files: &[Change], tree: bool) -> Vec<FileRow> {
-    let mut indices: Vec<_> = (0..files.len()).collect();
+/// The Path/Tree mode pill shared by this sidebar and the comparison file
+/// browser; `on_toggle` receives the newly selected `tree` flag.
+pub(in crate::app) fn tree_mode_pill(
+    id: u64,
+    tree: bool,
+    cx: &App,
+    on_toggle: impl Fn(bool, &mut Window, &mut App) + Clone + 'static,
+) -> Div {
+    let p = palette(cx);
+    div()
+        .flex()
+        .items_center()
+        .gap(px(2.))
+        .p(px(2.))
+        .rounded_full()
+        .bg(rgb(p.surface_dim))
+        .border_1()
+        .border_color(rgb(p.border))
+        .children(
+            [
+                (false, "path-mode", "app.changes.path_mode"),
+                (true, "tree-mode", "app.changes.tree_mode"),
+            ]
+            .into_iter()
+            .map(|(mode, name, label)| {
+                let on_toggle = on_toggle.clone();
+                button(
+                    (name, id),
+                    tr!(label),
+                    Tone::Plain.selected_when(tree == mode),
+                    true,
+                    cx,
+                    move |_, window, cx| on_toggle(mode, window, cx),
+                )
+                .rounded_full()
+                .h(px(22.))
+            }),
+        )
+}
+
+pub(in crate::app) fn file_rows(paths: &[&Path], tree: bool) -> Vec<FileRow> {
+    let mut indices: Vec<_> = (0..paths.len()).collect();
     if tree {
-        indices.sort_by(|a, b| files[*a].path.cmp(&files[*b].path));
+        indices.sort_by(|a, b| paths[*a].cmp(paths[*b]));
     }
     let mut folders = HashSet::new();
-    let mut rows = Vec::with_capacity(files.len());
+    let mut rows = Vec::with_capacity(paths.len());
     for index in indices {
         let mut depth = 0;
         if tree {
             let mut folder = PathBuf::new();
-            if let Some(parent) = files[index].path.parent() {
+            if let Some(parent) = paths[index].parent() {
                 for part in parent.components() {
                     folder.push(part.as_os_str());
                     if folders.insert(folder.clone()) {
