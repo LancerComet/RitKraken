@@ -7,9 +7,9 @@ use ritkraken_git::{Commit, short_id};
 
 use crate::{
     app::{
-        Load,
+        Load, Message,
         theme::palette,
-        widgets::{Tone, button, error_text, note},
+        widgets::{Tone, button, error_text, info_text, note},
     },
     i18n::tr,
 };
@@ -281,18 +281,24 @@ impl RefCompare {
             Selection::All => &self.all_view,
             Selection::Commit(_) => &self.commit_view,
         };
-        match &self.result {
-            Load::Pending => note(tr!("app.compare.loading"), cx).into_any_element(),
-            Load::Failed(message) => error_text(message, cx).into_any_element(),
-            Load::Ready(_) => match view {
-                Load::Pending => note(tr!("app.compare.loading"), cx).into_any_element(),
-                Load::Failed(message) => error_text(message, cx).into_any_element(),
-                Load::Ready(state) => self
+        let status = match (&self.result, view) {
+            (Load::Ready(_), Load::Ready(state)) => {
+                return self
                     .layout
                     .viewer(state, self.wrap_lines, self.typography.clone())
                     .header_visible(true)
-                    .into_any_element(),
-            },
-        }
+                    .into_any_element();
+            }
+            (Load::Pending, _) | (Load::Ready(_), Load::Pending) => {
+                note(tr!("app.compare.loading"), cx)
+            }
+            (Load::Ready(_), Load::Failed(Message::Key("app.compare.no_changes"))) => {
+                info_text(&Message::Key("app.compare.no_changes"), cx)
+            }
+            (Load::Failed(message), _) | (Load::Ready(_), Load::Failed(message)) => {
+                error_text(message, cx)
+            }
+        };
+        div().p(px(12.)).child(status).into_any_element()
     }
 }

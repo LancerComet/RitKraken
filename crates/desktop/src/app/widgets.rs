@@ -231,6 +231,18 @@ pub(super) fn note(message: impl Into<SharedString>, cx: &App) -> Div {
         .child(message.into())
 }
 
+pub(super) fn info_text(message: &Message, cx: &App) -> Div {
+    let p = palette(cx);
+    div()
+        .px(px(12.))
+        .py(px(8.))
+        .rounded(px(10.))
+        .bg(rgb(p.info_bg))
+        .text_color(rgb(p.info_fg))
+        .text_size(px(12.))
+        .child(message.text())
+}
+
 pub(super) fn error_text(message: &Message, cx: &App) -> Div {
     let p = palette(cx);
     div()
