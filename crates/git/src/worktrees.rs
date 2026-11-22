@@ -164,7 +164,7 @@ impl Repo {
     }
 }
 
-fn registered_path_eq(left: &Path, right: &Path) -> bool {
+pub(crate) fn registered_path_eq(left: &Path, right: &Path) -> bool {
     #[cfg(windows)]
     {
         let key = |path: &Path| {

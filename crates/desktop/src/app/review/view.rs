@@ -12,6 +12,7 @@ use super::{
     DiffLayout, FileReview, SVG_REVIEW_PANES,
     image::{self, PreviewKind},
     staging::attach_controls,
+    submodule,
 };
 use crate::app::{
     Client, Load, RepoOperation, RepoTab,
@@ -377,26 +378,30 @@ impl Client {
                 .children(sequence)
                 .child(div().flex_1().min_h_0().child(conflict.clone()));
         }
-        let body = match image::preview_kind(&review.file) {
-            PreviewKind::Text => self.code_pane(tab, review, cx).into_any_element(),
-            PreviewKind::Raster => self.image_pane(tab, review, cx).into_any_element(),
-            PreviewKind::Svg => bento_v_resizable(("svg-review-panes", tab.id))
-                .with_state(&tab.review.panes)
-                .child(
-                    resizable_panel()
-                        .size_range(px(120.)..Pixels::MAX)
-                        .when_some(
-                            remembered_size(SVG_REVIEW_PANES, 0, cx),
-                            |panel, size| panel.size(size),
-                        )
-                        .child(self.image_pane(tab, review, cx)),
-                )
-                .child(
-                    resizable_panel()
-                        .size_range(px(120.)..Pixels::MAX)
-                        .child(self.code_pane(tab, review, cx)),
-                )
-                .into_any_element(),
+        let body = if let Some(info) = &review.submodule {
+            submodule::panel(tab.id, info, cx).into_any_element()
+        } else {
+            match image::preview_kind(&review.file) {
+                PreviewKind::Text => self.code_pane(tab, review, cx).into_any_element(),
+                PreviewKind::Raster => self.image_pane(tab, review, cx).into_any_element(),
+                PreviewKind::Svg => bento_v_resizable(("svg-review-panes", tab.id))
+                    .with_state(&tab.review.panes)
+                    .child(
+                        resizable_panel()
+                            .size_range(px(120.)..Pixels::MAX)
+                            .when_some(
+                                remembered_size(SVG_REVIEW_PANES, 0, cx),
+                                |panel, size| panel.size(size),
+                            )
+                            .child(self.image_pane(tab, review, cx)),
+                    )
+                    .child(
+                        resizable_panel()
+                            .size_range(px(120.)..Pixels::MAX)
+                            .child(self.code_pane(tab, review, cx)),
+                    )
+                    .into_any_element(),
+            }
         };
         bento_card(p)
             .size_full()

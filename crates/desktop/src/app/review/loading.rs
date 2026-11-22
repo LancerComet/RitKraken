@@ -39,6 +39,7 @@ impl FileReview {
     ) {
         if let Some(expected) = loaded.conflict {
             self.patch = Load::Ready(loaded.patch);
+            self.submodule = loaded.submodule;
             self.viewer = None;
             if let Some(view) = &self.conflict
                 && view.read(cx).dirty
@@ -60,6 +61,12 @@ impl FileReview {
         self.patch = Load::Ready(loaded.patch);
         self.compact_context = loaded.compact_context;
         self.message = None;
+        self.submodule = loaded.submodule;
+        if self.submodule.is_some() {
+            self.viewer = None;
+            self.sync_source_overview(cx);
+            return;
+        }
         match loaded.document {
             Ok(files) => {
                 let anchor = line.and_then(|line| {

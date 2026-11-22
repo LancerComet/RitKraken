@@ -31,6 +31,7 @@ impl Client {
             .conflict
             .as_ref()
             .map(|view| view.read(cx).expected.clone());
+        let previous_submodule = current.submodule.clone();
         let repo = tab.repo.clone();
         let ignore = tab.review.ignore_edge_whitespace;
         let request = tab.review.request;
@@ -46,6 +47,7 @@ impl Client {
                     ignore,
                     previous.as_deref(),
                     previous_conflict.as_deref(),
+                    previous_submodule.as_deref(),
                 )?;
                 let source = (source_requested && loaded.is_some())
                     .then(|| load_source(&repo, &file, source_text.as_deref()));

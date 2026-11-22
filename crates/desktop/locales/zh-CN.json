@@ -311,6 +311,15 @@
       "no_changes_ignoring_whitespace": "忽略行首和行尾空白后没有差异。",
       "no_text_changes": "此文件没有文本更改。",
       "split": "并排",
+      "submodule": "子模块",
+      "submodule_current": "当前提交",
+      "submodule_modified": "子模块中有已修改的文件",
+      "submodule_new": "新提交",
+      "submodule_none": "（无）",
+      "submodule_not_initialized": "子模块尚未初始化，无法打开",
+      "submodule_old": "原提交",
+      "submodule_open": "打开子模块",
+      "submodule_untracked": "子模块中有未跟踪的文件",
       "worktree": "工作区"
     },
     "stage": {

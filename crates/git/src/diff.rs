@@ -54,6 +54,7 @@ pub(crate) const PATCH_OPTIONS: &[&str] = &[
     "--output-indicator-old=-",
     "--output-indicator-new=+",
     "--output-indicator-context= ",
+    "--submodule=short",
 ];
 
 impl Repo {

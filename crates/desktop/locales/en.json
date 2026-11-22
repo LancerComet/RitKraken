@@ -311,6 +311,15 @@
       "no_changes_ignoring_whitespace": "No changes after ignoring leading and trailing whitespace.",
       "no_text_changes": "No textual changes for this file.",
       "split": "Split",
+      "submodule": "Submodule",
+      "submodule_current": "Current commit",
+      "submodule_modified": "The submodule contains modified files.",
+      "submodule_new": "New commit",
+      "submodule_none": "(none)",
+      "submodule_not_initialized": "The submodule is not initialized.",
+      "submodule_old": "Old commit",
+      "submodule_open": "Open submodule",
+      "submodule_untracked": "The submodule contains untracked files.",
       "worktree": "Working directory"
     },
     "stage": {

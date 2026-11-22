@@ -311,6 +311,15 @@
       "no_changes_ignoring_whitespace": "行頭と行末の空白を無視すると差分はありません。",
       "no_text_changes": "このファイルにテキストの変更はありません。",
       "split": "左右分割",
+      "submodule": "サブモジュール",
+      "submodule_current": "現在のコミット",
+      "submodule_modified": "サブモジュール内に変更されたファイルがあります。",
+      "submodule_new": "新しいコミット",
+      "submodule_none": "（なし）",
+      "submodule_not_initialized": "サブモジュールは初期化されていません。",
+      "submodule_old": "以前のコミット",
+      "submodule_open": "サブモジュールを開く",
+      "submodule_untracked": "サブモジュール内に未追跡のファイルがあります。",
       "worktree": "作業ツリー"
     },
     "stage": {

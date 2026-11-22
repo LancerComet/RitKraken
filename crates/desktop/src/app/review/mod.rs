@@ -3,6 +3,7 @@ mod image;
 mod loading;
 mod refresh;
 mod staging;
+mod submodule;
 mod view;
 
 use std::{cell::Cell, rc::Rc, sync::Arc};
@@ -96,6 +97,7 @@ pub(super) struct FileReview {
     pub(super) image_single: bool,
     pub(super) show_source: bool,
     pub(super) collapsed_sidebar: bool,
+    pub(super) submodule: Option<Arc<git::SubmoduleInfo>>,
 }
 
 impl FileReview {
@@ -123,6 +125,7 @@ struct LoadedDiff {
     patch: Arc<Patch>,
     document: Result<Vec<DiffFile>, Message>,
     compact_context: bool,
+    submodule: Option<Arc<git::SubmoduleInfo>>,
 }
 
 fn load_diff(
@@ -131,21 +134,30 @@ fn load_diff(
     ignore_edge_whitespace: bool,
     previous: Option<&Patch>,
     previous_conflict: Option<&git::ConflictFile>,
+    previous_submodule: Option<&git::SubmoduleInfo>,
 ) -> git::Result<Option<LoadedDiff>> {
     let conflict = repo.conflict_file(file)?.map(Arc::new);
-    let patch = Arc::new(
-        repo.patch(file)?
-            .with_edge_whitespace_ignored(ignore_edge_whitespace),
-    );
-    if previous == Some(patch.as_ref()) && conflict.as_deref() == previous_conflict {
+    let patch = repo
+        .patch(file)?
+        .with_edge_whitespace_ignored(ignore_edge_whitespace);
+    let submodule = repo
+        .submodule_change(file, &patch)?
+        .map(|change| repo.submodule_info(&file.change.path, change))
+        .map(Arc::new);
+    if previous == Some(&patch)
+        && conflict.as_deref() == previous_conflict
+        && submodule.as_deref() == previous_submodule
+    {
         return Ok(None);
     }
+    let patch = Arc::new(patch);
     if conflict.is_some() {
         return Ok(Some(LoadedDiff {
             conflict,
             patch,
             document: Ok(Vec::new()),
             compact_context: false,
+            submodule,
         }));
     }
     let document = parse_patch(patch.bytes(), patch.ignores_edge_whitespace());
@@ -180,6 +192,7 @@ fn load_diff(
         patch,
         document,
         compact_context,
+        submodule,
     }))
 }
 
@@ -268,11 +281,12 @@ impl Client {
             image_single,
             show_source,
             collapsed_sidebar,
+            submodule: None,
         }));
         Self::spawn_background(
             window,
             cx,
-            move || load_diff(&repo, &target, ignore_edge_whitespace, None, None),
+            move || load_diff(&repo, &target, ignore_edge_whitespace, None, None, None),
             move |this, result, window, cx| {
                 let Some((diff, layout)) = this.review_for_request(id, request) else {
                     return;
