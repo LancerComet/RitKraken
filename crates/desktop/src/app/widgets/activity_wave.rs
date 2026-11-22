@@ -14,10 +14,19 @@ use gpui_kit::{
 
 use crate::app::theme::Palette;
 
-const SLIDE_DURATION: Duration = Duration::from_millis(320);
+const SLIDE_IN_DURATION: Duration = Duration::from_millis(450);
+const SLIDE_OUT_DURATION: Duration = Duration::from_millis(900);
 const WAVE_BAND_HEIGHT: f32 = 26.0;
 const SLIDE_TRAVEL: f32 = 24.0;
 const TOOLBAR_INNER_RADIUS: Pixels = px(13.);
+
+const fn slide_duration(active: bool) -> Duration {
+    if active {
+        SLIDE_IN_DURATION
+    } else {
+        SLIDE_OUT_DURATION
+    }
+}
 
 #[derive(Clone, Copy, Default)]
 struct WaveClock {
@@ -55,7 +64,9 @@ pub(in crate::app) fn toolbar_activity_wave(
     cx: &mut App,
 ) -> Option<AnyElement> {
     let motion = Presence::new("toolbar-activity-wave", active)
-        .transition(Transition::new(SLIDE_DURATION).ease(cubic_bezier(0.22, 0.58, 0.12, 0.98)))
+        .transition(
+            Transition::new(slide_duration(active)).ease(cubic_bezier(0.22, 0.58, 0.12, 0.98)),
+        )
         .sample(window, cx);
     let clock = window.use_keyed_state("toolbar-activity-wave-clock", cx, |_, _| {
         WaveClock::default()
@@ -194,8 +205,16 @@ fn build_wave_path(
 
 #[cfg(test)]
 mod tests {
-    use super::{SLIDE_TRAVEL, WAVE_BAND_HEIGHT, WAVE_LAYERS, build_wave_path, sample_height};
+    use super::{
+        SLIDE_TRAVEL, WAVE_BAND_HEIGHT, WAVE_LAYERS, build_wave_path, sample_height,
+        slide_duration,
+    };
     use gpui_kit::{Bounds, point, px, size};
+
+    #[test]
+    fn exit_slide_duration_is_double_enter_duration() {
+        assert_eq!(slide_duration(false), slide_duration(true) * 2);
+    }
 
     #[test]
     fn slide_hidden_at_zero_progress() {
