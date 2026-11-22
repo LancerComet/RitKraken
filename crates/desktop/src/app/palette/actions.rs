@@ -62,7 +62,7 @@ impl PaletteForm {
                 Target::File(file) => {
                     if let Some(id) = id {
                         client.open_diff(id, file, window, cx);
-                        client.show_source(id, true, window, cx);
+                        client.show_file_view(id, window, cx);
                     }
                 }
             }

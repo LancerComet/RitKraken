@@ -75,7 +75,8 @@ impl Client {
                         current.file = file;
                         current.apply_loaded(loaded, layout, None, id, window, cx);
                         let reload_source = source.is_none() && current.source.is_some();
-                        let image_file = image::is_image_file(&current.file);
+                        let previewable =
+                            image::preview_kind(&current.file) != image::PreviewKind::Text;
                         if let Some(source) = source {
                             current.apply_source(source, cx);
                         }
@@ -84,7 +85,7 @@ impl Client {
                         if reload_source {
                             this.load_review_source(id, window, cx);
                         }
-                        if image_file {
+                        if previewable {
                             this.load_review_image(id, window, cx);
                         }
                         cx.notify();

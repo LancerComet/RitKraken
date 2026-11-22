@@ -139,7 +139,7 @@ impl RepoTab {
             history: HistoryState::new(history, limit, filter, cx),
             refs: ReferenceState::new(window, cx),
             changes: ChangesState::new(window, cx),
-            review: ReviewState::new(preferences),
+            review: ReviewState::new(preferences, cx),
             rebase: None,
             busy: false,
             watch_covered_at: None,

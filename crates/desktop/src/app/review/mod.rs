@@ -11,8 +11,10 @@ use gpui_kit::*;
 use ritkraken_diff::{DiffFile, DiffMode, DiffOverview, DiffParseOptions, DiffState};
 use ritkraken_git::{self as git, FileTarget, PATCH_VIEW_LIMIT, Patch, Repo};
 
-use super::{Client, Load, Message, preferences::Preferences};
+use super::{Client, Load, Message, layout::remembered_panes, preferences::Preferences};
 use loading::load_source;
+
+const SVG_REVIEW_PANES: &str = "svg-review-panes";
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub(super) enum DiffLayout {
@@ -91,6 +93,7 @@ pub(super) struct FileReview {
     /// The swipe container's last measured bounds, shared across repaints so
     /// drag math and the explicit image layout agree.
     pub(super) swipe_bounds: Rc<Cell<Bounds<Pixels>>>,
+    pub(super) image_single: bool,
     pub(super) show_source: bool,
     pub(super) collapsed_sidebar: bool,
 }
@@ -246,8 +249,10 @@ impl Client {
             })
             .and_then(|diff| diff.viewer.clone());
         let show_source = file.change.code == b' ' || previous.is_some_and(|diff| diff.show_source);
+        let image_single =
+            file.change.code == b' ' || previous.is_some_and(|diff| diff.image_single);
         let collapsed_sidebar = previous.map_or(collapse_default, |diff| diff.collapsed_sidebar);
-        let image_file = image::is_image_file(&file);
+        let kind = image::preview_kind(&file);
         let request = tab.review.set_active(Some(FileReview {
             conflict: None,
             file,
@@ -260,6 +265,7 @@ impl Client {
             image: None,
             swipe_split: 0.5,
             swipe_bounds: Rc::new(Cell::new(Bounds::default())),
+            image_single,
             show_source,
             collapsed_sidebar,
         }));
@@ -279,7 +285,7 @@ impl Client {
                 cx.notify();
             },
         );
-        if image_file {
+        if kind != image::PreviewKind::Text {
             self.load_review_image(id, window, cx);
         }
         if show_source {
@@ -301,10 +307,30 @@ impl Client {
         };
         diff.show_source = show;
         cx.notify();
-        if !show || diff.source.is_some() || image::is_image_file(&diff.file) {
+        if !show
+            || diff.source.is_some()
+            || image::preview_kind(&diff.file) == image::PreviewKind::Raster
+        {
             return;
         }
         self.load_review_source(id, window, cx);
+    }
+
+    pub(super) fn show_file_view(
+        &mut self,
+        id: u64,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.set_image_single(id, true, cx);
+        self.show_source(id, true, window, cx);
+    }
+
+    pub(super) fn set_image_single(&mut self, id: u64, single: bool, cx: &mut Context<Self>) {
+        if let Some(review) = self.tab_mut(id).and_then(|tab| tab.review.active.as_mut()) {
+            review.image_single = single;
+            cx.notify();
+        }
     }
 
     fn load_review_image(&mut self, id: u64, window: &mut Window, cx: &mut Context<Self>) {
@@ -317,11 +343,13 @@ impl Client {
         }
         let request = tab.review.request;
         let target = diff.file.clone();
+        let kind = image::preview_kind(&target);
+        let renderer = cx.svg_renderer();
         let repo = tab.repo.clone();
         Self::spawn_background(
             window,
             cx,
-            move || image::load_image_diff(&repo, &target),
+            move || image::load_image_diff(&repo, &target, kind, renderer),
             move |this, result, _, cx| {
                 let Some((diff, _)) = this.review_for_request(id, request) else {
                     return;
@@ -423,11 +451,12 @@ pub(super) struct ReviewState {
     pub(super) layout: DiffLayout,
     pub(super) image_mode: ImageDiffMode,
     pub(super) wrap_lines: bool,
+    pub(super) panes: Entity<gpui_kit::base::ResizableState>,
     ignore_edge_whitespace: bool,
 }
 
 impl ReviewState {
-    pub(super) fn new(options: &Preferences) -> Self {
+    pub(super) fn new(options: &Preferences, cx: &mut Context<Client>) -> Self {
         Self {
             active: None,
             request: 0,
@@ -435,6 +464,7 @@ impl ReviewState {
             layout: options.diff_layout,
             image_mode: ImageDiffMode::default(),
             wrap_lines: options.wrap_lines,
+            panes: remembered_panes(SVG_REVIEW_PANES, cx),
             ignore_edge_whitespace: false,
         }
     }

@@ -6,7 +6,7 @@ use ritkraken_git::{self as git, FileTarget, Repo};
 use super::{FileReview, ImageDiffMode, view::pill_group};
 use crate::app::{
     Client, Load, Message, RepoTab,
-    image::decode_image,
+    image::{decode_image, decode_svg},
     theme::{Palette, palette},
     widgets::{Tone, button, error_text, note},
 };
@@ -28,25 +28,47 @@ pub(in crate::app) struct ImageDiff {
     new: Option<Result<ImageSide, Message>>,
 }
 
-pub(super) fn is_image_file(file: &FileTarget) -> bool {
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) enum PreviewKind {
+    Text,
+    Raster,
+    Svg,
+}
+
+pub(super) fn preview_kind(file: &FileTarget) -> PreviewKind {
     let change = &file.change;
-    change.code != b'U'
-        && (has_image_extension(&change.path)
-            || change.previous.as_deref().is_some_and(has_image_extension))
+    if change.code == b'U' {
+        return PreviewKind::Text;
+    }
+    extension_kind(&change.path)
+        .or_else(|| change.previous.as_deref().and_then(extension_kind))
+        .unwrap_or(PreviewKind::Text)
 }
 
-fn has_image_extension(path: &Path) -> bool {
-    path.extension()
-        .and_then(|extension| extension.to_str())
-        .is_some_and(|extension| {
-            IMAGE_EXTENSIONS.contains(&extension.to_ascii_lowercase().as_str())
-        })
+fn extension_kind(path: &Path) -> Option<PreviewKind> {
+    let extension = path.extension()?.to_str()?.to_ascii_lowercase();
+    if extension == "svg" {
+        Some(PreviewKind::Svg)
+    } else {
+        IMAGE_EXTENSIONS
+            .contains(&extension.as_str())
+            .then_some(PreviewKind::Raster)
+    }
 }
 
-pub(super) fn load_image_diff(repo: &Repo, target: &FileTarget) -> git::Result<Arc<ImageDiff>> {
+pub(super) fn load_image_diff(
+    repo: &Repo,
+    target: &FileTarget,
+    kind: PreviewKind,
+    renderer: SvgRenderer,
+) -> git::Result<Arc<ImageDiff>> {
     let versions = repo.file_versions(target)?;
     let side = |bytes: &Vec<u8>| {
-        decode_image(bytes, MAX_IMAGE_SIDE, MAX_IMAGE_ALLOC)
+        let decoded = match kind {
+            PreviewKind::Svg => decode_svg(bytes, &renderer),
+            _ => decode_image(bytes, MAX_IMAGE_SIDE, MAX_IMAGE_ALLOC),
+        };
+        decoded
             .map(|decoded| ImageSide {
                 image: decoded.image,
                 width: decoded.width,
@@ -102,7 +124,7 @@ pub(super) fn content(tab: &RepoTab, review: &FileReview, cx: &mut Context<Clien
     let p = palette(cx);
     match &review.image {
         Some(Load::Ready(diff)) => {
-            if review.show_source {
+            if review.image_single {
                 single(diff, p, cx)
             } else if swipe_available(review) && tab.review.image_mode == ImageDiffMode::Swipe {
                 swipe_view(tab.id, review, diff, p, cx)
@@ -193,6 +215,8 @@ fn fitted(image: &Arc<RenderImage>) -> AnyElement {
         .flex_1()
         .min_w_0()
         .min_h_0()
+        .flex()
+        .overflow_hidden()
         .child(
             img(image.clone())
                 .size_full()
@@ -387,8 +411,41 @@ fn format_bytes(bytes: usize) -> String {
 #[cfg(test)]
 mod tests {
     use gpui_kit::{Bounds, Pixels, Point, point, px, size};
+    use ritkraken_git::{Change, FileTarget, Scope};
 
-    use super::{format_bytes, swipe_layout};
+    use super::{PreviewKind, format_bytes, preview_kind, swipe_layout};
+
+    fn target(path: &str, previous: Option<&str>, code: u8) -> FileTarget {
+        FileTarget {
+            scope: Scope::Worktree,
+            change: Change {
+                path: path.into(),
+                previous: previous.map(Into::into),
+                code,
+            },
+        }
+    }
+
+    #[test]
+    fn preview_kind_classifies_file_extensions() {
+        assert_eq!(preview_kind(&target("a.svg", None, b'M')), PreviewKind::Svg);
+        assert_eq!(preview_kind(&target("A.SVG", None, b'A')), PreviewKind::Svg);
+        assert_eq!(preview_kind(&target("a.png", None, b'M')), PreviewKind::Raster);
+        assert_eq!(preview_kind(&target("a.rs", None, b'M')), PreviewKind::Text);
+        assert_eq!(preview_kind(&target("a.txt", None, b'M')), PreviewKind::Text);
+    }
+
+    #[test]
+    fn preview_kind_checks_rename_source_and_conflicts() {
+        assert_eq!(
+            preview_kind(&target("renamed.txt", Some("a.svg"), b'R')),
+            PreviewKind::Svg
+        );
+        assert_eq!(
+            preview_kind(&target("a.svg", None, b'U')),
+            PreviewKind::Text
+        );
+    }
 
     fn center(bounds: Bounds<Pixels>) -> Point<Pixels> {
         point(
