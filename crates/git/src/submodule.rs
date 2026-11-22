@@ -1,8 +1,8 @@
 use std::path::{Path, PathBuf};
 
 use crate::{
-    FileTarget, Patch, Repo, Result, Scope,
-    command::{command, run_read},
+    FileTarget, Patch, Repo, Result, RuleError, Scope,
+    command::{command, run_read, run_write},
     protocol::text,
     worktrees::registered_path_eq,
 };
@@ -188,34 +188,73 @@ impl Repo {
         }))
     }
 
+    fn submodule_repo(&self, path: &Path) -> Option<Repo> {
+        let dir = self.root().join(path).canonicalize().ok()?;
+        let repo = Repo::open(&dir).ok()?;
+        let root = repo.root().canonicalize().ok()?;
+        registered_path_eq(&root, &dir).then_some(repo)
+    }
+
     pub fn submodule_info(&self, path: &Path, change: SubmoduleChange) -> SubmoduleInfo {
         let dir = self.root().join(path);
-        let initialized = dir
-            .canonicalize()
-            .ok()
-            .and_then(|dir| {
-                Repo::open(&dir).ok().and_then(|repo| {
-                    repo.root()
-                        .canonicalize()
-                        .ok()
-                        .map(|root| registered_path_eq(&root, &dir))
-                })
-            })
-            .unwrap_or(false);
-        let (old_subject, new_subject) = if initialized {
-            (
-                change.old.as_deref().and_then(|id| commit_subject(&dir, id)),
-                change.new.as_deref().and_then(|id| commit_subject(&dir, id)),
-            )
-        } else {
-            (None, None)
+        let sub = self.submodule_repo(path);
+        let (old_subject, new_subject) = match &sub {
+            Some(sub) => (
+                change
+                    .old
+                    .as_deref()
+                    .and_then(|id| commit_subject(sub.root(), id)),
+                change
+                    .new
+                    .as_deref()
+                    .and_then(|id| commit_subject(sub.root(), id)),
+            ),
+            None => (None, None),
         };
         SubmoduleInfo {
             change,
             path: dir,
-            initialized,
+            initialized: sub.is_some(),
             old_subject,
             new_subject,
         }
+    }
+
+    fn recorded_submodule_id(&self, path: &Path) -> Result<Option<String>> {
+        let mut git = self.git_with_literal_paths();
+        git.args(["ls-files", "--stage", "--"]).arg(path);
+        let output = run_read(&mut git)?;
+        for record in output.split(|byte| *byte == b'\n') {
+            let mut fields = record.split(|byte| *byte == b' ');
+            if fields.next() == Some(b"160000") {
+                return Ok(Some(text(fields.next().unwrap_or_default())));
+            }
+        }
+        Ok(None)
+    }
+
+    pub fn update_submodule(&self, path: &Path) -> Result<()> {
+        if let Some(sub) = self.submodule_repo(path)
+            && let Some(recorded) = self.recorded_submodule_id(path)?
+        {
+            let head = text(&sub.read(&["rev-parse", "HEAD"])?)
+                .trim()
+                .to_owned();
+            if head != recorded {
+                let containing = sub.read(&[
+                    "for-each-ref",
+                    "--contains",
+                    "HEAD",
+                    "--count=1",
+                    "--format=%(refname)",
+                ])?;
+                if text(&containing).trim().is_empty() {
+                    return Err(RuleError::UnreachableSubmoduleCommit.into());
+                }
+            }
+        }
+        let mut git = self.git_with_literal_paths();
+        git.args(["submodule", "update", "--init", "--"]).arg(path);
+        run_write(&mut git)
     }
 }

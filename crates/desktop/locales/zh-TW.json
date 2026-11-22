@@ -172,6 +172,7 @@
     },
     "notice": {
       "info": "資訊",
+      "submodule_updated": "已更新子模組。",
       "warning": "警告",
       "error": "錯誤",
       "branched": "分支已建立",
@@ -313,13 +314,17 @@
       "split": "並排",
       "submodule": "子模組",
       "submodule_current": "目前的提交",
+      "submodule_init": "初始化子模組",
       "submodule_modified": "子模組中有已修改的檔案",
       "submodule_new": "新提交",
       "submodule_none": "（無）",
       "submodule_not_initialized": "子模組尚未初始化，無法開啟",
       "submodule_old": "舊提交",
       "submodule_open": "開啟子模組",
+      "submodule_unreachable": "子模組目前的提交不在任何分支或標籤上，切換後將難以找回。請先在子模組中為它建立分支。",
       "submodule_untracked": "子模組中有未追蹤的檔案",
+      "submodule_update": "切換至記錄的提交",
+      "submodule_update_hint": "將簽出提交 %{id}",
       "worktree": "工作區"
     },
     "stage": {
@@ -397,6 +402,7 @@
       "stash": "儲藏此檔案",
       "stash_list_changed": "檔案已還原，但儲藏清單已由其他操作修改，已保留原儲藏。",
       "stopped_tracking": "已加入忽略規則並停止 Git 追蹤。",
+      "submodule_discard": "子模組和巢狀存放庫不能捨棄變更，請在子模組面板中使用「切換至記錄的提交」。",
       "uncommitted": "未提交的變更"
     },
     "push": {

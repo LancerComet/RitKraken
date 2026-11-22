@@ -172,6 +172,7 @@
     },
     "notice": {
       "info": "情報",
+      "submodule_updated": "サブモジュールを更新しました。",
       "warning": "警告",
       "error": "エラー",
       "branched": "ブランチを作成しました",
@@ -313,13 +314,17 @@
       "split": "左右分割",
       "submodule": "サブモジュール",
       "submodule_current": "現在のコミット",
+      "submodule_init": "サブモジュールを初期化",
       "submodule_modified": "サブモジュール内に変更されたファイルがあります。",
       "submodule_new": "新しいコミット",
       "submodule_none": "（なし）",
       "submodule_not_initialized": "サブモジュールは初期化されていません。",
       "submodule_old": "以前のコミット",
       "submodule_open": "サブモジュールを開く",
+      "submodule_unreachable": "サブモジュールの現在のコミットはどのブランチやタグにも含まれていないため、切り替えると復元が困難になります。先にサブモジュール内でブランチを作成してください。",
       "submodule_untracked": "サブモジュール内に未追跡のファイルがあります。",
+      "submodule_update": "記録されたコミットに切り替え",
+      "submodule_update_hint": "%{id} をチェックアウトします。",
       "worktree": "作業ツリー"
     },
     "stage": {
@@ -397,6 +402,7 @@
       "stash": "このファイルをスタッシュ",
       "stash_list_changed": "ファイルは復元されましたが、スタッシュ一覧が変更されたため、保存済みのスタッシュを保持しました。",
       "stopped_tracking": "無視ルールを追加し、Git の追跡を停止しました。",
+      "submodule_discard": "サブモジュールとネストされたリポジトリは変更を破棄できません。サブモジュールパネルの「記録されたコミットに切り替え」を使用してください。",
       "uncommitted": "未コミットの変更"
     },
     "push": {

@@ -86,6 +86,8 @@ fn rule_error(rule: &RuleError) -> String {
         RuleError::StashListChanged => "app.file_menu.stash_list_changed",
         RuleError::StaleStash => "app.stash.stale",
         RuleError::DeletedFile => "app.error.deleted_file",
+        RuleError::SubmoduleDiscard => "app.file_menu.submodule_discard",
+        RuleError::UnreachableSubmoduleCommit => "app.review.submodule_unreachable",
         RuleError::NoFileContents => "app.error.no_file_contents",
         RuleError::FilePreviewLimit => "app.error.file_preview_limit",
         RuleError::BinaryFile => "app.error.binary_file",

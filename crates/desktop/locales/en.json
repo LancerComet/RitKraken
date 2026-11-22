@@ -172,6 +172,7 @@
     },
     "notice": {
       "info": "Info",
+      "submodule_updated": "Submodule updated.",
       "warning": "Warning",
       "error": "Error",
       "branched": "Branch created",
@@ -313,13 +314,17 @@
       "split": "Split",
       "submodule": "Submodule",
       "submodule_current": "Current commit",
+      "submodule_init": "Initialize submodule",
       "submodule_modified": "The submodule contains modified files.",
       "submodule_new": "New commit",
       "submodule_none": "(none)",
       "submodule_not_initialized": "The submodule is not initialized.",
       "submodule_old": "Old commit",
       "submodule_open": "Open submodule",
+      "submodule_unreachable": "The submodule's current commit is not contained in any branch or tag and would be hard to recover after switching. Create a branch for it inside the submodule first.",
       "submodule_untracked": "The submodule contains untracked files.",
+      "submodule_update": "Switch to recorded commit",
+      "submodule_update_hint": "Checks out %{id}.",
       "worktree": "Working directory"
     },
     "stage": {
@@ -397,6 +402,7 @@
       "stash": "Stash file",
       "stash_list_changed": "The file was restored, but the stash list changed. The saved stash was kept.",
       "stopped_tracking": "Ignore rule added and file removed from Git tracking.",
+      "submodule_discard": "Submodules and nested repositories cannot be discarded. Use the submodule panel to switch to the recorded commit.",
       "uncommitted": "Uncommitted changes"
     },
     "push": {

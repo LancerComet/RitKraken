@@ -14,13 +14,13 @@ impl Client {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if matches!(file.scope, Scope::Commit { .. }) {
-            return;
-        }
         let Some(tab) = self.tab_mut(id) else { return };
         let Some(current) = tab.review.active.as_ref() else {
             return;
         };
+        if matches!(file.scope, Scope::Commit { .. }) && current.submodule.is_none() {
+            return;
+        }
         let previous = match &current.patch {
             Load::Ready(patch) if current.file == file => Some(patch.clone()),
             _ => None,

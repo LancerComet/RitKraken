@@ -379,7 +379,7 @@ impl Client {
                 .child(div().flex_1().min_h_0().child(conflict.clone()));
         }
         let body = if let Some(info) = &review.submodule {
-            submodule::panel(tab.id, info, cx).into_any_element()
+            submodule::panel(tab, review, info, cx).into_any_element()
         } else {
             match image::preview_kind(&review.file) {
                 PreviewKind::Text => self.code_pane(tab, review, cx).into_any_element(),

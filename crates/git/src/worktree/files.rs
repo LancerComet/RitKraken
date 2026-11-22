@@ -109,6 +109,27 @@ impl Repo {
             .split(|byte| *byte == 0)
             .filter(|record| !record.is_empty())
             .collect();
+        for file in files {
+            let mut owned_paths: HashSet<&Path> =
+                std::iter::once(&*file.change.path).collect();
+            if let Some(previous) = &file.change.previous
+                && file.change.code != b'C'
+            {
+                owned_paths.insert(previous);
+            }
+            let gitlink = index_records.iter().any(|record| {
+                let Some(tab) = record.iter().position(|byte| *byte == b'\t') else {
+                    return false;
+                };
+                record[..tab].starts_with(b"160000")
+                    && owned_paths.contains(
+                        crate::protocol::path_from_bytes(&record[tab + 1..]).as_path(),
+                    )
+            });
+            if gitlink || self.root().join(&file.change.path).is_dir() {
+                return Err(RuleError::SubmoduleDiscard.into());
+            }
+        }
         files
             .iter()
             .map(|file| {

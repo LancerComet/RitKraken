@@ -2,8 +2,8 @@ mod support;
 
 use std::{fs, path::Path};
 
-use ritkraken_git::{Change, FileTarget, Repo, Scope};
-use support::commits::commit_file;
+use ritkraken_git::{Change, Error, FileTarget, Repo, RuleError, Scope};
+use support::commits::{commit_file, git};
 use support::{command, fixture, git_output};
 
 fn head(repo: &Repo) -> String {
@@ -319,4 +319,225 @@ fn patch_uses_submodule_short_format() {
     let bytes = String::from_utf8_lossy(patch.bytes());
     assert!(bytes.contains("Subproject commit"));
     assert!(bytes.contains("-dirty"));
+}
+
+fn worktree_lib() -> FileTarget {
+    FileTarget {
+        scope: Scope::Worktree,
+        change: Change {
+            path: "lib".into(),
+            previous: None,
+            code: b'M',
+        },
+    }
+}
+
+fn lib_head(repo: &Repo) -> String {
+    String::from_utf8(git_output(
+        command(Some(&repo.root().join("lib"))).args(["rev-parse", "HEAD"]),
+    ))
+    .unwrap()
+    .trim()
+    .to_owned()
+}
+
+fn checkout_new_head(repo: &Repo, remote: &Repo, new_head: &str) {
+    git_output(command(Some(&repo.root().join("lib"))).args(["fetch", "origin", "main"]));
+    git_output(command(Some(&repo.root().join("lib"))).args(["checkout", new_head]));
+}
+
+#[test]
+fn discarding_a_submodule_change_is_refused() {
+    let (_directory, repo) = fixture();
+    let (_remote_dir, remote) = sub_remote();
+    add_submodule(&repo, &remote);
+    let new_head = commit_file(&remote, "lib.txt", "two\n", "next library state");
+    checkout_new_head(&repo, &remote, &new_head);
+    let error = repo.prepare_discard(&worktree_lib()).unwrap_err();
+    assert!(matches!(
+        error,
+        Error::Rule(RuleError::SubmoduleDiscard)
+    ));
+    assert_eq!(lib_head(&repo), new_head);
+}
+
+#[test]
+fn a_mixed_selection_refuses_discard_and_leaves_files_untouched() {
+    let (_directory, repo) = fixture();
+    let (_remote_dir, remote) = sub_remote();
+    add_submodule(&repo, &remote);
+    commit_file(&repo, "notes.txt", "base\n", "Add notes");
+    fs::write(repo.root().join("notes.txt"), "edited\n").unwrap();
+    let notes = FileTarget {
+        scope: Scope::Worktree,
+        change: Change {
+            path: "notes.txt".into(),
+            previous: None,
+            code: b'M',
+        },
+    };
+    let lib = worktree_lib();
+    assert!(repo.prepare_discard(&notes).is_ok());
+    assert!(matches!(
+        repo.prepare_discard(&lib).unwrap_err(),
+        Error::Rule(RuleError::SubmoduleDiscard)
+    ));
+    let prepared: ritkraken_git::Result<Vec<_>> = [notes, lib]
+        .iter()
+        .map(|file| repo.prepare_discard(file))
+        .collect();
+    assert!(prepared.is_err());
+    assert_eq!(fs::read(repo.root().join("notes.txt")).unwrap(), b"edited\n");
+}
+
+#[test]
+fn update_submodule_restores_the_recorded_commit() {
+    let (_directory, repo) = fixture();
+    let (_remote_dir, remote) = sub_remote();
+    let recorded = commit_file(&remote, "lib.txt", "two\n", "next library state");
+    add_submodule(&repo, &remote);
+    let first = git(&remote, &["rev-list", "--max-parents=0", "HEAD"])
+        .trim()
+        .to_owned();
+    git_output(command(Some(&repo.root().join("lib"))).args([
+        "checkout", "-b", "work", &first,
+    ]));
+    assert_eq!(
+        repo.status().unwrap().unstaged[0].path,
+        Path::new("lib")
+    );
+    repo.update_submodule(Path::new("lib")).unwrap();
+    assert_eq!(lib_head(&repo), recorded);
+    assert!(repo.status().unwrap().unstaged.is_empty());
+}
+
+#[test]
+fn update_submodule_initializes_a_deinitialized_submodule() {
+    let (_directory, repo) = fixture();
+    let (_remote_dir, remote) = sub_remote();
+    let recorded = head(&remote);
+    add_submodule(&repo, &remote);
+    git_output(command(Some(repo.root())).args([
+        "-c",
+        "protocol.file.allow=always",
+        "submodule",
+        "deinit",
+        "-f",
+        "--",
+        "lib",
+    ]));
+    repo.update_submodule(Path::new("lib")).unwrap();
+    assert_eq!(lib_head(&repo), recorded);
+    let file = worktree_lib();
+    let patch = repo.patch(&file).unwrap();
+    let change = repo
+        .submodule_change(&file, &patch)
+        .unwrap()
+        .unwrap_or(ritkraken_git::SubmoduleChange {
+            old: None,
+            new: None,
+            modified: false,
+            untracked: false,
+        });
+    let info = repo.submodule_info(Path::new("lib"), change);
+    assert!(info.initialized);
+}
+
+#[test]
+fn update_submodule_refuses_when_head_would_be_dangling() {
+    let (_directory, repo) = fixture();
+    let (_remote_dir, remote) = sub_remote();
+    add_submodule(&repo, &remote);
+    let lib = repo.root().join("lib");
+    git_output(command(Some(&lib)).args(["checkout", "--detach"]));
+    fs::write(lib.join("lib.txt"), "detached work\n").unwrap();
+    git_output(command(Some(&lib)).args(["add", "lib.txt"]));
+    git_output(command(Some(&lib)).args([
+        "-c",
+        "user.name=t",
+        "-c",
+        "user.email=t@t",
+        "commit",
+        "-qm",
+        "dangling work",
+    ]));
+    let dangling = lib_head(&repo);
+    let error = repo.update_submodule(Path::new("lib")).unwrap_err();
+    assert!(matches!(
+        error,
+        Error::Rule(RuleError::UnreachableSubmoduleCommit)
+    ));
+    assert_eq!(lib_head(&repo), dangling);
+}
+
+#[test]
+fn update_submodule_preserves_non_conflicting_local_edits() {
+    let (_directory, repo) = fixture();
+    let (_remote_dir, remote) = sub_remote();
+    let middle = commit_file(&remote, "other.txt", "other\n", "Add other file");
+    let recorded = commit_file(&remote, "lib.txt", "two\n", "next library state");
+    add_submodule(&repo, &remote);
+    let lib = repo.root().join("lib");
+    git_output(command(Some(&lib)).args(["checkout", "-b", "work", &middle]));
+    fs::write(lib.join("other.txt"), "local edit\n").unwrap();
+    repo.update_submodule(Path::new("lib")).unwrap();
+    assert_eq!(fs::read(lib.join("other.txt")).unwrap(), b"local edit\n");
+    assert_eq!(lib_head(&repo), recorded);
+}
+
+#[test]
+fn update_submodule_refuses_conflicting_local_edits() {
+    let (_directory, repo) = fixture();
+    let (_remote_dir, remote) = sub_remote();
+    commit_file(&remote, "lib.txt", "two\n", "next library state");
+    add_submodule(&repo, &remote);
+    let first = git(&remote, &["rev-list", "--max-parents=0", "HEAD"])
+        .trim()
+        .to_owned();
+    let lib = repo.root().join("lib");
+    git_output(command(Some(&lib)).args(["checkout", "-b", "work", &first]));
+    fs::write(lib.join("lib.txt"), "conflicting edit\n").unwrap();
+    assert!(repo.update_submodule(Path::new("lib")).is_err());
+    assert_eq!(
+        fs::read(lib.join("lib.txt")).unwrap(),
+        b"conflicting edit\n"
+    );
+    assert_eq!(lib_head(&repo), first);
+}
+
+#[test]
+fn update_submodule_clones_a_missing_submodule() {
+    unsafe {
+        std::env::set_var("GIT_CONFIG_COUNT", "1");
+        std::env::set_var("GIT_CONFIG_KEY_0", "protocol.file.allow");
+        std::env::set_var("GIT_CONFIG_VALUE_0", "always");
+    }
+    let (_directory, repo) = fixture();
+    let (_remote_dir, remote) = sub_remote();
+    let recorded = head(&remote);
+    add_submodule(&repo, &remote);
+    git_output(command(Some(repo.root())).args([
+        "-c",
+        "protocol.file.allow=always",
+        "submodule",
+        "deinit",
+        "-f",
+        "--",
+        "lib",
+    ]));
+    fs::remove_dir_all(repo.root().join(".git/modules/lib")).unwrap();
+    repo.update_submodule(Path::new("lib")).unwrap();
+    assert_eq!(lib_head(&repo), recorded);
+    let file = worktree_lib();
+    let patch = repo.patch(&file).unwrap();
+    let change = repo
+        .submodule_change(&file, &patch)
+        .unwrap()
+        .unwrap_or(ritkraken_git::SubmoduleChange {
+            old: None,
+            new: None,
+            modified: false,
+            untracked: false,
+        });
+    assert!(repo.submodule_info(Path::new("lib"), change).initialized);
 }

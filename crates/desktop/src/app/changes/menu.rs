@@ -59,6 +59,9 @@ impl FileMenu {
         };
         let enabled = !tab.busy;
         let has_head = tab.history.data.snapshot.head.is_some();
+        let submodule = selected
+            .iter()
+            .any(|file| tab.repo.root().join(&file.change.path).is_dir());
         let committed = matches!(self.file.scope, Scope::Commit { .. });
         let existing = tab.repo.root().join(&self.file.change.path).exists();
         let staged_addition = tab
@@ -95,7 +98,7 @@ impl FileMenu {
                 .item(self.item(
                     tr!("app.file_menu.discard"),
                     FileAction::Discard,
-                    enabled && !conflicted,
+                    enabled && !conflicted && !submodule,
                 ))
                 .when(!multiple, |menu| {
                     menu.submenu(

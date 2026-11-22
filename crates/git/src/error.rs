@@ -89,6 +89,14 @@ pub enum RuleError {
     StaleStash,
     #[error("This file was deleted in the selected version.")]
     DeletedFile,
+    #[error(
+        "Submodules and nested repositories cannot be discarded. Use the submodule panel to switch to the recorded commit."
+    )]
+    SubmoduleDiscard,
+    #[error(
+        "The submodule's checked-out commit is not contained in any branch or tag and would be hard to recover after switching. Create a branch for it inside the submodule first."
+    )]
+    UnreachableSubmoduleCommit,
     #[error("This entry does not have text file contents.")]
     NoFileContents,
     #[error("This file exceeds the 8 MiB preview limit.")]

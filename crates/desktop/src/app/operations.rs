@@ -32,6 +32,7 @@ pub(super) enum RepoOperation {
     StagePatch(FileTarget, Arc<Patch>, PatchSelection),
     ResolveConflict(Arc<git::ConflictFile>, git::ConflictResolution),
     DiscardFiles(Arc<Vec<git::DiscardFile>>),
+    UpdateSubmodule(std::path::PathBuf),
     IgnoreFile(Change, git::IgnoreRule, bool),
     StashFile(Change),
     Commit(String, String),
@@ -104,6 +105,7 @@ impl RepoOperation {
             Self::StagePatch(file, patch, selection) => repo.apply_partial(file, patch, *selection),
             Self::ResolveConflict(file, resolution) => repo.resolve_conflict(file, resolution),
             Self::DiscardFiles(expected) => repo.discard_files(expected),
+            Self::UpdateSubmodule(path) => repo.update_submodule(path),
             Self::IgnoreFile(change, rule, stop_tracking) => {
                 repo.ignore_file(change, *rule)?;
                 if *stop_tracking {
@@ -156,6 +158,7 @@ impl RepoOperation {
             Self::CommitGraph(_) => "app.commit_menu.completed",
             Self::ResolveConflict(..) => "app.conflicts.resolved",
             Self::DiscardFiles(_) => "app.file_menu.discarded",
+            Self::UpdateSubmodule(_) => "app.notice.submodule_updated",
             Self::IgnoreFile(_, _, false) => "app.file_menu.ignored",
             Self::IgnoreFile(_, _, true) => "app.file_menu.stopped_tracking",
             Self::StashFile(_) => "app.notice.stashed",

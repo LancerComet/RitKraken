@@ -172,6 +172,7 @@
     },
     "notice": {
       "info": "信息",
+      "submodule_updated": "已更新子模块。",
       "warning": "警告",
       "error": "错误",
       "branched": "分支已创建",
@@ -313,13 +314,17 @@
       "split": "并排",
       "submodule": "子模块",
       "submodule_current": "当前提交",
+      "submodule_init": "初始化子模块",
       "submodule_modified": "子模块中有已修改的文件",
       "submodule_new": "新提交",
       "submodule_none": "（无）",
       "submodule_not_initialized": "子模块尚未初始化，无法打开",
       "submodule_old": "原提交",
       "submodule_open": "打开子模块",
+      "submodule_unreachable": "子模块当前提交不在任何分支或标签上，切换后将难以找回。请先在子模块中为它创建分支。",
       "submodule_untracked": "子模块中有未跟踪的文件",
+      "submodule_update": "切换到记录的提交",
+      "submodule_update_hint": "将检出提交 %{id}",
       "worktree": "工作区"
     },
     "stage": {
@@ -397,6 +402,7 @@
       "stash": "储藏此文件",
       "stash_list_changed": "文件已恢复，但储藏列表已被其他操作修改，已保留原储藏。",
       "stopped_tracking": "已添加忽略规则并停止 Git 跟踪。",
+      "submodule_discard": "子模块和嵌套仓库不能丢弃更改，请在子模块面板中使用「切换到记录的提交」。",
       "uncommitted": "未提交的更改"
     },
     "push": {
