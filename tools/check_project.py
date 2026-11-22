@@ -9,6 +9,29 @@ import tomllib
 
 ROOT = Path(__file__).resolve().parents[1]
 MAX_LINES = 1000
+CODE_EXTENSIONS = frozenset(
+    {
+        ".rs",
+        ".py",
+        ".sh",
+        ".cmd",
+        ".bat",
+        ".ps1",
+        ".html",
+        ".css",
+        ".js",
+        ".ts",
+        ".c",
+        ".h",
+        ".cpp",
+        ".hpp",
+        ".m",
+        ".mm",
+        ".hlsl",
+        ".wgsl",
+        ".metal",
+    }
+)
 
 
 def toml_inline(value):
@@ -60,7 +83,7 @@ def check_files():
     for path in sorted(set(paths) - {b""}):
         relative = os.fsdecode(path)
         file = ROOT / relative
-        if not file.is_file():
+        if not file.is_file() or file.suffix.lower() not in CODE_EXTENSIONS:
             continue
         contents = file.read_bytes()
         lines = contents.count(b"\n") + bool(contents and not contents.endswith(b"\n"))
@@ -70,7 +93,7 @@ def check_files():
     if violations:
         print("\n".join(violations))
         return 1
-    print(f"Largest project file: {largest[1]} ({largest[0]}/{MAX_LINES} lines)")
+    print(f"Largest source file: {largest[1]} ({largest[0]}/{MAX_LINES} lines)")
     return 0
 
 

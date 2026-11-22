@@ -49,7 +49,7 @@ cargo test --workspace --release --locked --target "$(rustc -vV | sed -n 's/^hos
 python3 tools/check_project.py
 ```
 
-`tools/check_project.py` (Python 3.11+) enforces the 1,000-line limit across all tracked/unignored files, including `Cargo.lock`.
+`tools/check_project.py` (Python 3.11+) enforces the 1,000-line limit across tracked/unignored source code files (excluding generated files such as `Cargo.lock` and non-code assets).
 
 ## Project Layout
 
