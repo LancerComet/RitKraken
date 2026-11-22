@@ -68,10 +68,11 @@ impl Client {
         tab.state = SavedTabState::Loading;
         let request = OpenRepo::Open(tab.path.clone());
         let limit = self.saved.preferences.history_limit();
+        let filters = self.graph_filters.clone();
         Self::spawn_background(
             window,
             cx,
-            move || request.load(limit, None),
+            move || request.load(limit, None, &filters),
             move |this, result, window, cx| {
                 let Some(Tab::Saved(tab)) = this.session.entry_mut(id) else {
                     return;

@@ -130,6 +130,7 @@ impl Client {
         } else {
             None
         };
+        let filter_bar = super::filter::filter_banner(tab, cx);
         let lazy = self.saved.preferences.lazy_history && history.snapshot.history_limited;
         let mut list = uniform_list(("history", id), count, move |range, window, cx| {
             if lazy && range.start > 0 && range.end == count {
@@ -407,6 +408,7 @@ impl Client {
             .flex_col()
             .text_color(rgb(p.text))
             .when_some(banner, |element, bar| element.child(bar))
+            .when_some(filter_bar, |element, bar| element.child(bar))
             .child(body)
     }
 }

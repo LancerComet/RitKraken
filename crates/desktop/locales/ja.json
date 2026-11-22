@@ -165,7 +165,9 @@
       "graph": "グラフ",
       "message": "コミットメッセージ",
       "ref": "ブランチ / タグ",
+      "refs_hidden": "%{count} 件の参照を非表示中",
       "sha": "SHA",
+      "showing_only": "表示中: %{names}",
       "wip": "// 作業中"
     },
     "notice": {
@@ -414,6 +416,11 @@
       "tag": "ローカルタグ · %{name}",
       "track": "追跡ブランチを作成して切り替え…",
       "unavailable": "この参照ではこの操作を利用できません。",
+      "always_shown": "現在のブランチは常にグラフに表示されます。",
+      "hide_in_graph": "グラフで非表示",
+      "show_in_graph": "グラフに表示",
+      "solo_in_graph": "グラフで単独表示",
+      "remove_solo": "単独表示を解除",
       "push_tag": "%{name} を %{remote} にプッシュ"
     },
     "remotes": {

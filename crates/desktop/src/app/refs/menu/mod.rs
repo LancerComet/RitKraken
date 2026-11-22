@@ -289,6 +289,46 @@ impl RefMenu {
                 },
             ));
         }
+        let full = reference.full_name();
+        let hidden_ref = tab.history.filter.hidden.contains(&full);
+        let soloed = tab.history.filter.solo.contains(&full);
+        let filter_reason = if tab.busy {
+            Some(tr!("app.commit_menu.busy"))
+        } else if tab.rebase.is_some() {
+            Some(tr!("app.rebase.planning_active"))
+        } else {
+            None
+        };
+        let hide_reason = if hidden_ref {
+            filter_reason.clone()
+        } else if current {
+            Some(tr!("app.ref_menu.always_shown"))
+        } else {
+            filter_reason.clone()
+        };
+        let label = if hidden_ref {
+            "app.ref_menu.show_in_graph"
+        } else {
+            "app.ref_menu.hide_in_graph"
+        };
+        let id = self.id;
+        let name = full.clone();
+        menu = menu.separator().item(self.action_item(
+            tr!(label),
+            hide_reason,
+            move |client, window, cx| client.toggle_graph_hidden(id, name.clone(), window, cx),
+        ));
+        let label = if soloed {
+            "app.ref_menu.remove_solo"
+        } else {
+            "app.ref_menu.solo_in_graph"
+        };
+        let id = self.id;
+        menu = menu.item(
+            self.action_item(tr!(label), filter_reason, move |client, window, cx| {
+                client.toggle_graph_solo(id, full.clone(), window, cx)
+            }),
+        );
         let name = reference.name.clone();
         let hash = reference.id.clone();
         menu.separator()

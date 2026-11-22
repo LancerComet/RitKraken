@@ -39,13 +39,18 @@ impl OpenRepo {
         self,
         limit: Option<usize>,
         default_branch: Option<&str>,
+        filters: &super::history::filter::Store,
     ) -> git::Result<(Repo, Arc<History>)> {
         let repo = match self {
             Self::Open(path) => Repo::open(&path),
             Self::Clone(url, path) => Repo::clone(&url, &path),
             Self::Init(path) => Repo::init(&path, default_branch),
         }?;
-        let history = History::load(&repo, limit)?;
+        let filter = filters
+            .get(&super::history::filter::root_key(&repo))
+            .cloned()
+            .unwrap_or_default();
+        let history = History::load(&repo, limit, &filter)?;
         Ok((repo, history))
     }
 }
@@ -239,10 +244,17 @@ impl Client {
         self.manager.error = None;
         let limit = self.saved.preferences.history_limit();
         let branch = self.saved.preferences.default_branch.clone();
+        let filters = self.graph_filters.clone();
         Self::spawn_background(
             window,
             cx,
-            move || request.load(limit, (!branch.is_empty()).then_some(branch.as_str())),
+            move || {
+                request.load(
+                    limit,
+                    (!branch.is_empty()).then_some(branch.as_str()),
+                    &filters,
+                )
+            },
             move |this, result, window, cx| {
                 this.session.opening = false;
                 match result {

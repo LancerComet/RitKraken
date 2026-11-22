@@ -165,7 +165,9 @@
       "graph": "GRAPH",
       "message": "COMMIT MESSAGE",
       "ref": "BRANCH / TAG",
+      "refs_hidden": "%{count} refs hidden",
       "sha": "SHA",
+      "showing_only": "Showing only: %{names}",
       "wip": "// WIP"
     },
     "notice": {
@@ -414,6 +416,11 @@
       "tag": "Local tag · %{name}",
       "track": "Create and switch to tracking branch…",
       "unavailable": "This operation is not available for this reference.",
+      "always_shown": "The current branch is always shown in the graph.",
+      "hide_in_graph": "Hide in graph",
+      "show_in_graph": "Show in graph",
+      "solo_in_graph": "Solo in graph",
+      "remove_solo": "Remove from solo",
       "push_tag": "Push %{name} to %{remote}"
     },
     "remotes": {

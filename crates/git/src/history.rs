@@ -1,5 +1,6 @@
 mod detail;
 mod file;
+mod filter;
 mod search;
 
 use std::{collections::HashSet, thread};
@@ -11,6 +12,7 @@ use crate::{
 
 pub use detail::{CommitDetail, CommitPerson};
 pub use file::{BlameLine, FileCommit, FileHistory};
+pub use filter::HistoryFilter;
 pub use search::CommitSearch;
 
 pub(crate) const COMMIT_DATE_FORMAT: &str = "--date=format-local:%Y/%m/%d @ %H:%M";
@@ -89,10 +91,18 @@ impl Snapshot {
 
 impl Repo {
     pub fn snapshot(&self, history_limit: Option<usize>) -> Result<Snapshot> {
+        self.snapshot_filtered(history_limit, &HistoryFilter::default())
+    }
+
+    pub fn snapshot_filtered(
+        &self,
+        history_limit: Option<usize>,
+        filter: &HistoryFilter,
+    ) -> Result<Snapshot> {
         thread::scope(|scope| {
             let history = thread::Builder::new().spawn_scoped(scope, || {
                 let stashes = self.stashes()?;
-                let (commits, limited) = self.history_commits(history_limit, &stashes)?;
+                let (commits, limited) = self.history_commits(history_limit, &stashes, filter)?;
                 Ok::<_, Error>((commits, limited, stashes))
             })?;
             let status = thread::Builder::new().spawn_scoped(scope, || self.status())?;
@@ -143,9 +153,10 @@ impl Repo {
         &self,
         previous: &Snapshot,
         history_limit: Option<usize>,
+        filter: &HistoryFilter,
     ) -> Result<Snapshot> {
         let (commits, history_limited) =
-            self.history_commits(history_limit, &previous.stashes)?;
+            self.history_commits(history_limit, &previous.stashes, filter)?;
         Ok(Snapshot {
             branch: previous.branch.clone(),
             head: previous.head.clone(),
@@ -166,24 +177,40 @@ impl Repo {
         &self,
         history_limit: Option<usize>,
         stashes: &[crate::Stash],
+        filter: &HistoryFilter,
     ) -> Result<(Vec<Commit>, bool)> {
-        let mut args = vec![
-            "log",
-            "--exclude=refs/stash",
-            "--all",
+        let solo: Vec<_> = filter
+            .solo
+            .iter()
+            .filter(|name| name.starts_with("refs/"))
+            .map(String::as_str)
+            .collect();
+        let mut excludes: Vec<String> = Vec::new();
+        if solo.is_empty() {
+            // Hidden refs only apply while no solo set is active; each
+            // --exclude must precede --all.
+            excludes.extend(filter.hidden.iter().map(|name| format!("--exclude={name}")));
+            excludes.extend(["--exclude=refs/stash", "--all"].map(str::to_owned));
+        }
+        let mut args = vec!["log"];
+        args.extend(excludes.iter().map(String::as_str));
+        args.extend([
             HISTORY_ORDER,
             COMMIT_DATE_FORMAT,
             "--encoding=UTF-8",
             COMMIT_LOG_FORMAT,
             "-z",
-        ];
+        ]);
         let limit = history_limit.map(|limit| format!("--max-count={}", limit.saturating_add(1)));
         if let Some(limit) = limit.as_deref() {
             args.push(limit);
         }
-        // During detached checkouts and an Edit pause, HEAD can point to a
-        // commit not yet reachable from any named reference.
-        args.extend(["--ignore-missing", "HEAD"]);
+        // --ignore-missing skips solo refs that were deleted since the filter
+        // was saved. During detached checkouts and an Edit pause, HEAD can
+        // point to a commit not yet reachable from any named reference.
+        args.push("--ignore-missing");
+        args.extend(solo.iter().copied());
+        args.push("HEAD");
         // Listing stash commits lets --date-order place each stash by time,
         // above the commit it was made on.
         args.extend(stashes.iter().map(|stash| stash.id.as_str()));

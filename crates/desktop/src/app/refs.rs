@@ -371,11 +371,18 @@ impl Client {
             let checked = snapshot.is_current_branch(reference);
             let selected = tab.history.selected.as_ref() == Some(&reference.id);
             let target = reference.clone();
+            let full = reference.full_name();
+            let hidden_ref = tab.history.filter.hidden.contains(&full);
+            let soloed = tab.history.filter.solo.contains(&full);
+            let excluded = tab.history.filter.is_excluded(&full);
+            let filter_reason = super::history::filter::blocked_reason(tab);
             let row = div()
                 .id(SharedString::from(format!(
                     "{title}/ref/{}",
                     reference.name
                 )))
+                .group("ref-row")
+                .relative()
                 .h(px(27.))
                 .mx(px(8.))
                 .pr(px(8.))
@@ -449,6 +456,8 @@ impl Client {
                             p.success
                         } else if selected {
                             p.accent_soft_fg
+                        } else if excluded {
+                            p.text_muted
                         } else {
                             p.text
                         }))
@@ -458,7 +467,62 @@ impl Client {
                             FontWeight::NORMAL
                         })
                         .child(parts.last().copied().unwrap_or(&reference.name).to_owned()),
-                );
+                )
+                .when(soloed || excluded, |row| {
+                    row.child(div().ml_auto().flex_shrink_0().flex().items_center().child(
+                        if soloed {
+                            icon("icons/eye.svg", p.accent).size(px(12.))
+                        } else {
+                            icon("icons/eye-off.svg", p.text_muted).size(px(12.))
+                        },
+                    ))
+                })
+                .when(!checked, |row| {
+                    let id = tab_id;
+                    let name = full.clone();
+                    let reason = filter_reason.clone();
+                    let label = if hidden_ref {
+                        tr!("app.ref_menu.show_in_graph")
+                    } else {
+                        tr!("app.ref_menu.hide_in_graph")
+                    };
+                    let tooltip = reason.clone().unwrap_or_else(|| label.clone());
+                    row.child(
+                        button(
+                            SharedString::from(format!("{title}/eye/{full}")),
+                            "",
+                            Tone::Plain,
+                            reason.is_none(),
+                            cx,
+                            cx.listener(move |this, _, window, cx| {
+                                cx.stop_propagation();
+                                this.toggle_graph_hidden(id, name.clone(), window, cx);
+                            }),
+                        )
+                        .absolute()
+                        .right(px(4.))
+                        .top(px(3.5))
+                        .size(px(20.))
+                        .px(px(0.))
+                        .rounded_full()
+                        .child(
+                            icon(
+                                if hidden_ref {
+                                    "icons/eye.svg"
+                                } else {
+                                    "icons/eye-off.svg"
+                                },
+                                p.text_muted,
+                            )
+                            .size(px(12.)),
+                        )
+                        .aria_label(label)
+                        .invisible()
+                        .group_hover("ref-row", |style| style.visible())
+                        .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+                        .tooltip(move |window, cx| Tooltip::new(tooltip.clone()).build(window, cx)),
+                    )
+                });
             group = group.child(menu.target(row, Some(reference), &[]));
         }
         if kind == RefKind::Remote {

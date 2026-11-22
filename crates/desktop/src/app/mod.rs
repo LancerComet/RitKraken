@@ -93,6 +93,7 @@ pub struct Client {
     session: Session,
     manager: RepositoryManager,
     saved: SavedRepos,
+    graph_filters: history::filter::Store,
     preferences: Option<PreferenceDraft>,
     branch_editor: BranchEditor,
     closing_modal: Option<ClosingModal>,
@@ -134,10 +135,12 @@ impl Client {
                 cx.notify();
             }
         });
+        let graph_filters = history::filter::load();
         let mut app = Self {
             session: Session::default(),
             manager: RepositoryManager::new(window, cx),
             saved,
+            graph_filters,
             preferences: None,
             branch_editor: BranchEditor::new(window, cx),
             closing_modal: None,

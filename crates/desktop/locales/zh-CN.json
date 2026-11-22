@@ -165,7 +165,9 @@
       "graph": "提交图",
       "message": "提交信息",
       "ref": "分支 / 标签",
+      "refs_hidden": "已隐藏 %{count} 个引用",
       "sha": "SHA",
+      "showing_only": "仅显示：%{names}",
       "wip": "// 进行中"
     },
     "notice": {
@@ -414,6 +416,11 @@
       "tag": "本地标签 · %{name}",
       "track": "创建并切换到跟踪分支…",
       "unavailable": "此引用不支持该操作。",
+      "always_shown": "当前分支始终显示在提交图中。",
+      "hide_in_graph": "在提交图中隐藏",
+      "show_in_graph": "在提交图中显示",
+      "solo_in_graph": "在提交图中单独显示",
+      "remove_solo": "取消单独显示",
       "push_tag": "推送 %{name} 到 %{remote}"
     },
     "remotes": {

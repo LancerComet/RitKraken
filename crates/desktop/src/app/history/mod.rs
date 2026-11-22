@@ -1,5 +1,6 @@
 mod branch_editor;
 mod commit_menu;
+pub(super) mod filter;
 mod graph;
 mod labels;
 mod layout;
@@ -14,7 +15,7 @@ use std::{
 };
 
 use gpui_kit::*;
-use ritkraken_git::{CommitMenuSnapshot, Repo, Snapshot};
+use ritkraken_git::{CommitMenuSnapshot, HistoryFilter, Repo, Snapshot};
 
 use super::{
     Client, Load, Message, changes::ChangeSummary, session::Tab,
@@ -68,8 +69,12 @@ impl History {
 }
 
 impl History {
-    pub(super) fn load(repo: &Repo, limit: Option<usize>) -> ritkraken_git::Result<Arc<Self>> {
-        Self::reload(repo, limit, None, false)
+    pub(super) fn load(
+        repo: &Repo,
+        limit: Option<usize>,
+        filter: &HistoryFilter,
+    ) -> ritkraken_git::Result<Arc<Self>> {
+        Self::reload(repo, limit, None, false, filter)
     }
 
     pub(super) fn reload(
@@ -77,10 +82,11 @@ impl History {
         limit: Option<usize>,
         previous: Option<&Arc<Self>>,
         page_only: bool,
+        filter: &HistoryFilter,
     ) -> ritkraken_git::Result<Arc<Self>> {
         let snapshot = match previous.filter(|_| page_only) {
-            Some(previous) => repo.snapshot_page(&previous.snapshot, limit)?,
-            None => repo.snapshot(limit)?,
+            Some(previous) => repo.snapshot_page(&previous.snapshot, limit, filter)?,
+            None => repo.snapshot_filtered(limit, filter)?,
         };
         if let Some(previous) = previous.filter(|previous| previous.snapshot == snapshot) {
             return Ok(previous.clone());
@@ -109,6 +115,7 @@ impl History {
 
 pub(super) struct HistoryState {
     pub(super) data: Arc<History>,
+    pub(super) filter: HistoryFilter,
     pub(super) selected: Option<String>,
     pub(super) limit: Option<usize>,
     /// The last row was painted but growing the history was blocked; retried
@@ -121,10 +128,16 @@ pub(super) struct HistoryState {
 }
 
 impl HistoryState {
-    pub(super) fn new(data: Arc<History>, limit: Option<usize>, cx: &mut Context<Client>) -> Self {
+    pub(super) fn new(
+        data: Arc<History>,
+        limit: Option<usize>,
+        filter: HistoryFilter,
+        cx: &mut Context<Client>,
+    ) -> Self {
         Self {
             selected: Self::initial_selection(&data),
             data,
+            filter,
             limit,
             wants_older: false,
             scroll: UniformListScrollHandle::default(),

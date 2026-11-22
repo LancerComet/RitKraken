@@ -122,11 +122,13 @@ pub(super) struct RepoTab {
 }
 
 impl RepoTab {
+    #[allow(clippy::too_many_arguments)]
     pub(super) fn new(
         id: u64,
         repo: Repo,
         history: Arc<History>,
         limit: Option<usize>,
+        filter: ritkraken_git::HistoryFilter,
         preferences: &super::preferences::Preferences,
         window: &mut Window,
         cx: &mut Context<Client>,
@@ -134,7 +136,7 @@ impl RepoTab {
         Self {
             id,
             repo,
-            history: HistoryState::new(history, limit, cx),
+            history: HistoryState::new(history, limit, filter, cx),
             refs: ReferenceState::new(window, cx),
             changes: ChangesState::new(window, cx),
             review: ReviewState::new(preferences),
@@ -264,11 +266,17 @@ impl Client {
         if self.tab(id).is_some() {
             return id;
         }
+        let filter = self
+            .graph_filters
+            .get(&super::history::filter::root_key(&repo))
+            .cloned()
+            .unwrap_or_default();
         let ready = Tab::Ready(Box::new(RepoTab::new(
             id,
             repo,
             history,
             limit,
+            filter,
             &self.saved.preferences,
             window,
             cx,

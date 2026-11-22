@@ -340,6 +340,7 @@ impl Client {
         }
         let repo = tab.repo.clone();
         let previous = tab.history.data.clone();
+        let filter = tab.history.filter.clone();
         Self::spawn_background(
             window,
             cx,
@@ -348,7 +349,7 @@ impl Client {
                 // Watcher changes before this instant are covered by the
                 // snapshot the reload below is about to read.
                 let covered_at = Instant::now();
-                let history = History::reload(&repo, limit, Some(&previous), page_only)
+                let history = History::reload(&repo, limit, Some(&previous), page_only, &filter)
                     .map(|history| (history, limit));
                 let reported =
                     if report_operation || result.as_ref().is_some_and(|result| result.is_err()) {
@@ -366,7 +367,7 @@ impl Client {
                     return;
                 }
                 let succeeded = result.as_ref().is_some_and(|(result, _)| result.is_ok());
-                this.finish_update(id, result, history, covered_at, window, cx);
+                this.finish_update(id, result, history, covered_at, page_only, window, cx);
                 if let Some(complete) = complete {
                     complete(this, succeeded, window, cx);
                 }
@@ -378,12 +379,14 @@ impl Client {
         true
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn finish_update(
         &mut self,
         id: u64,
         result: Option<(git::Result<()>, RepoOperation)>,
         history: git::Result<(Arc<History>, Option<usize>)>,
         covered_at: Instant,
+        page_only: bool,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
@@ -428,6 +431,7 @@ impl Client {
         {
             self.finish_inline_branch(id, name, window, cx);
         }
+        let mut pruned_filter = None;
         let Some(tab) = self.tab_mut(id) else { return };
         let was_busy = tab.busy;
         if history.is_ok() {
@@ -481,6 +485,23 @@ impl Client {
                 changed |= !Arc::ptr_eq(&tab.history.data, &history) || tab.history.limit != limit;
                 tab.history.data = history;
                 tab.history.limit = limit;
+                // A full reload's snapshot is authoritative for which refs
+                // exist; entries it dropped were already ignored by that
+                // read, unless it emptied the solo set: the graph then
+                // switches back to hidden/default mode and must be re-read.
+                if !page_only {
+                    let pruned = super::history::filter::prune(
+                        &mut tab.history.filter,
+                        &tab.history.data.snapshot.refs,
+                    );
+                    if pruned.changed {
+                        pruned_filter = Some((
+                            super::history::filter::root_key(&tab.repo),
+                            tab.history.filter.clone(),
+                            pruned.solo_emptied,
+                        ));
+                    }
+                }
                 tab.push_rejection = tab
                     .push_rejection
                     .take()
@@ -591,6 +612,14 @@ impl Client {
                 window,
                 cx,
             );
+        }
+        if let Some((root, filter, solo_emptied)) = pruned_filter {
+            self.remember_graph_filter(&root, filter);
+            // busy and the finished read were already released above, so
+            // the mode-switch re-read starts immediately.
+            if solo_emptied {
+                self.update_repo(id, None, window, cx);
+            }
         }
         self.resume_toolbar_branch(id, window, cx);
         if self

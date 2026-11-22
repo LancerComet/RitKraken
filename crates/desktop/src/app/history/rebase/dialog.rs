@@ -27,12 +27,14 @@ impl Client {
         let repo = source.repo.clone();
         let history = source.history.data.clone();
         let limit = source.history.limit;
+        let filter = source.history.filter.clone();
         let id = self.session.next_id();
         let tab = RepoTab::new(
             id,
             repo,
             history,
             limit,
+            filter,
             &self.saved.preferences,
             window,
             cx,
