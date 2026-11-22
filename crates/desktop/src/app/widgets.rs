@@ -1,3 +1,4 @@
+pub(super) mod activity_wave;
 pub(super) mod delete_dialog;
 pub(super) mod loading;
 pub(super) mod menu;

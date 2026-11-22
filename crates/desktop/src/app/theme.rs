@@ -74,6 +74,13 @@ impl ThemeId {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(in crate::app) struct WaveLayerPalette {
+    pub left: u32,
+    pub right: u32,
+    pub alpha: u8,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(in crate::app) struct Palette {
     pub is_dark: bool,
     pub shell_bg: u32,
@@ -115,6 +122,7 @@ pub(in crate::app) struct Palette {
     pub avatar_bg: u32,
     pub avatar_fg: u32,
     pub graph_rails: [u32; 9],
+    pub wave_layers: [WaveLayerPalette; 3],
 }
 
 impl Palette {
@@ -370,6 +378,17 @@ mod tests {
                 WindowAppearance::VibrantLight,
             ] {
                 assert_eq!(resolve_theme(Some(theme), appearance), theme);
+            }
+        }
+    }
+
+    #[test]
+    fn all_builtin_themes_have_distinct_wave_palettes() {
+        for (index, left) in ThemeId::ALL.iter().enumerate() {
+            let left_layers = left.palette().wave_layers;
+            assert!(left_layers.iter().all(|layer| layer.alpha > 0));
+            for right in &ThemeId::ALL[index + 1..] {
+                assert_ne!(left_layers, right.palette().wave_layers);
             }
         }
     }

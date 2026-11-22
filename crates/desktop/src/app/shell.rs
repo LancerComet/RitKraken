@@ -1,9 +1,6 @@
 use gpui_kit::{
     base::TextSelection,
-    component::{
-        Sizable as _,
-        progress::{Progress, ProgressCircle},
-    },
+    component::{Sizable as _, progress::ProgressCircle},
     prelude::*,
     *,
 };
@@ -13,7 +10,7 @@ use crate::i18n::tr;
 use super::{
     Client, Escape, OpenPalette, OpenPreferences, OpenRepos, Refresh, SearchCommits, Submit, Tab,
     theme::{Palette, palette},
-    widgets::icon,
+    widgets::{activity_wave::toolbar_activity_wave, icon},
 };
 
 impl Render for Client {
@@ -71,25 +68,14 @@ impl Render for Client {
                     .px(px(8.))
                     .pb(px(5.))
                     .gap(px(6.))
-                    .child(self.toolbar(tab, p, cx))
+                    .child(self.toolbar(tab, is_busy, p, window, cx))
                     .child(
                         div()
                             .relative()
                             .flex_1()
                             .min_h_0()
                             .overflow_hidden()
-                            .child(body)
-                            .when(is_busy, |container| {
-                                container.child(
-                                    div().absolute().top_0().left_0().right_0().child(
-                                        Progress::new("workspace-busy-progress")
-                                            .loading(true)
-                                            .h(px(2.5))
-                                            .rounded(px(0.))
-                                            .color(rgb(p.accent)),
-                                    ),
-                                )
-                            }),
+                            .child(body),
                     )
                     .child(self.status_bar(tab, p, cx))
                     .children(modal),
@@ -126,23 +112,38 @@ fn finish_released_text_selection() -> Canvas<()> {
 }
 
 impl Client {
-    fn toolbar(&self, tab: Option<&Tab>, p: Palette, cx: &mut Context<Self>) -> Div {
-        let ready = tab.and_then(Tab::ready);
-        if let Some(banner) = ready.and_then(|tab| self.push_warning(tab, cx)) {
-            return banner;
-        }
-        div()
-            .h(px(54.))
+    fn toolbar(
+        &self,
+        tab: Option<&Tab>,
+        is_busy: bool,
+        p: Palette,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Div {
+        let wave = toolbar_activity_wave(is_busy, p, window, cx);
+        let card = div()
+            .relative()
             .flex_shrink_0()
             .flex()
             .items_center()
-            .gap(px(12.))
-            .px(px(12.))
             .rounded(px(14.))
             .border_1()
             .border_color(rgb(p.chrome_border))
             .bg(rgb(p.chrome_alt))
             .text_color(rgb(p.chrome_text))
+            .children(wave);
+        let ready = tab.and_then(Tab::ready);
+        if let Some(banner) = ready.and_then(|tab| self.push_warning_content(tab, cx)) {
+            return card
+                .min_h(px(54.))
+                .justify_center()
+                .px(px(16.))
+                .py(px(8.))
+                .child(banner);
+        }
+        card.h(px(54.))
+            .gap(px(12.))
+            .px(px(12.))
             .child(
                 div()
                     .flex_1()

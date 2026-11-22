@@ -1,4 +1,4 @@
-use super::{Palette, ThemeSpec};
+use super::{Palette, ThemeSpec, WaveLayerPalette};
 
 #[derive(Clone, Copy)]
 pub(in crate::app) struct SyntaxColors {
@@ -60,6 +60,23 @@ pub(super) fn classic() -> ThemeSpec {
             graph_rails: [
                 0x079dbb, 0x1676e8, 0x8e24c7, 0xb823b0, 0xd42677, 0xdc3c37, 0xc17a17, 0x188c64,
                 0x6075cd,
+            ],
+            wave_layers: [
+                WaveLayerPalette {
+                    left: 0x2563eb,
+                    right: 0x0ea5a4,
+                    alpha: 112,
+                },
+                WaveLayerPalette {
+                    left: 0x1597b0,
+                    right: 0x34d399,
+                    alpha: 132,
+                },
+                WaveLayerPalette {
+                    left: 0x38bdf8,
+                    right: 0xfbbf24,
+                    alpha: 158,
+                },
             ],
         },
         syntax: SyntaxColors {
@@ -123,6 +140,23 @@ pub(super) fn obsidian_bento() -> ThemeSpec {
                 0x58d5d5, 0xa882dd, 0x7ee787, 0xff7b72, 0xe3b341, 0xf78166, 0x79c0ff, 0xd2a8ff,
                 0x56d364,
             ],
+            wave_layers: [
+                WaveLayerPalette {
+                    left: 0x6e56cf,
+                    right: 0x2f81f7,
+                    alpha: 96,
+                },
+                WaveLayerPalette {
+                    left: 0x22b8cf,
+                    right: 0xa882dd,
+                    alpha: 120,
+                },
+                WaveLayerPalette {
+                    left: 0x58d5d5,
+                    right: 0x7ee787,
+                    alpha: 158,
+                },
+            ],
         },
         syntax: SyntaxColors {
             comment: 0x6e7681,
@@ -185,6 +219,23 @@ pub(super) fn md3_expressive() -> ThemeSpec {
                 0xd0bcff, 0x89dceb, 0xa6e3a1, 0xf2b8b5, 0xf9e2af, 0xfab387, 0x94e2d5, 0xf5c2e7,
                 0xb4befe,
             ],
+            wave_layers: [
+                WaveLayerPalette {
+                    left: 0x7c5cff,
+                    right: 0xe06c9f,
+                    alpha: 102,
+                },
+                WaveLayerPalette {
+                    left: 0xcba6f7,
+                    right: 0xfab387,
+                    alpha: 124,
+                },
+                WaveLayerPalette {
+                    left: 0xd0bcff,
+                    right: 0xf5c2e7,
+                    alpha: 156,
+                },
+            ],
         },
         syntax: SyntaxColors {
             comment: 0x938f99,
@@ -246,6 +297,23 @@ pub(super) fn fluent_light() -> ThemeSpec {
             graph_rails: [
                 0x0284c7, 0x7c3aed, 0x16a34a, 0xdc2626, 0xd97706, 0xea580c, 0x0d9488, 0xdb2777,
                 0x2563eb,
+            ],
+            wave_layers: [
+                WaveLayerPalette {
+                    left: 0x6366f1,
+                    right: 0x38bdf8,
+                    alpha: 54,
+                },
+                WaveLayerPalette {
+                    left: 0x0284c7,
+                    right: 0x14b8a6,
+                    alpha: 74,
+                },
+                WaveLayerPalette {
+                    left: 0x0ea5e9,
+                    right: 0x8b5cf6,
+                    alpha: 98,
+                },
             ],
         },
         syntax: SyntaxColors {
