@@ -20,6 +20,7 @@ use crate::app::{
 };
 
 const REPOSITORY_URL: &str = "https://github.com/LancerComet/RitKraken";
+const COPYRIGHT: &str = "© 2026 LancerComet";
 
 impl Client {
     pub(in crate::app) fn preferences_view(
@@ -388,6 +389,16 @@ fn about_preferences(p: Palette, cx: &App) -> Div {
             .h(px(52.))
             .px(px(10.))
             .rounded(px(10.)),
+        )
+        .child(
+            div()
+                .pt(px(12.))
+                .px(px(10.))
+                .border_t_1()
+                .border_color(rgb(p.border))
+                .text_size(px(12.))
+                .text_color(rgb(p.text_muted))
+                .child(COPYRIGHT),
         )
 }
 
