@@ -15,8 +15,8 @@ use crate::i18n::{LocalizedInput, tr};
 
 use self::list::NameOrder;
 use super::{
-    Client, Message, history::History, session::Tab, system::choose_directory, theme::Palette,
-    widgets::icon,
+    Client, Message, Notice, history::History, session::Tab, system::choose_directory,
+    theme::Palette, widgets::icon,
 };
 
 const ICON_SIZE: Pixels = px(12. * 1.2);
@@ -30,7 +30,7 @@ pub(super) enum ManagerMode {
 
 pub(super) enum OpenRepo {
     Open(PathBuf),
-    Clone(String, PathBuf),
+    Clone(String, PathBuf, bool),
     Init(PathBuf),
 }
 
@@ -40,18 +40,26 @@ impl OpenRepo {
         limit: Option<usize>,
         default_branch: Option<&str>,
         filters: &super::history::filter::Store,
-    ) -> git::Result<(Repo, Arc<History>)> {
-        let repo = match self {
-            Self::Open(path) => Repo::open(&path),
-            Self::Clone(url, path) => Repo::clone(&url, &path),
-            Self::Init(path) => Repo::init(&path, default_branch),
-        }?;
+    ) -> git::Result<(Repo, Arc<History>, Option<git::Error>)> {
+        let (repo, submodules_error) = match self {
+            Self::Open(path) => (Repo::open(&path)?, None),
+            Self::Init(path) => (Repo::init(&path, default_branch)?, None),
+            Self::Clone(url, path, submodules) => {
+                let repo = Repo::clone(&url, &path)?;
+                let error = if submodules {
+                    repo.init_submodules_recursive().err()
+                } else {
+                    None
+                };
+                (repo, error)
+            }
+        };
         let filter = filters
             .get(&super::history::filter::root_key(&repo))
             .cloned()
             .unwrap_or_default();
         let history = History::load(&repo, limit, &filter)?;
-        Ok((repo, history))
+        Ok((repo, history, submodules_error))
     }
 }
 
@@ -68,6 +76,7 @@ pub(super) struct RepositoryManager {
     name_order: Option<NameOrder>,
     projects: Vec<PathBuf>,
     pub(super) error: Option<Message>,
+    pub(super) clone_submodules: bool,
     path: LocalizedInput,
     url: LocalizedInput,
     search: LocalizedInput,
@@ -92,6 +101,7 @@ impl RepositoryManager {
             name_order: None,
             projects: Vec::new(),
             error: None,
+            clone_submodules: true,
             path,
             url,
             search,
@@ -220,7 +230,7 @@ impl Client {
             Some(ManagerMode::Open) if !path.is_empty() => OpenRepo::Open(path.into()),
             Some(ManagerMode::Init) if !path.is_empty() => OpenRepo::Init(path.into()),
             Some(ManagerMode::Clone) if !path.is_empty() && !url.is_empty() => {
-                OpenRepo::Clone(url.into(), path.into())
+                OpenRepo::Clone(url.into(), path.into(), self.manager.clone_submodules)
             }
             _ => {
                 self.manager.error = Some(Message::Key("app.error.repository_location"));
@@ -258,10 +268,22 @@ impl Client {
             move |this, result, window, cx| {
                 this.session.opening = false;
                 match result {
-                    Ok((repo, history)) => {
+                    Ok((repo, history, submodules_error)) => {
                         this.saved.remember(repo.root());
                         let id = this.insert_tab(repo, history, limit, None, window, cx);
                         this.show_tab(id, window, cx);
+                        if let Some(error) = submodules_error
+                            && let Some(tab) = this.tab_mut(id)
+                        {
+                            tab.notify(
+                                Notice::warning(Message::detail(
+                                    "app.notice.clone_submodules_failed",
+                                    error,
+                                )),
+                                window,
+                                cx,
+                            );
+                        }
                     }
                     Err(error) => {
                         this.manager.mode = Some(this.manager.mode.unwrap_or(ManagerMode::Open));

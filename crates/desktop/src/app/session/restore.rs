@@ -78,7 +78,7 @@ impl Client {
                     return;
                 };
                 match result {
-                    Ok((repo, history)) => {
+                    Ok((repo, history, _)) => {
                         let id = this.insert_tab(repo, history, limit, Some(id), window, cx);
                         if this.session.active == Some(id) {
                             this.select_initial_commit(id, window, cx);

@@ -1,5 +1,5 @@
 use gpui_kit::{
-    component::{input::Input, scroll::ScrollableElement},
+    component::{Sizable, checkbox::Checkbox, input::Input, scroll::ScrollableElement},
     prelude::*,
     *,
 };
@@ -314,6 +314,17 @@ impl Client {
             .when(clone, |e| {
                 e.child(heading(tr!("app.repositories.url_heading"), cx))
                     .child(Input::new(&self.manager.url))
+                    .child(
+                        Checkbox::new("clone-submodules")
+                            .small()
+                            .text_size(px(13.))
+                            .checked(self.manager.clone_submodules)
+                            .label(tr!("app.repositories.clone_submodules"))
+                            .on_click(cx.listener(|this, checked: &bool, _, cx| {
+                                this.manager.clone_submodules = *checked;
+                                cx.notify();
+                            })),
+                    )
             })
             .child(heading(tr!("app.repositories.destination"), cx))
             .child(

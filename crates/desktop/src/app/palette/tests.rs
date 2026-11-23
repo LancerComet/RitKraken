@@ -22,6 +22,7 @@ pub(super) fn snapshot() -> Snapshot {
         menu_metadata: Default::default(),
         commits: Vec::new(),
         history_limited: false,
+        has_submodules: false,
     }
 }
 

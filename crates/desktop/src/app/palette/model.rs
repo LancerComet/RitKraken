@@ -17,12 +17,13 @@ pub(in crate::app) enum Command {
     UnstageAll,
     Stash,
     Pop,
+    UpdateSubmodules,
     Workspace,
     Compare,
 }
 
 impl Command {
-    pub(super) const ALL: [Self; 15] = [
+    pub(super) const ALL: [Self; 16] = [
         Self::OpenRepos,
         Self::Preferences,
         Self::Refresh,
@@ -36,6 +37,7 @@ impl Command {
         Self::UnstageAll,
         Self::Stash,
         Self::Pop,
+        Self::UpdateSubmodules,
         Self::Workspace,
         Self::Compare,
     ];
@@ -55,6 +57,7 @@ impl Command {
             Self::UnstageAll => "app.stage.unstage_all",
             Self::Stash => "app.toolbar.stash",
             Self::Pop => "app.toolbar.pop",
+            Self::UpdateSubmodules => "app.palette.update_submodules",
             Self::Workspace => "app.palette.workspace",
             Self::Compare => "app.compare.palette",
         })
@@ -74,6 +77,7 @@ impl Command {
             | Self::UnstageAll
             | Self::Stash
             | Self::Pop
+            | Self::UpdateSubmodules
             | Self::Workspace
             | Self::Compare => {
                 let Some(context) = context else { return false };
@@ -108,6 +112,7 @@ impl Command {
                             && !snapshot.status.unstaged.iter().any(|c| c.code == b'U')
                     }
                     Self::Pop => available && snapshot.has_stash,
+                    Self::UpdateSubmodules => available && snapshot.has_submodules,
                     // Comparison is read-only, so it survives busy and rebase.
                     Self::Compare => snapshot.head.is_some(),
                     Self::OpenRepos | Self::Preferences => true,

@@ -19,6 +19,7 @@
       "stage_to_commit": "暂存更改后即可提交",
       "staged_files": "已暂存文件（%{count}）",
       "summary": "摘要",
+      "submodule_tag": "子模块",
       "tree_mode": "▦  树形",
       "unstaged_files": "未暂存文件（%{count}）"
     },
@@ -176,6 +177,7 @@
       "warning": "警告",
       "error": "错误",
       "branched": "分支已创建",
+      "clone_submodules_failed": "仓库已克隆，但子模块初始化失败",
       "committed": "已创建提交",
       "fetched": "抓取完成",
       "hunk_staged": "区块已暂存",
@@ -262,6 +264,7 @@
       "choose_repository": "选择仓库目录",
       "clone": "克隆",
       "clone_repository": "克隆仓库",
+      "clone_submodules": "同时克隆子模块",
       "destination": "目标目录",
       "directory": "仓库目录",
       "empty_list": "此列表中还没有仓库。",
@@ -509,6 +512,7 @@
       "file": "查看文件",
       "staged_file": "暂存版本",
       "execute": "执行",
+      "update_submodules": "更新所有子模块",
       "workspace": "前往工作区与提交信息"
     },
     "worktrees": {

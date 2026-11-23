@@ -171,6 +171,7 @@ mod tests {
                 change("moved", b'R'),
                 change("unmerged", b'U'),
             ],
+            ..Status::default()
         };
         let summary = ChangeSummary::new(status.distinct_changes());
         assert_eq!(summary.total(), 7);

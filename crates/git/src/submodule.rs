@@ -145,6 +145,12 @@ impl Repo {
     ) -> Result<Option<SubmoduleChange>> {
         let parsed = parse_submodule_patch(patch.bytes());
         if !matches!(file.scope, Scope::Worktree) {
+            if parsed.is_none()
+                && let Scope::Commit { id, .. } = &file.scope
+                && file.change.code == b' '
+            {
+                return self.committed_submodule(id, &file.change.path);
+            }
             return Ok(parsed.map(|(old, new, _)| SubmoduleChange {
                 old,
                 new,
@@ -186,6 +192,37 @@ impl Repo {
             modified: dirty,
             untracked: false,
         }))
+    }
+
+    fn committed_submodule(
+        &self,
+        id: &str,
+        path: &Path,
+    ) -> Result<Option<SubmoduleChange>> {
+        let mut git = self.git_with_literal_paths();
+        git.args(["ls-tree", "-z", id, "--"]).arg(path);
+        let output = run_read(&mut git)?;
+        for record in output.split(|byte| *byte == 0).filter(|r| !r.is_empty()) {
+            let Some(tab) = record.iter().position(|byte| *byte == b'\t') else {
+                continue;
+            };
+            let mut fields = record[..tab].split(|byte| *byte == b' ');
+            if fields.next() != Some(b"160000") {
+                continue;
+            }
+            fields.next();
+            let oid = text(fields.next().unwrap_or_default());
+            if oid.is_empty() {
+                continue;
+            }
+            return Ok(Some(SubmoduleChange {
+                old: Some(oid.clone()),
+                new: Some(oid),
+                modified: false,
+                untracked: false,
+            }));
+        }
+        Ok(None)
     }
 
     fn submodule_repo(&self, path: &Path) -> Option<Repo> {
@@ -233,7 +270,23 @@ impl Repo {
         Ok(None)
     }
 
-    pub fn update_submodule(&self, path: &Path) -> Result<()> {
+    fn index_submodules(&self) -> Result<Vec<PathBuf>> {
+        let mut git = self.git_with_literal_paths();
+        git.args(["ls-files", "--stage", "-z"]);
+        let output = run_read(&mut git)?;
+        Ok(output
+            .split(|byte| *byte == 0)
+            .filter(|record| record.starts_with(b"160000 "))
+            .filter_map(|record| {
+                record
+                    .iter()
+                    .position(|byte| *byte == b'\t')
+                    .map(|tab| crate::protocol::path_from_bytes(&record[tab + 1..]))
+            })
+            .collect())
+    }
+
+    fn check_reachable_head(&self, path: &Path) -> Result<()> {
         if let Some(sub) = self.submodule_repo(path)
             && let Some(recorded) = self.recorded_submodule_id(path)?
         {
@@ -253,8 +306,32 @@ impl Repo {
                 }
             }
         }
+        Ok(())
+    }
+
+    pub fn update_submodule(&self, path: &Path) -> Result<()> {
+        self.update_submodules(Some(std::slice::from_ref(&path.to_path_buf())))
+    }
+
+    pub fn update_submodules(&self, paths: Option<&[PathBuf]>) -> Result<()> {
+        let listed = match paths {
+            Some(paths) => paths.to_vec(),
+            None => self.index_submodules()?,
+        };
+        for path in &listed {
+            self.check_reachable_head(path)?;
+        }
         let mut git = self.git_with_literal_paths();
-        git.args(["submodule", "update", "--init", "--"]).arg(path);
+        git.args(["submodule", "update", "--init"]);
+        if paths.is_some() {
+            git.arg("--").args(&listed);
+        }
+        run_write(&mut git)
+    }
+
+    pub fn init_submodules_recursive(&self) -> Result<()> {
+        let mut git = self.git();
+        git.args(["submodule", "update", "--init", "--recursive"]);
         run_write(&mut git)
     }
 }

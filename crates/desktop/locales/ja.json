@@ -19,6 +19,7 @@
       "stage_to_commit": "変更をステージしてからコミット",
       "staged_files": "ステージ済み (%{count})",
       "summary": "概要",
+      "submodule_tag": "サブモジュール",
       "tree_mode": "▦  ツリー",
       "unstaged_files": "未ステージ (%{count})"
     },
@@ -176,6 +177,7 @@
       "warning": "警告",
       "error": "エラー",
       "branched": "ブランチを作成しました",
+      "clone_submodules_failed": "リポジトリはクローンされましたが、サブモジュールを初期化できませんでした",
       "committed": "コミットしました",
       "fetched": "フェッチしました",
       "hunk_staged": "ハンクをステージしました",
@@ -262,6 +264,7 @@
       "choose_repository": "リポジトリのディレクトリを選択",
       "clone": "クローン",
       "clone_repository": "リポジトリをクローン",
+      "clone_submodules": "サブモジュールもクローン",
       "destination": "保存先ディレクトリ",
       "directory": "リポジトリのディレクトリ",
       "empty_list": "このリストにリポジトリはありません。",
@@ -509,6 +512,7 @@
       "file": "ファイルを表示",
       "staged_file": "ステージ済みのバージョン",
       "execute": "実行",
+      "update_submodules": "すべてのサブモジュールを更新",
       "workspace": "作業ディレクトリとコミット入力に移動"
     },
     "worktrees": {

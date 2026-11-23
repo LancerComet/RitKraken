@@ -27,6 +27,7 @@ pub(super) enum FileAction {
     Discard,
     Ignore(IgnoreRule, bool),
     Stash,
+    UpdateSubmodules,
     Inspect(InspectionKind),
     Open,
     Reveal,
@@ -62,6 +63,9 @@ impl FileMenu {
         let submodule = selected
             .iter()
             .any(|file| tab.repo.root().join(&file.change.path).is_dir());
+        let all_submodules = selected
+            .iter()
+            .all(|file| tab.repo.root().join(&file.change.path).is_dir());
         let committed = matches!(self.file.scope, Scope::Commit { .. });
         let existing = tab.repo.root().join(&self.file.change.path).exists();
         let staged_addition = tab
@@ -100,6 +104,13 @@ impl FileMenu {
                     FileAction::Discard,
                     enabled && !conflicted && !submodule,
                 ))
+                .when(all_submodules, |menu| {
+                    menu.item(self.item(
+                        tr!("app.review.submodule_update"),
+                        FileAction::UpdateSubmodules,
+                        enabled,
+                    ))
+                })
                 .when(!multiple, |menu| {
                     menu.submenu(
                         tr!("app.file_menu.ignore"),

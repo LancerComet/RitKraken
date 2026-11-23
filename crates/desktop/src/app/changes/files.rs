@@ -50,6 +50,7 @@ impl Client {
         tab: &RepoTab,
         files: &[Change],
         scope: Scope,
+        submodules: &HashSet<PathBuf>,
         cx: &mut Context<Self>,
     ) -> Div {
         let (label, scroll_index) = match &scope {
@@ -66,6 +67,7 @@ impl Client {
         let id = tab.id;
         let selected = tab.changes.selection.clone();
         let files = files.to_vec();
+        let submodules = submodules.clone();
         let tree = tab.changes.tree;
         let busy = tab.busy;
         let action = StageAction::for_scope(&scope);
@@ -160,6 +162,19 @@ impl Client {
                             })
                             .child(file_row_icon(mark.icon_path, mark.color))
                             .child(path_label(path, full_path))
+                            .when(submodules.contains(&change.path), |row| {
+                                row.child(
+                                    div()
+                                        .flex_shrink_0()
+                                        .px(px(7.))
+                                        .py(px(1.))
+                                        .rounded_full()
+                                        .bg(rgb(p.surface_dim))
+                                        .text_size(px(10.))
+                                        .text_color(rgb(p.text_muted))
+                                        .child(tr!("app.changes.submodule_tag")),
+                                )
+                            })
                             .when_some(action, |row, action| {
                                 row.child(
                                     button(

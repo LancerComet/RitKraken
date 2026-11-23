@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::{collections::HashSet, path::PathBuf};
 
 use crate::{
     Change, Repo, Result,
@@ -17,6 +17,7 @@ pub struct CommitPerson {
 pub struct CommitDetail {
     pub message: String,
     pub changes: Vec<Change>,
+    pub submodules: HashSet<PathBuf>,
     pub co_authors: Vec<CommitPerson>,
     pub committer: CommitPerson,
     pub committed_date: String,
@@ -40,20 +41,12 @@ impl Repo {
             return Err("Git returned incomplete commit details.".into());
         };
         let args = match commit.parents.first() {
-            Some(parent) => vec![
-                "diff",
-                "--name-status",
-                "-z",
-                "-M",
-                parent,
-                &commit.id,
-                "--",
-            ],
+            Some(parent) => vec!["diff", "--raw", "-z", "-M", parent, &commit.id, "--"],
             None => vec![
                 "diff-tree",
                 "--root",
                 "--no-commit-id",
-                "--name-status",
+                "--raw",
                 "-r",
                 "-z",
                 "-M",
@@ -61,9 +54,11 @@ impl Repo {
                 "--",
             ],
         };
+        let (changes, submodules) = parse_raw_status(&self.read(&args)?);
         Ok(CommitDetail {
             message: text(message).trim_end().to_owned(),
-            changes: parse_name_status(&self.read(&args)?),
+            changes,
+            submodules,
             co_authors: co_authors(trailers, &commit.author_email),
             committer: CommitPerson {
                 name: text(name),
@@ -95,10 +90,20 @@ fn co_authors(trailers: &[u8], author_email: &str) -> Vec<CommitPerson> {
         .collect()
 }
 
-fn parse_name_status(bytes: &[u8]) -> Vec<Change> {
+fn parse_raw_status(bytes: &[u8]) -> (Vec<Change>, HashSet<PathBuf>) {
     let mut fields = bytes.split(|byte| *byte == 0);
     let mut changes = Vec::new();
-    while let Some(code) = fields.next().and_then(|field| field.first()).copied() {
+    let mut submodules = HashSet::new();
+    while let Some(meta) = fields.next().filter(|field| !field.is_empty()) {
+        let mut parts = meta.strip_prefix(b":").unwrap_or(meta).split(|byte| {
+            *byte == b' '
+        });
+        let source_mode = parts.next().unwrap_or_default();
+        let target_mode = parts.next().unwrap_or_default();
+        parts.next();
+        parts.next();
+        let Some(status) = parts.next() else { break };
+        let Some(&code) = status.first() else { break };
         let Some(first) = fields.next() else { break };
         let (path, previous) = if matches!(code, b'R' | b'C') {
             let Some(second) = fields.next() else { break };
@@ -106,11 +111,17 @@ fn parse_name_status(bytes: &[u8]) -> Vec<Change> {
         } else {
             (path_from_bytes(first), None)
         };
+        if source_mode == b"160000" || target_mode == b"160000" {
+            submodules.insert(path.clone());
+            if let Some(previous) = &previous {
+                submodules.insert(previous.clone());
+            }
+        }
         changes.push(Change {
             path,
             previous,
             code,
         });
     }
-    changes
+    (changes, submodules)
 }

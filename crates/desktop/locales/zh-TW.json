@@ -19,6 +19,7 @@
       "stage_to_commit": "暫存變更後即可提交",
       "staged_files": "已暫存檔案（%{count}）",
       "summary": "摘要",
+      "submodule_tag": "子模組",
       "tree_mode": "▦  樹狀",
       "unstaged_files": "未暫存檔案（%{count}）"
     },
@@ -176,6 +177,7 @@
       "warning": "警告",
       "error": "錯誤",
       "branched": "分支已建立",
+      "clone_submodules_failed": "存放庫已複製，但子模組初始化失敗",
       "committed": "已建立提交",
       "fetched": "擷取完成",
       "hunk_staged": "區塊已暫存",
@@ -262,6 +264,7 @@
       "choose_repository": "選擇儲存庫目錄",
       "clone": "複製",
       "clone_repository": "複製儲存庫",
+      "clone_submodules": "同時複製子模組",
       "destination": "目的地目錄",
       "directory": "儲存庫目錄",
       "empty_list": "此清單中尚無儲存庫。",
@@ -509,6 +512,7 @@
       "file": "檢視檔案",
       "staged_file": "暫存版本",
       "execute": "執行",
+      "update_submodules": "更新所有子模組",
       "workspace": "前往工作區與提交訊息"
     },
     "worktrees": {

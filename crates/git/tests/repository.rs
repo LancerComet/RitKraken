@@ -102,7 +102,10 @@ fn partial_stage_preserves_other_edits_and_refuses_a_stale_patch() {
     assert!(committed.contains("second edit"));
     assert!(!committed.contains("changed externally"));
     assert_eq!(
-        repo.committed_files(&snapshot.commits[0].id).unwrap()[0].path,
+        repo.committed_files(&snapshot.commits[0].id)
+            .unwrap()
+            .changes[0]
+            .path,
         Path::new(name)
     );
     let limited = repo.snapshot(Some(1)).unwrap();

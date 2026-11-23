@@ -125,7 +125,7 @@ impl Client {
                         cx,
                         move || {
                             let files = match &snapshot.head {
-                                Some(head) => repo.committed_files(head)?,
+                                Some(head) => repo.committed_files(head)?.changes,
                                 None => Vec::new(),
                             };
                             Ok::<_, ritkraken_git::Error>(sources::files(&snapshot, files))

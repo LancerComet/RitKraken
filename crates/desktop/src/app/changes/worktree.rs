@@ -234,6 +234,15 @@ impl Client {
         let selected = tab.changes.selection.selected(&scope, files);
         let (stage_target, targets) = section_stage_targets(&scope, files, selected);
         let conflicted = targets.iter().any(|file| file.change.code == b'U');
+        let submodules: std::collections::HashSet<std::path::PathBuf> = tab
+            .history
+            .data
+            .snapshot
+            .status
+            .submodules
+            .iter()
+            .cloned()
+            .collect();
         div()
             .flex_1()
             .min_h_0()
@@ -285,7 +294,13 @@ impl Client {
                         )
                     }),
             )
-            .child(self.file_list(tab, files, scope, cx))
+            .child(self.file_list(
+                tab,
+                files,
+                scope,
+                &submodules,
+                cx,
+            ))
     }
 }
 

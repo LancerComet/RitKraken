@@ -19,6 +19,7 @@
       "stage_to_commit": "Stage changes to commit",
       "staged_files": "Staged Files (%{count})",
       "summary": "Summary",
+      "submodule_tag": "submodule",
       "tree_mode": "▦  Tree",
       "unstaged_files": "Unstaged Files (%{count})"
     },
@@ -176,6 +177,7 @@
       "warning": "Warning",
       "error": "Error",
       "branched": "Branch created",
+      "clone_submodules_failed": "The repository was cloned, but its submodules could not be initialized",
       "committed": "Commit created",
       "fetched": "Fetch completed",
       "hunk_staged": "Hunk staged",
@@ -262,6 +264,7 @@
       "choose_repository": "Choose repository directory",
       "clone": "Clone",
       "clone_repository": "Clone a Repository",
+      "clone_submodules": "Clone submodules",
       "destination": "DESTINATION DIRECTORY",
       "directory": "Repository directory",
       "empty_list": "No repositories in this list yet.",
@@ -509,6 +512,7 @@
       "file": "View file",
       "staged_file": "Staged version",
       "execute": "Execute",
+      "update_submodules": "Update all submodules",
       "workspace": "Go to workspace and commit message"
     },
     "worktrees": {

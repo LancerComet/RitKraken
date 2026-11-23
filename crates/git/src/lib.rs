@@ -35,8 +35,8 @@ pub use diff::{
 };
 pub use error::{Error, Result, RuleError};
 pub use history::{
-    BlameLine, Commit, CommitDetail, CommitPerson, CommitSearch, FileCommit, FileHistory,
-    HistoryFilter, RefKind, Reference, Snapshot, short_id,
+    BlameLine, Commit, CommitDetail, CommitPerson, CommitSearch, CommittedFiles, FileCommit,
+    FileHistory, HistoryFilter, RefKind, Reference, Snapshot, short_id,
 };
 pub use recovery::{RecoveryHistory, ReflogEntry};
 pub use reference::{RefOperation, RefRequest, remote_branch};

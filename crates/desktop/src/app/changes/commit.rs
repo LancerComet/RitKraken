@@ -79,12 +79,14 @@ impl Client {
                 };
                 let files = if tab.changes.show_all_files {
                     match &tab.changes.commit_files {
-                        Some(Load::Ready(files)) => self.file_list(tab, files, scope, cx),
+                        Some(Load::Ready(files)) => {
+                            self.file_list(tab, &files.changes, scope, &files.submodules, cx)
+                        }
                         Some(Load::Failed(error)) => error_text(error, cx),
                         _ => note(tr!("app.commit.loading_tree"), cx),
                     }
                 } else {
-                    self.file_list(tab, &detail.changes, scope, cx)
+                    self.file_list(tab, &detail.changes, scope, &detail.submodules, cx)
                 };
                 let metadata = div()
                     .size_full()

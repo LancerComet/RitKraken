@@ -127,6 +127,7 @@ mod tests {
             stashes: Vec::new(),
             commits: Vec::new(),
             history_limited: false,
+            has_submodules: false,
         }
     }
 

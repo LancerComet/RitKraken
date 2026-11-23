@@ -3,7 +3,11 @@ mod ignore;
 mod stash;
 mod stashes;
 
-use std::{collections::HashSet, path::PathBuf, process::Command};
+use std::{
+    collections::{BTreeSet, HashSet},
+    path::PathBuf,
+    process::Command,
+};
 
 use crate::{
     Repo, Result, RuleError,
@@ -27,6 +31,7 @@ pub struct Change {
 pub struct Status {
     pub unstaged: Vec<Change>,
     pub staged: Vec<Change>,
+    pub submodules: BTreeSet<PathBuf>,
 }
 
 impl Status {
@@ -54,7 +59,18 @@ impl Status {
 impl Repo {
     pub fn status(&self) -> Result<Status> {
         self.read(&["status", "--porcelain=v1", "-z", "--untracked-files=all"])
-            .map(|bytes| parse_status(&bytes))
+            .map(|bytes| {
+                let mut status = parse_status(&bytes);
+                status.submodules = status
+                    .staged
+                    .iter()
+                    .chain(&status.unstaged)
+                    .filter(|change| change.code != b'?')
+                    .filter(|change| self.root().join(&change.path).is_dir())
+                    .map(|change| change.path.clone())
+                    .collect();
+                status
+            })
     }
 
     pub fn stage(&self, change: Option<&Change>) -> Result<()> {

@@ -471,7 +471,9 @@ impl Client {
             attach_controls(diff, tab, review, cx).into_any_element()
         } else if review.show_source {
             match &review.source {
-                Some(Load::Failed(error)) => error_text(error, cx).into_any_element(),
+                Some(Load::Failed(error)) if !matches!(review.patch, Load::Pending) => {
+                    error_text(error, cx).into_any_element()
+                }
                 _ => note(tr!("app.review.loading_contents"), cx).into_any_element(),
             }
         } else {

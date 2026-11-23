@@ -402,6 +402,7 @@ mod tests {
             menu_metadata: MenuMetadata::default(),
             commits,
             history_limited: false,
+            has_submodules: false,
         };
         History::projected(
             snapshot,

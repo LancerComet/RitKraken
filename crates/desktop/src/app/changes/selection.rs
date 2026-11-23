@@ -184,11 +184,13 @@ mod tests {
         selection.refresh_worktree(&Status {
             unstaged: files[..2].to_vec(),
             staged: files[2..].to_vec(),
+            ..Status::default()
         });
         assert!(selection.selected(&Scope::Index, &files).is_empty());
         selection.refresh_worktree(&Status {
             unstaged: Vec::new(),
             staged: files.clone(),
+            ..Status::default()
         });
         assert!(selection.selected(&Scope::Index, &files).is_empty());
     }

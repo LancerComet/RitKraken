@@ -3,7 +3,7 @@ mod file;
 mod filter;
 mod search;
 
-use std::{collections::HashSet, thread};
+use std::{collections::HashSet, path::PathBuf, thread};
 
 use crate::{
     Change, Error, Repo, Result, Status, Upstream,
@@ -65,6 +65,13 @@ pub struct Snapshot {
     pub menu_metadata: crate::MenuMetadata,
     pub commits: Vec<Commit>,
     pub history_limited: bool,
+    pub has_submodules: bool,
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct CommittedFiles {
+    pub changes: Vec<Change>,
+    pub submodules: HashSet<PathBuf>,
 }
 
 impl Snapshot {
@@ -142,6 +149,7 @@ impl Repo {
                 },
                 commits,
                 history_limited,
+                has_submodules: self.root().join(".gitmodules").is_file(),
             })
         })
     }
@@ -170,6 +178,7 @@ impl Repo {
             menu_metadata: previous.menu_metadata.clone(),
             commits,
             history_limited,
+            has_submodules: self.root().join(".gitmodules").is_file(),
         })
     }
 
@@ -223,17 +232,24 @@ impl Repo {
         Ok((commits, history_limited))
     }
 
-    pub fn committed_files(&self, id: &str) -> Result<Vec<Change>> {
-        let bytes = self.read(&["ls-tree", "-r", "--name-only", "-z", id])?;
-        Ok(bytes
-            .split(|byte| *byte == 0)
-            .filter(|path| !path.is_empty())
-            .map(|path| Change {
-                path: path_from_bytes(path),
+    pub fn committed_files(&self, id: &str) -> Result<CommittedFiles> {
+        let bytes = self.read(&["ls-tree", "-r", "-z", id])?;
+        let mut committed = CommittedFiles::default();
+        for record in bytes.split(|byte| *byte == 0).filter(|r| !r.is_empty()) {
+            let Some(tab) = record.iter().position(|byte| *byte == b'\t') else {
+                continue;
+            };
+            let path = path_from_bytes(&record[tab + 1..]);
+            if record.starts_with(b"160000 ") {
+                committed.submodules.insert(path.clone());
+            }
+            committed.changes.push(Change {
+                path,
                 previous: None,
                 code: b' ',
-            })
-            .collect())
+            });
+        }
+        Ok(committed)
     }
 
     /// `.git/HEAD` as a commit id without running Git: the checked-out

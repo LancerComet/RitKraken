@@ -14,7 +14,7 @@ use gpui_kit::{
     prelude::*,
     *,
 };
-use ritkraken_git::{Change, CommitDetail, Scope};
+use ritkraken_git::{CommitDetail, CommittedFiles, Scope};
 
 use crate::i18n::{LocalizedInput, tr};
 
@@ -90,7 +90,7 @@ pub(super) struct ChangesState {
     pub(super) selection: selection::FileSelection,
     pub(super) detail: Load<CommitDetail>,
     show_all_files: bool,
-    commit_files: Option<Load<Vec<Change>>>,
+    commit_files: Option<Load<CommittedFiles>>,
     pub(super) request: u64,
     scroll: [UniformListScrollHandle; 3],
     pub(super) summary: LocalizedInput,
@@ -207,11 +207,13 @@ impl Client {
                     .into_iter()
                     .map(|change| (change.path.clone(), change))
                     .collect();
-                repo.committed_files(&oid).map(|files| {
+                repo.committed_files(&oid).map(|mut files| {
+                    for file in &mut files.changes {
+                        if let Some(change) = changed.get(&file.path) {
+                            *file = change.clone();
+                        }
+                    }
                     files
-                        .into_iter()
-                        .map(|file| changed.get(&file.path).cloned().unwrap_or(file))
-                        .collect()
                 })
             },
             move |this, result, _, cx| {

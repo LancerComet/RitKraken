@@ -74,6 +74,18 @@ impl Client {
             FileAction::Stage => self.stage_selected_files(id, files, window, cx),
             FileAction::Discard => self.discard_files(id, files, window, cx),
             FileAction::ExportPatch => self.export_file_patch(id, files, window, cx),
+            FileAction::UpdateSubmodules => {
+                let paths = files
+                    .into_iter()
+                    .map(|file| file.change.path)
+                    .collect();
+                self.update_repo(
+                    id,
+                    Some(RepoOperation::UpdateSubmodules(Some(paths))),
+                    window,
+                    cx,
+                );
+            }
             _ if files.len() != 1 => {}
             FileAction::Open => self.open_file(id, file, window, cx),
             FileAction::Reveal => self.show_file_in_folder(id, path, window, cx),

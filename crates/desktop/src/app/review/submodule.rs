@@ -67,7 +67,7 @@ fn update_button(
         cx.listener(move |this, _, window, cx| {
             this.update_repo(
                 id,
-                Some(RepoOperation::UpdateSubmodule(path.clone())),
+                Some(RepoOperation::UpdateSubmodules(Some(vec![path.clone()]))),
                 window,
                 cx,
             )

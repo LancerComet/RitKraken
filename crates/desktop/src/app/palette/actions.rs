@@ -162,17 +162,23 @@ impl Client {
                     | Command::Push
                     | Command::Stash
                     | Command::Pop
+                    | Command::UpdateSubmodules
                     | Command::Compare => return,
                 };
                 let edit = RepoOperation::StageFiles(action, Some(changes.clone()));
                 self.update_repo(id, Some(edit), window, cx);
             }
-            Command::Fetch | Command::Push | Command::Stash | Command::Pop => {
+            Command::Fetch
+            | Command::Push
+            | Command::Stash
+            | Command::Pop
+            | Command::UpdateSubmodules => {
                 let Some(id) = id else { return };
                 let edit = match command {
                     Command::Fetch => RepoOperation::Fetch(None),
                     Command::Stash => RepoOperation::Stash,
                     Command::Pop => RepoOperation::Pop,
+                    Command::UpdateSubmodules => RepoOperation::UpdateSubmodules(None),
                     Command::Push => {
                         let Some(snapshot) = self.tab(id).map(|tab| &tab.history.data.snapshot)
                         else {
