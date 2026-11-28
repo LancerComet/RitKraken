@@ -1,0 +1,139 @@
+--- a/diff/mod.rs
++++ b/diff/mod.rs
+@@ -45,6 +45,7 @@ use decoration::{Decorations, GutterMarkers};
+ use presentation::FilePresentation;
+ use selection::{CodeText, SelectionLayer};
+ pub(crate) use state::DisplayRow;
++pub(crate) use state::decode_side;
+ use state::{FoldExpansion, LayoutKey, SelectedLines};
+ 
+ // Private: bindings serve the focused code body only.
+@@ -701,6 +702,11 @@ fn render_diff(
+         .when(has_rows && !soft_wrap && split.is_none(), |this| {
+             this.child(crate::horizontal::scrollbar(&horizontal))
+         })
++        .child(crate::horizontal::drag_scroll_listener(
++            cx.entity(),
++            soft_wrap,
++            split.is_some(),
++        ))
+         // A line-number drag may finish anywhere, including outside the body.
+         .on_mouse_up(
+             MouseButton::Left,
+@@ -808,6 +814,7 @@ fn render_diff(
+                             // every row height when its width changes.
+                             let rehinted = state.keep_row_height_hint();
+                             state.reveal_search_target(soft_wrap, split.is_some(), window, cx);
++                            state.finish_horizontal_auto_scroll_refresh(soft_wrap, window, cx);
+                             // The estimate shapes the widest candidates only;
+                             // grow to fit any wider line once it is painted.
+                             let painted = if soft_wrap {
+--- a/diff/selection.rs
++++ b/diff/selection.rs
+@@ -40,11 +40,22 @@ pub(crate) struct SelectionGeometry {
+     scroll_offset: Point<Pixels>,
+     multi_click: Cell<Option<(usize, Point<Pixels>, bool)>>,
+     runs: Vec<CodeRun>,
++    code_viewports: [Option<Bounds<Pixels>>; 2],
+ }
+ 
+ impl SelectionGeometry {
+     pub fn clear(&mut self) {
+         self.runs.clear();
++        self.code_viewports = [None; 2];
++    }
++
++    /// The clipping viewport each side's code is painted through, when any
++    /// of its text prepainted this frame.
++    pub(crate) fn code_viewport(&self, side: DiffSide) -> Option<Bounds<Pixels>> {
++        self.code_viewports[match side {
++            DiffSide::Original => 0,
++            DiffSide::Modified => 1,
++        }]
+     }
+ 
+     /// The widest painted source line, measured from its first text run.
+@@ -329,6 +340,14 @@ impl Element for CodeText {
+     ) {
+         let text = self.styled_text.as_mut().unwrap();
+         text.prepaint(id, inspector, bounds, &mut (), window, cx);
++        let clip = window.content_mask().bounds;
++        if clip.size.width > px(0.) && clip.size.height > px(0.) {
++            let slot = match self.side {
++                DiffSide::Original => 0,
++                DiffSide::Modified => 1,
++            };
++            self.geometry.borrow_mut().code_viewports[slot] = Some(clip);
++        }
+         self.geometry.borrow_mut().runs.push(CodeRun {
+             file: self.file,
+             side: self.side,
+@@ -336,7 +355,7 @@ impl Element for CodeText {
+             display_range: self.range.clone(),
+             layout: text.layout().clone(),
+             bounds,
+-            visible_bounds: bounds.intersect(&window.content_mask().bounds),
++            visible_bounds: bounds.intersect(&clip),
+             document: self.document.clone(),
+         });
+     }
+--- a/diff/state.rs
++++ b/diff/state.rs
+@@ -231,6 +231,7 @@ pub struct DiffState {
+     list: ListState,
+     horizontal_scroll: ScrollHandle,
+     split_scroll: SplitScroll,
++    pub(crate) horizontal_auto_scroll: crate::horizontal::HorizontalAutoScroll,
+     focus: FocusHandle,
+     selection: TextSelectionHandle,
+     geometry: Rc<RefCell<SelectionGeometry>>,
+@@ -318,6 +319,15 @@ impl DiffState {
+         let _selection_subscription = selection.subscribe(
+             move |event, cx| {
+                 let _ = weak.update(cx, |state, cx| {
++                    match event {
++                        TextSelectionEvent::Cleared => state.stop_horizontal_auto_scroll(),
++                        TextSelectionEvent::SelectionChanged(snapshot)
++                            if !snapshot.as_ref().is_some_and(|snapshot| snapshot.is_selecting()) =>
++                        {
++                            state.stop_horizontal_auto_scroll();
++                        }
++                        _ => {}
++                    }
+                     if !state.selection.has_local_selection(cx) {
+                         match event {
+                             TextSelectionEvent::SelectionChanged(Some(_)) => {
+@@ -367,6 +377,7 @@ impl DiffState {
+             list: ListState::new(0, ListAlignment::Top, px(0.)),
+             horizontal_scroll: ScrollHandle::new(),
+             split_scroll: SplitScroll::default(),
++            horizontal_auto_scroll: crate::horizontal::HorizontalAutoScroll::default(),
+             focus,
+             selection,
+             geometry,
+@@ -675,6 +686,7 @@ impl DiffState {
+         self.selection_cursor = None;
+         self.selecting = false;
+         self.geometry.borrow_mut().clear();
++        self.stop_horizontal_auto_scroll();
+         self.rebuild(true);
+         self.horizontal_scroll.set_offset(point(px(0.), px(0.)));
+         self.split_scroll.reset();
+@@ -737,6 +749,7 @@ impl DiffState {
+             return;
+         }
+         self.mode = mode;
++        self.stop_horizontal_auto_scroll();
+         self.rebuild_at_anchor();
+         self.horizontal_scroll.set_offset(point(px(0.), px(0.)));
+         self.split_scroll.reset();
+@@ -1663,6 +1676,9 @@ pub(crate) fn encode_key(file: usize, side: DiffSide, offset: usize) -> u64 {
+         }
+         | (offset as u64 & OFFSET_MASK)
+ }
++pub(crate) fn decode_side(key: u64) -> DiffSide {
++    decode_key(key).1
++}
+ pub(crate) fn decode_key(key: u64) -> (usize, DiffSide, usize) {
+     (
+         (key >> 41) as usize,

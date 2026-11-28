@@ -38,6 +38,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "horizontal-scroll.patch",
         "overview.patch",
         "search.patch",
+        "horizontal-drag-scroll.patch",
     ] {
         let patch = manifest_dir.join(name);
         gpui_build::apply_patch(&generated, &patch)?;

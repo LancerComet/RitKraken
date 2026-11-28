@@ -49,6 +49,8 @@ mod highlighter {
 
 use gpui_component::Rope;
 
+#[doc(hidden)]
+pub use horizontal::{horizontal_auto_scroll_delta, step_horizontal_offset};
 pub use diff::{
     Diff, DiffConflictResolution, DiffFile, DiffFileStatus, DiffHunkSeparator, DiffLinePosition,
     DiffMode, DiffParseOptions, DiffSide, DiffState,
