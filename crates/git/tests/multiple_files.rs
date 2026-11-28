@@ -169,3 +169,58 @@ fn discard_checks_the_entire_selection_before_removing_any_changes() {
     repo.discard_files(&expected).unwrap();
     assert!(repo.status().unwrap().is_empty());
 }
+
+#[test]
+fn prepare_discards_and_discard_files_clear_all_unstaged_while_preserving_staged() {
+    let (_directory, repo) = fixture();
+    for (name, contents) in [
+        ("modified.txt", "base\n"),
+        ("both.txt", "base\n"),
+        ("staged_only.txt", "base\n"),
+    ] {
+        fs::write(repo.root().join(name), contents).unwrap();
+    }
+    repo.stage(None).unwrap();
+    repo.commit("Base", "").unwrap();
+
+    fs::write(repo.root().join("modified.txt"), "unstaged edit\n").unwrap();
+    fs::write(repo.root().join("both.txt"), "staged edit\n").unwrap();
+    git(&repo, &["add", "--", "both.txt"]);
+    fs::write(repo.root().join("both.txt"), "staged edit\nunstaged edit\n").unwrap();
+    fs::write(repo.root().join("staged_only.txt"), "staged edit\n").unwrap();
+    git(&repo, &["add", "--", "staged_only.txt"]);
+    fs::write(repo.root().join("untracked.txt"), "untracked\n").unwrap();
+
+    let unstaged_targets: Vec<_> = repo
+        .status()
+        .unwrap()
+        .unstaged
+        .into_iter()
+        .map(|change| FileTarget {
+            scope: Scope::Worktree,
+            change,
+        })
+        .collect();
+    assert_eq!(unstaged_targets.len(), 3);
+    let prepared = repo.prepare_discards(&unstaged_targets).unwrap();
+    repo.discard_files(&prepared).unwrap();
+
+    let status = repo.status().unwrap();
+    assert!(status.unstaged.is_empty());
+    assert!(!repo.root().join("untracked.txt").exists());
+    assert_eq!(
+        fs::read_to_string(repo.root().join("modified.txt")).unwrap(),
+        "base\n"
+    );
+    assert_eq!(
+        fs::read_to_string(repo.root().join("both.txt")).unwrap(),
+        "staged edit\n"
+    );
+    assert_eq!(
+        fs::read_to_string(repo.root().join("staged_only.txt")).unwrap(),
+        "staged edit\n"
+    );
+    assert_eq!(status.staged.len(), 2);
+    assert_eq!(git(&repo, &["show", ":both.txt"]), "staged edit\n");
+    assert_eq!(git(&repo, &["show", ":staged_only.txt"]), "staged edit\n");
+}

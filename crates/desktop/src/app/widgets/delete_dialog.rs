@@ -16,6 +16,7 @@ pub(in crate::app) struct DeleteDialog {
     owner: WeakEntity<Client>,
     operation: Option<RepoOperation>,
     message: String,
+    confirm_label: String,
     modal: ModalHandle,
     cancel_focus: FocusHandle,
 }
@@ -29,6 +30,26 @@ impl DeleteDialog {
         window: &mut Window,
         cx: &mut Context<Client>,
     ) {
+        Self::open_with_confirm_label(
+            repo_id,
+            title,
+            message,
+            tr!("app.ref_menu.confirm_delete"),
+            operation,
+            window,
+            cx,
+        );
+    }
+
+    pub(in crate::app) fn open_with_confirm_label(
+        repo_id: u64,
+        title: String,
+        message: String,
+        confirm_label: String,
+        operation: RepoOperation,
+        window: &mut Window,
+        cx: &mut Context<Client>,
+    ) {
         let owner = cx.weak_entity();
         let modal = ModalHandle::new(cx);
         let handle = modal.clone();
@@ -37,6 +58,7 @@ impl DeleteDialog {
             owner,
             operation: Some(operation),
             message,
+            confirm_label,
             modal: handle,
             cancel_focus: cx.focus_handle(),
         });
@@ -101,7 +123,7 @@ impl Render for DeleteDialog {
                     .child(
                         button(
                             "confirm-delete",
-                            tr!("app.ref_menu.confirm_delete"),
+                            self.confirm_label.clone(),
                             Tone::Red,
                             true,
                             cx,

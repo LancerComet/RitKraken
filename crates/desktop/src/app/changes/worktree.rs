@@ -5,6 +5,7 @@ use gpui_kit::{
         input::{Input, Textarea},
         progress::ProgressCircle,
         resizable::resizable_panel,
+        tooltip::Tooltip,
     },
     prelude::*,
     *,
@@ -20,7 +21,7 @@ use crate::app::{
     message::branch_label,
     session::ActiveOp,
     theme::palette,
-    widgets::{Tone, bento_v_resizable, button, button_content},
+    widgets::{Tone, bento_v_resizable, button, button_content, icon},
 };
 
 const FILE_SECTION_HEADER_HEIGHT: Pixels = px(32.);
@@ -234,6 +235,8 @@ impl Client {
         let selected = tab.changes.selection.selected(&scope, files);
         let (stage_target, targets) = section_stage_targets(&scope, files, selected);
         let conflicted = targets.iter().any(|file| file.change.code == b'U');
+        let show_discard_all = shows_discard_all_button(&scope, files);
+        let discard_enabled = discard_all_enabled(tab.busy, files);
         let submodules: std::collections::HashSet<std::path::PathBuf> = tab
             .history
             .data
@@ -268,9 +271,48 @@ impl Client {
                         div()
                             .flex_1()
                             .min_w_0()
-                            .truncate()
-                            .font_weight(FontWeight::MEDIUM)
-                            .child(tr!(title_key, count = files.len())),
+                            .flex()
+                            .items_center()
+                            .gap(px(4.))
+                            .when(show_discard_all, |row| {
+                                row.child(
+                                    button_content(
+                                        ("discard-all-unstaged", id),
+                                        icon("icons/trash.svg", p.text_muted)
+                                            .size(px(13.))
+                                            .when(discard_enabled, |glyph| {
+                                                glyph.group_hover(
+                                                    "discard-all-unstaged",
+                                                    |style| style.text_color(rgb(p.danger)),
+                                                )
+                                            }),
+                                        Tone::Plain,
+                                        discard_enabled,
+                                        cx,
+                                        cx.listener(move |this, _, window, cx| {
+                                            this.confirm_discard_unstaged(id, window, cx);
+                                        }),
+                                    )
+                                    .group("discard-all-unstaged")
+                                    .flex_shrink_0()
+                                    .size(px(22.))
+                                    .px(px(0.))
+                                    .rounded(px(6.))
+                                    .aria_label(tr!("app.changes.discard_all_unstaged"))
+                                    .tooltip(|window, cx| {
+                                        Tooltip::new(tr!("app.changes.discard_all_unstaged"))
+                                            .build(window, cx)
+                                    }),
+                                )
+                            })
+                            .child(
+                                div()
+                                    .flex_1()
+                                    .min_w_0()
+                                    .truncate()
+                                    .font_weight(FontWeight::MEDIUM)
+                                    .child(tr!(title_key, count = files.len())),
+                            ),
                     )
                     .when_some(action, |e, action| {
                         e.child(
@@ -304,6 +346,14 @@ impl Client {
     }
 }
 
+fn shows_discard_all_button(scope: &Scope, files: &[Change]) -> bool {
+    matches!(scope, Scope::Worktree) && !files.is_empty()
+}
+
+fn discard_all_enabled(busy: bool, files: &[Change]) -> bool {
+    !busy && !files.iter().any(|file| file.code == b'U')
+}
+
 fn section_stage_targets(
     scope: &Scope,
     files: &[Change],
@@ -328,7 +378,7 @@ fn section_stage_targets(
 mod tests {
     use ritkraken_git::{Change, FileTarget, Scope};
 
-    use super::{StageTarget, section_stage_targets};
+    use super::{StageTarget, discard_all_enabled, section_stage_targets, shows_discard_all_button};
 
     fn sample_files() -> Vec<Change> {
         ["a.rs", "b.rs", "c.rs"]
@@ -376,5 +426,28 @@ mod tests {
                 ["a.rs", "c.rs"]
             );
         }
+    }
+
+    #[test]
+    fn discard_all_button_shows_only_for_populated_worktree_sections() {
+        let files = sample_files();
+        assert!(shows_discard_all_button(&Scope::Worktree, &files));
+        assert!(!shows_discard_all_button(&Scope::Index, &files));
+        let commit = Scope::Commit {
+            id: "id".into(),
+            parent: None,
+        };
+        assert!(!shows_discard_all_button(&commit, &files));
+        assert!(!shows_discard_all_button(&Scope::Worktree, &[]));
+    }
+
+    #[test]
+    fn discard_all_disabled_when_busy_or_conflicted() {
+        let files = sample_files();
+        assert!(discard_all_enabled(false, &files));
+        assert!(!discard_all_enabled(true, &files));
+        let mut conflicted = files.clone();
+        conflicted[1].code = b'U';
+        assert!(!discard_all_enabled(false, &conflicted));
     }
 }

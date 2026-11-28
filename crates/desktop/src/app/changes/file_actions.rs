@@ -1,10 +1,16 @@
 use std::sync::Arc;
 
 use gpui_kit::*;
-use ritkraken_git::{Change, FileTarget};
+use ritkraken_git::{Change, FileTarget, Scope};
 
 use super::{StageAction, inspect::FileInspection, menu::FileAction};
-use crate::app::{Client, Message, Notice, RepoOperation};
+use crate::{
+    app::{
+        Client, Message, Notice, RepoOperation,
+        widgets::delete_dialog::DeleteDialog,
+    },
+    i18n::tr,
+};
 
 impl Client {
     pub(super) fn selected_file_targets(
@@ -111,13 +117,18 @@ impl Client {
         }
     }
 
-    fn discard_files(
+    fn prepare_discard_files(
         &mut self,
         id: u64,
         files: Vec<FileTarget>,
+        on_ready: impl FnOnce(&mut Self, Vec<ritkraken_git::DiscardFile>, &mut Window, &mut Context<Self>)
+        + 'static,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        if files.is_empty() {
+            return;
+        }
         let Some(tab) = self.tab_mut(id).filter(|tab| !tab.busy) else {
             return;
         };
@@ -126,12 +137,7 @@ impl Client {
         Self::spawn_background(
             window,
             cx,
-            move || {
-                files
-                    .iter()
-                    .map(|file| repo.prepare_discard(file))
-                    .collect::<ritkraken_git::Result<Vec<_>>>()
-            },
+            move || repo.prepare_discards(&files),
             move |this, result, window, cx| {
                 let Some(tab) = this.tab_mut(id) else { return };
                 tab.busy = false;
@@ -143,16 +149,87 @@ impl Client {
                         return;
                     }
                 };
+                on_ready(this, expected, window, cx);
+                cx.notify();
+            },
+        );
+        cx.notify();
+    }
+
+    pub(super) fn confirm_discard_unstaged(
+        &mut self,
+        id: u64,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if self.modal_is_present() {
+            return;
+        }
+        let Some(tab) = self.tab(id) else { return };
+        let files: Vec<FileTarget> = tab
+            .history
+            .data
+            .snapshot
+            .status
+            .unstaged
+            .iter()
+            .cloned()
+            .map(|change| FileTarget {
+                scope: Scope::Worktree,
+                change,
+            })
+            .collect();
+        if files.is_empty() {
+            return;
+        }
+        self.prepare_discard_files(
+            id,
+            files,
+            move |this, expected, window, cx| {
+                if expected.is_empty() || this.modal_is_present() {
+                    return;
+                }
+                let message = if expected.len() == 1 {
+                    tr!("app.changes.confirm_discard_all_one")
+                } else {
+                    tr!("app.changes.confirm_discard_all_many", count = expected.len())
+                };
+                DeleteDialog::open_with_confirm_label(
+                    id,
+                    tr!("app.changes.confirm_discard_all_title"),
+                    message,
+                    tr!("app.changes.confirm_discard_all_action"),
+                    RepoOperation::DiscardFiles(Arc::new(expected)),
+                    window,
+                    cx,
+                );
+            },
+            window,
+            cx,
+        );
+    }
+
+    fn discard_files(
+        &mut self,
+        id: u64,
+        files: Vec<FileTarget>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.prepare_discard_files(
+            id,
+            files,
+            move |this, expected, window, cx| {
                 this.update_repo(
                     id,
                     Some(RepoOperation::DiscardFiles(Arc::new(expected))),
                     window,
                     cx,
                 );
-                cx.notify();
             },
+            window,
+            cx,
         );
-        cx.notify();
     }
 
     fn export_file_patch(

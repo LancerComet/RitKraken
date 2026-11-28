@@ -72,7 +72,7 @@ impl Repo {
 
     /// Reads the versions for a whole selection with one process per Git
     /// command instead of one per file.
-    pub(crate) fn prepare_discards(&self, files: &[FileTarget]) -> Result<Vec<DiscardFile>> {
+    pub fn prepare_discards(&self, files: &[FileTarget]) -> Result<Vec<DiscardFile>> {
         if files.is_empty() {
             return Ok(Vec::new());
         }
